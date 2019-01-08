@@ -6,6 +6,18 @@
 #include <Eigen/Core>
 
 
+
+cv::Mat bitshift_down(uint8_t* arr, unsigned int w, unsigned int h, unsigned int n){
+    unsigned int index = 0;
+    for (int i=0; i<w; i++){
+        for (int j=0; j<h; j++){
+            arr[index] = arr[index] >> n;
+            index++;
+        }
+    }
+}
+
+
 std::vector<bool> msgfile2bits(char* fp){
     std::vector<bool> msg;
     std::ifstream msg_file(fp, std::ios::binary);
@@ -40,38 +52,47 @@ int main(const int argc, char *argv[]){
         std::cout << msg[i];
     std::cout << std::endl;
     
-    cv::Mat im;
+    cv::Mat im_mat;
     typedef Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> MatrixXb;
+    
+    unsigned int w;
+    unsigned int h;
     
     unsigned int entries;
     unsigned int im_bits__length;
     const unsigned int n_channels = 3;
     std::vector<bool> im_bits;
     for (int i=2; i<argc; i++){
-        im = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
+        im_mat = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
         
-        const unsigned int w = im.cols;
-        const unsigned int h = im.rows;
+        w = im_mat.cols;
+        h = im_mat.rows;
         
         entries = w*h*n_channels;
         
-        for (int i=0; i<entries; i++){
-            im_bits.push_back(im.data[i] & 1);
-            im_bits.push_back((im.data[i] & 2) >> 1);
-            im_bits.push_back((im.data[i] & 4) >> 2);
-            im_bits.push_back((im.data[i] & 8) >> 3);
-            im_bits.push_back((im.data[i] & 16) >> 4);
-            im_bits.push_back((im.data[i] & 32) >> 5);
-            im_bits.push_back((im.data[i] & 64) >> 6);
-            im_bits.push_back((im.data[i] & 128) >> 7);
-        }
+        uint8_t* im = im_mat.data;
         
-        im_bits__length = entries << 3;
+        cv::Mat ones = cv::Mat::ones(w, h, CV_8U);
+        // CV_8U == 8bit unsigned int
         
-        MatrixXb arr(h, w);
-        
-        std::cout << arr << std::endl;
+        cv::Mat im0;
+        cv::bitwise_and(im,                         ones, im0);
+        cv::Mat im1;
+        cv::bitwise_and(bitshift_down(im, w, h, 1), ones, im1);
+        cv::Mat im2;
+        cv::bitwise_and(bitshift_down(im, w, h, 2), ones, im1);
+        cv::Mat im3;
+        cv::bitwise_and(bitshift_down(im, w, h, 3), ones, im1);
+        cv::Mat im4;
+        cv::bitwise_and(bitshift_down(im, w, h, 4), ones, im1);
+        cv::Mat im5;
+        cv::bitwise_and(bitshift_down(im, w, h, 5), ones, im1);
+        cv::Mat im6;
+        cv::bitwise_and(bitshift_down(im, w, h, 6), ones, im1);
+        cv::Mat im7;
+        cv::bitwise_and(bitshift_down(im, w, h, 7), ones, im1);
     }
+    std::cout << im << std::endl;
     return 0;
 }
