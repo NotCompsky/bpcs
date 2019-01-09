@@ -54,10 +54,7 @@ int main(const int argc, char *argv[]){
     std::cout << std::endl;
     
     cv::Mat img;
-    typedef Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixXuint;
-    typedef Eigen::Stride<Eigen::Dynamic, 3> ThreeChStride;
-    // Limits us to images with 3 channels
-    typedef Eigen::Map<MatrixXuint, Eigen::Unaligned, ThreeChStride> CV2EigenMap;
+    typedef Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> MatrixXuint;
     
     unsigned int w;
     unsigned int h;
@@ -73,15 +70,16 @@ int main(const int argc, char *argv[]){
         w = img.cols;
         h = img.rows;
         
-        ThreeChStride ch_stride(w*3, 3);
+        entries = w*h*n_channels;
         
-        CV2EigenMap B((img.data) + 0, w, h, ch_stride);
-        CV2EigenMap G((img.data) + 1, w, h, ch_stride);
-        CV2EigenMap R((img.data) + 2, w, h, ch_stride);
+        std::vector<cv::Mat> channel_planes;
+        cv::split(img, channel_planes);
         
-        std::cout << R << std::endl << std::endl;
-        std::cout << G << std::endl << std::endl;
-        std::cout << B << std::endl << std::endl;
+        for (int i=0; i<n_channels; i++){
+            MatrixXuint arr;
+            cv::cv2eigen(channel_planes[i], arr);
+            std::cout << "Channel" << i << std::endl << arr << std::endl << std::endl;
+        }
     }
     return 0;
 }
