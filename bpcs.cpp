@@ -93,6 +93,5 @@ int main(const int argc, char *argv[]){
         cv::Mat im7;
         cv::bitwise_and(bitshift_down(im, w, h, 7), ones, im1);
     }
-    std::cout << im << std::endl;
     return 0;
 }
