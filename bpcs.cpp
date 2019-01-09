@@ -53,7 +53,7 @@ int main(const int argc, char *argv[]){
         std::cout << msg[i];
     std::cout << std::endl;
     
-    cv::Mat img;
+    cv::Mat im_mat;
     typedef Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> MatrixXuint;
     
     unsigned int w;
@@ -64,16 +64,16 @@ int main(const int argc, char *argv[]){
     const unsigned int n_channels = 3;
     std::vector<bool> im_bits;
     for (int i=2; i<argc; i++){
-        img = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
+        im_mat = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
         
-        w = img.cols;
-        h = img.rows;
+        w = im_mat.cols;
+        h = im_mat.rows;
         
         entries = w*h*n_channels;
         
         std::vector<cv::Mat> channel_planes;
-        cv::split(img, channel_planes);
+        cv::split(im_mat, channel_planes);
         
         for (int i=0; i<n_channels; i++){
             MatrixXuint arr;
