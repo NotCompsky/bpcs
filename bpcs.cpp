@@ -8,7 +8,7 @@
 
 
 
-cv::Mat bitshift_down(uint8_t* arr, unsigned int w, unsigned int h, unsigned int n){
+cv::Mat bitshift_down(uint_fast8_t* arr, unsigned int w, unsigned int h, unsigned int n){
     unsigned int index = 0;
     for (int i=0; i<w; i++){
         for (int j=0; j<h; j++){
@@ -54,7 +54,7 @@ int main(const int argc, char *argv[]){
     std::cout << std::endl;
     
     cv::Mat im_mat;
-    typedef Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> MatrixXuint;
+    typedef Eigen::Matrix<uint_fast8_t, Eigen::Dynamic, Eigen::Dynamic> MatrixXuint;
     
     unsigned int w;
     unsigned int h;
