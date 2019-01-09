@@ -75,10 +75,14 @@ int main(const int argc, char *argv[]){
         std::vector<cv::Mat> channel_planes;
         cv::split(im_mat, channel_planes);
         
+        std::vector<MatrixXuint> channel_arrs;
         for (int i=0; i<n_channels; i++){
             MatrixXuint arr;
             cv::cv2eigen(channel_planes[i], arr);
             std::cout << "Channel" << i << std::endl << arr << std::endl << std::endl;
+            channel_arrs.push_back(arr & (arr / 2));
+            // Bitshifting down ensures that the first bits of (arr >> 1) are 0 - so the first digit of the CGC'd arr is retained
+            std::cout << "CGC:" << std::endl << channel_arrs[i] << std::endl << std::endl << std::endl;
         }
     }
     return 0;
