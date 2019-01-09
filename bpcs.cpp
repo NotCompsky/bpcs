@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <Eigen/Core>
+#include <opencv2/core/eigen.hpp>
 
 
 
@@ -52,8 +53,11 @@ int main(const int argc, char *argv[]){
         std::cout << msg[i];
     std::cout << std::endl;
     
-    cv::Mat im_mat;
-    typedef Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> MatrixXb;
+    cv::Mat img;
+    typedef Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixXuint;
+    typedef Eigen::Stride<Eigen::Dynamic, 3> ThreeChStride;
+    // Limits us to images with 3 channels
+    typedef Eigen::Map<MatrixXuint, Eigen::Unaligned, ThreeChStride> CV2EigenMap;
     
     unsigned int w;
     unsigned int h;
@@ -63,35 +67,21 @@ int main(const int argc, char *argv[]){
     const unsigned int n_channels = 3;
     std::vector<bool> im_bits;
     for (int i=2; i<argc; i++){
-        im_mat = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
+        img = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
         
-        w = im_mat.cols;
-        h = im_mat.rows;
+        w = img.cols;
+        h = img.rows;
         
-        entries = w*h*n_channels;
+        ThreeChStride ch_stride(w*3, 3);
         
-        uint8_t* im = im_mat.data;
+        CV2EigenMap B((img.data) + 0, w, h, ch_stride);
+        CV2EigenMap G((img.data) + 1, w, h, ch_stride);
+        CV2EigenMap R((img.data) + 2, w, h, ch_stride);
         
-        cv::Mat ones = cv::Mat::ones(w, h, CV_8U);
-        // CV_8U == 8bit unsigned int
-        
-        cv::Mat im0;
-        cv::bitwise_and(im,                         ones, im0);
-        cv::Mat im1;
-        cv::bitwise_and(bitshift_down(im, w, h, 1), ones, im1);
-        cv::Mat im2;
-        cv::bitwise_and(bitshift_down(im, w, h, 2), ones, im1);
-        cv::Mat im3;
-        cv::bitwise_and(bitshift_down(im, w, h, 3), ones, im1);
-        cv::Mat im4;
-        cv::bitwise_and(bitshift_down(im, w, h, 4), ones, im1);
-        cv::Mat im5;
-        cv::bitwise_and(bitshift_down(im, w, h, 5), ones, im1);
-        cv::Mat im6;
-        cv::bitwise_and(bitshift_down(im, w, h, 6), ones, im1);
-        cv::Mat im7;
-        cv::bitwise_and(bitshift_down(im, w, h, 7), ones, im1);
+        std::cout << R << std::endl << std::endl;
+        std::cout << G << std::endl << std::endl;
+        std::cout << B << std::endl << std::endl;
     }
     return 0;
 }
