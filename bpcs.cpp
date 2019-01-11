@@ -36,10 +36,14 @@ cv::Mat bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
     return dest;
 }
 
-unsigned int xor_adj(std::vector<uint_fast8_t> arr, unsigned int len){
+unsigned int xor_adj(cv::Mat arr, unsigned int w, unsigned int h){
     unsigned int sum = 0;
-    for (int i=1; i<len; i++)
-        sum += arr[i-1] ^ arr[i];
+    for (int j=0; j<h; j++)
+        for (int i=1; i<w; i++)
+            sum += arr.at<uint_fast8_t>(i,j) ^ arr.at<uint_fast8_t>(i-1,j);
+    for (int i=0; i<w; i++)
+        for (int j=1; j<h; j++)
+            sum += arr.at<uint_fast8_t>(i,j) ^ arr.at<uint_fast8_t>(i,j-1);
     return sum;
 }
 
@@ -62,16 +66,9 @@ void decode_grid(cv::Mat grid){
 }
 
 float grid_complexity(cv::Mat grid, unsigned int grid_w, unsigned int grid_h){
-    std::vector<uint_fast8_t> col_or_row_sum;
-    unsigned int complexity_int;
-    cv::reduce(grid, col_or_row_sum, 0, cv::REDUCE_SUM, CV_8UC1); // sum rows
-    complexity_int  = xor_adj(col_or_row_sum, grid_w);
+    unsigned int complexity_int  = xor_adj(grid, grid_w, grid_h);
     
-    cv::reduce(grid, col_or_row_sum, 1, cv::REDUCE_SUM, CV_8UC1); // sum columns
-    // The summing and consequent bitshifting is just to XOR adjacent bits
-    complexity_int += complexity_int  = xor_adj(col_or_row_sum, grid_h);
-    
-    return (float)complexity_int / (float)(grid_w * grid_h);
+    return (float)complexity_int / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
 }
 
 void iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
