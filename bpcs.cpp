@@ -99,7 +99,7 @@ void print_cv_arr(const char* name, int i, cv::Mat &arr){
 }
 #endif
 
-int decode_grid(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
+int decode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
     #ifdef DEBUG6
         std::cout << "decode_grid(grid, " << grid_w << ", " << grid_h << ", msg)" << std::endl;
@@ -107,10 +107,19 @@ int decode_grid(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::ve
     for (int j=0; j<grid_h; j++)
         for (int i=0; i<grid_w; i++)
             msg.push_back((bool)grid.at<uint_fast8_t>(i,j));
-    return 0;
+    return 1;
 }
 
-int encode_grid(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
+float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
+    return (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
+}
+
+void conjugate_grid(cv::Mat &grid){
+    // Just specified for verbosity / to remember
+    cv::bitwise_xor(grid, 1, grid);
+}
+
+int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
     #ifdef DEBUG6
         std::cout << "encode_grid(grid, " << grid_w << ", " << grid_h << ", msg)" << std::endl;
@@ -119,7 +128,7 @@ int encode_grid(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::ve
     if (msg.size() == 0)
         // We've successfully embedded the entirety of the message bits into the image grids
         // Note that we can only guarantee that the msg will either entirely fit or have 0 length if we ensure its length is divisible by grid_w*grid_h earlier, after initialising it.
-        return 1;
+        return 0;
     
     /*
     if (msg.size() < grid_h * grid_w){
@@ -136,25 +145,24 @@ int encode_grid(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::ve
             grid.at<uint_fast8_t>(i,j) = (uint_fast8_t)msg[index];
             index++;
         }
+    
     msg.erase(std::begin(msg), std::begin(msg) + grid_w*grid_h);
-    return 0;
+    
+    if (grid_complexity(grid, grid_w, grid_h) < min_complexity){
+        conjugate_grid(grid);
+        return -1;
+    }
+    
+    return 1;
 }
 
-float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
-    return (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
-}
-
-void conjugate_grid(cv::Mat &grid){
-    // Just specified for verbosity / to remember
-    cv::bitwise_xor(grid, 1, grid);
-}
-
-int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, unsigned int n_hztl_grids, unsigned int n_vert_grids, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<int(cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg){
+int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, unsigned int n_hztl_grids, unsigned int n_vert_grids, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<int(const float, cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg, std::vector<unsigned long int> &conjugated_grids){
     // Pass reference to complexities, else a copy is passed (and changes are not kept)
     // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results. Hence we use float not double
     cv::Mat grid;
     unsigned long int n_grids_used = 0;
     float complexity;
+    int grid_fnct_status;
     #ifdef DEBUG3
         unsigned long int n_grids_so_far = 0;
         unsigned long int n_grids_total  = n_hztl_grids * n_vert_grids;
@@ -172,18 +180,23 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
             if (complexity < min_complexity)
                 continue;
             
-            if (grid_fnct(grid, grid_w, grid_h, msg) == 1)
-                return 1;
+            grid_fnct_status = grid_fnct(min_complexity, grid, grid_w, grid_h, msg);
+            
+            if (grid_fnct_status == 0)
+                return 0;
+            
+            if (grid_fnct_status == -1)
+                conjugated_grids.push_back(n_grids_used);
             
             n_grids_used++;
         }
         #ifdef DEBUG3
             n_grids_so_far += n_vert_grids;
             if (i % 10 == 0 || n_hztl_grids < 11)
-                std::cout << n_grids_so_far << " of " << n_grids_total << "grids\t" << n_grids_used << " with complexity >= " << min_complexity << "\tmsg size = " << msg.size() << std::endl;
+                std::cout << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity << "\tmsg size = " << msg.size() << std::endl;
         #endif
     }
-    return 0;
+    return 1;
 }
 
 #ifdef DEBUG1
@@ -298,7 +311,7 @@ int main(const int argc, char *argv[]){
     
     std::string mode;
     std::vector<std::string> msg_fps;
-    std::function<int(cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct;
+    std::function<int(const float, cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct;
     if (Amsg_fps){
         msg_fps = args::get(Amsg_fps);
         mode = "Encoding";
@@ -322,7 +335,7 @@ int main(const int argc, char *argv[]){
     std::vector<std::string>img_fps = args::get(Aimg_fps);
     unsigned int img_fps_len        = img_fps.size();
     
-    float min_complexity = args::get(Amin_complexity);
+    const float min_complexity = args::get(Amin_complexity);
     
     #ifdef DEBUG1
         std::cout << mode << " " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << ", " << +n_channels << " channels, " << +n_bits << " bits" << std::endl;
@@ -391,19 +404,33 @@ int main(const int argc, char *argv[]){
                 #endif
                 // i.e. dest is bitplane
                 
-                if (iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg) == 1){
+                std::vector<unsigned long int> conjugated_grids;
+                conjugated_grids.reserve((n_hztl_grids * n_vert_grids) >> 2);
+                // Guess at a good number - std::vector memory doubles when runs out so not a huge issue if we're off by a magnitude or two
+                
+                if (iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg, conjugated_grids) == 0){
                     msg_exhausted = true;
                     #ifdef DEBUG1
                         std::cout << "Incomplete histogram as exited early - msg was exhausted" << std::endl;
                     #endif
                     goto msg_exhausted;
                 }
+                
+                // TMP
+                unsigned int n_conjugated_grids = conjugated_grids.size();
+                std::cout << "Conjugated grids:" << std::endl;
+                for (int l=0; l<n_conjugated_grids; l++)
+                    std::cout << conjugated_grids[l] << ", ";
+                std::cout << std::endl;
             }
         }
+        
         msg_exhausted:
-        if (msg_exhausted){
+        #ifdef DEBUG1
+            print_histogram(complexities, n_bins, n_binchars);
+        #endif
+        if (msg_exhausted)
             goto exit;
-        }
     }
     exit:
     return 0;
