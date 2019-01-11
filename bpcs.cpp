@@ -14,14 +14,6 @@ void bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
     }
 }
 
-void bitshift_up_n(cv::Mat arr, cv::Mat dest, unsigned int w, unsigned int h, unsigned int n){
-    for (int i=0; i<w; i++){
-        for (int j=0; j<h; j++){
-            dest.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) << n;
-        }
-    }
-}
-
 void print_cv_arr(const char* name, int i, cv::Mat arr){
     std::cout << name << i << std::endl << arr << std::endl << std::endl;
 }
