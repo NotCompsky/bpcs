@@ -1,4 +1,3 @@
-#include <cblas.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
@@ -14,6 +13,12 @@ void bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
     }
 }
 
+void bitandshift(cv::Mat arr, cv::Mat dest, unsigned int w, unsigned int h, unsigned int n){
+    for (int i=0; i<w; i++)
+        for (int j=0; j<h; j++)
+            dest.at<uint_fast8_t>(i,j) = (arr.at<uint_fast8_t>(i,j) >> n) & 1;
+}
+
 void print_cv_arr(const char* name, int i, cv::Mat arr){
     std::cout << name << i << std::endl << arr << std::endl << std::endl;
 }
@@ -22,16 +27,29 @@ void decode_grid(cv::Mat grid){
     std::cout << "decode_grid" << std::endl << grid << std::endl << std::endl;
 }
 
-void iterate_over_bitgrids(cv::Mat bitarr, unsigned int bitarr_w, unsigned int bitarr_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
+float grid_complexity(cv::Mat grid, unsigned int grid_w, unsigned int grid_h){
+    return 0.5;
+}
+
+void iterate_over_bitgrids(cv::Mat bitarr, float min_complexity, unsigned int bitarr_w, unsigned int bitarr_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
     const unsigned int n_hztl_grids = bitarr_w / grid_w;
     const unsigned int n_vert_grids = bitarr_h / grid_h;
+    float complexity;
+    // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results
     cv::Mat grid;
+    unsigned long int n_grids_used = 0;
     for (int i=0; i<n_hztl_grids; i++){
+        std::cout << "Processing " << i << " out of " << n_hztl_grids << " grids" << std::endl;
         for (int j=0; j<n_vert_grids; j++){
             cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
             bitarr(grid_shape).copyTo(grid);
+            complexity = grid_complexity(grid, grid_w, grid_h);
+            if (complexity < min_complexity)
+                continue;
             grid_fnct(grid);
+            n_grids_used++;
         }
+        std::cout << n_grids_used << " grids with complexity >= " << min_complexity << std::endl;
     }
 }
 
@@ -59,6 +77,8 @@ int main(const int argc, char *argv[]){
         w = im_mat.cols;
         h = im_mat.rows;
         
+        bitarr = cv::Mat::zeros(w, h, CV_8UC1);
+        
         std::vector<cv::Mat> channel_planes;
         cv::split(im_mat, channel_planes);
         
@@ -75,9 +95,9 @@ int main(const int argc, char *argv[]){
             print_cv_arr("XOR'd with orig    ", i, tmparr);
             // Bitshifting down ensures that the first bits of (arr >> 1) are 0 - so the first digit of the CGC'd arr is retained
             for (int j=0; j<n_bits; j++){
-                cv::bitwise_and(tmparr, 1 << j, bitarr);
+                bitandshift(tmparr, bitarr, w, h, j);
                 print_cv_arr("bitplane", j, bitarr);
-                iterate_over_bitgrids(bitarr, w, h, grid_w, grid_h, decode_grid);
+                iterate_over_bitgrids(bitarr, 0.45, w, h, grid_w, grid_h, decode_grid);
             }
             std::cout << std::endl << std::endl;
         }
