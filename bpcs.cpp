@@ -1,16 +1,38 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <iostream>
+#ifdef DEBUG6
+    #define DEBUG5 DEBUG6
+#endif
+#ifdef DEBUG5
+    #define DEBUG4 DEBUG5
+#endif
+#ifdef DEBUG4
+    #define DEBUG3 DEBUG4
+#endif
+#ifdef DEBUG3
+    #define DEBUG2 DEBUG3
+#endif
+#ifdef DEBUG2
+    #define DEBUG1 DEBUG2
+#endif
+#ifdef DEBUG1
+    #include <iostream>
+#endif
 #include <fstream>
 #include <functional> // for std::function
 
+
 cv::Mat bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
-    std::cout << "bitshift_down" << std::endl << arr << std::endl << std::endl;
+    #ifdef DEBUG5
+        std::cout << "bitshift_down" << std::endl << arr << std::endl << std::endl;
+    #endif
     cv::Mat dest = cv::Mat::zeros(w, h, CV_8UC1);
     for (int i=0; i<w; i++)
         for (int j=0; j<h; j++)
             dest.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) >> 1;
-    std::cout << "bitshift_down" << std::endl << dest << std::endl << std::endl;
+    #ifdef DEBUG6
+        std::cout << "bitshift_down" << std::endl << dest << std::endl << std::endl;
+    #endif
     return dest;
 }
 
@@ -27,12 +49,16 @@ void bitandshift(cv::Mat arr, cv::Mat dest, unsigned int w, unsigned int h, unsi
             dest.at<uint_fast8_t>(i,j) = (arr.at<uint_fast8_t>(i,j) >> n) & 1;
 }
 
+#ifdef DEBUG1
 void print_cv_arr(const char* name, int i, cv::Mat arr){
     std::cout << name << i << std::endl << arr << std::endl << std::endl;
 }
+#endif
 
 void decode_grid(cv::Mat grid){
-    std::cout << "decode_grid" << std::endl << grid << std::endl << std::endl;
+    #ifdef DEBUG3
+        std::cout << "decode_grid" << std::endl << grid << std::endl << std::endl;
+    #endif
 }
 
 float grid_complexity(cv::Mat grid, unsigned int grid_w, unsigned int grid_h){
@@ -53,21 +79,37 @@ void iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int 
     const unsigned int n_vert_grids = bitplane_h / grid_h;
     float complexity;
     // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results
+    #ifdef DEBUG1
+        std::vector<float> complexities;
+    #endif
     cv::Mat grid;
     unsigned long int n_grids_used = 0;
     for (int i=0; i<n_hztl_grids; i++){
-        std::cout << "Processing " << i << " out of " << n_hztl_grids << " grids" << std::endl;
+        #ifdef DEBUG1
+            std::cout << "Processing " << i << " out of " << n_hztl_grids << " grids" << std::endl;
+        #endif
         for (int j=0; j<n_vert_grids; j++){
             cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
             bitplane(grid_shape).copyTo(grid);
             complexity = grid_complexity(grid, grid_w, grid_h);
+            #ifdef DEBUG1
+                complexities.push_back(complexity);
+            #endif
             if (complexity < min_complexity)
                 continue;
             grid_fnct(grid);
             n_grids_used++;
         }
-        std::cout << n_grids_used << " grids with complexity >= " << min_complexity << std::endl;
+        #ifdef DEBUG1
+            std::cout << n_grids_used << " grids with complexity >= " << min_complexity << std::endl;
+        #endif
     }
+    #ifdef DEBUG1
+        std::cout << "Complexities:" << std::endl;
+        unsigned int n = complexities.size();
+        for (int i=0; i<n; i++)
+            std::cout << "  " << complexities[i] << std::endl;
+    #endif
 }
 
 int main(const int argc, char *argv[]){
@@ -105,17 +147,27 @@ int main(const int argc, char *argv[]){
         for (int i=0; i<n_channels; i++){
             tmparrorig  = channel_planes_orig[i];
             tmparr      = bitshift_down(channel_planes[i], w, h);
-            print_cv_arr("channel_planes_orig", i, tmparrorig);
-            print_cv_arr("bitshifted down    ", i, tmparr);
+            #ifdef DEBUG3
+                print_cv_arr("channel_planes_orig", i, tmparrorig);
+            #endif
+            #ifdef DEBUG5
+                print_cv_arr("bitshifted down    ", i, tmparr);
+            #endif
             tmparr      = tmparr ^ tmparrorig;
-            print_cv_arr("XOR'd with orig    ", i, tmparr);
+            #ifdef DEBUG5
+                print_cv_arr("XOR'd with orig    ", i, tmparr);
+            #endif
             // Bitshifting down ensures that the first bits of (arr >> 1) are 0 - so the first digit of the CGC'd arr is retained
             for (int j=0; j<n_bits; j++){
                 bitandshift(tmparr, bitplane, w, h, j);
-                print_cv_arr("bitplane", j, bitplane);
+                #ifdef DEBUG5
+                    print_cv_arr("bitplane", j, bitplane);
+                #endif
                 iterate_over_bitgrids(bitplane, 0.45, w, h, grid_w, grid_h, decode_grid);
             }
-            std::cout << std::endl << std::endl;
+            #ifdef DEBUG3
+                std::cout << std::endl << std::endl;
+            #endif
         }
     }
     return 0;
