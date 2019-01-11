@@ -3,66 +3,63 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include <fstream>
-#include <Eigen/Core>
-#include <opencv2/core/eigen.hpp>
+#include <functional> // for std::function
 
 
-
-cv::Mat bitshift_down(uint_fast8_t* arr, unsigned int w, unsigned int h, unsigned int n){
-    unsigned int index = 0;
+void bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
     for (int i=0; i<w; i++){
         for (int j=0; j<h; j++){
-            arr[index] = arr[index] >> n;
-            index++;
+            arr.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) >> 1;
         }
     }
 }
 
-
-std::vector<bool> msgfile2bits(char* fp){
-    std::vector<bool> msg;
-    std::ifstream msg_file(fp, std::ios::binary);
-    char c;
-    std::cout << "msg_bytes: ";
-    while (msg_file.get(c)){
-        std::cout << c;
-        msg.push_back(c & 1);
-        msg.push_back((c & 2) >> 1);
-        msg.push_back((c & 4) >> 2);
-        msg.push_back((c & 8) >> 3);
-        msg.push_back((c & 16) >> 4);
-        msg.push_back((c & 32) >> 5);
-        msg.push_back((c & 64) >> 6);
-        msg.push_back((c & 128) >> 7);
+void bitshift_up_n(cv::Mat arr, cv::Mat dest, unsigned int w, unsigned int h, unsigned int n){
+    for (int i=0; i<w; i++){
+        for (int j=0; j<h; j++){
+            dest.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) << n;
+        }
     }
-    std::cout << std::endl;
-    return msg;
 }
 
+void print_cv_arr(const char* name, int i, cv::Mat arr){
+    std::cout << name << i << std::endl << arr << std::endl << std::endl;
+}
+
+void decode_grid(cv::Mat grid){
+    std::cout << "decode_grid" << std::endl << grid << std::endl << std::endl;
+}
+
+void iterate_over_bitgrids(cv::Mat bitarr, unsigned int bitarr_w, unsigned int bitarr_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
+    const unsigned int n_hztl_grids = bitarr_w / grid_w;
+    const unsigned int n_vert_grids = bitarr_h / grid_h;
+    cv::Mat grid;
+    for (int i=0; i<n_hztl_grids; i++){
+        for (int j=0; j<n_vert_grids; j++){
+            cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
+            bitarr(grid_shape).copyTo(grid);
+            grid_fnct(grid);
+        }
+    }
+}
 
 int main(const int argc, char *argv[]){
-    const unsigned int grid_w = 8;
-    const unsigned int grid_h = 8;
-    const unsigned int grid_size = grid_w * grid_h;
+    unsigned int grid_w = 3;
+    unsigned int grid_h = 3;
     
-    // tmp
-    std::vector<bool> msg = msgfile2bits(argv[1]);
-    
-    std::cout << "msg: ";
-    for (int i=0; i<msg.size(); i++)
-        std::cout << msg[i];
-    std::cout << std::endl;
+    const unsigned int n_bits = 8;
     
     cv::Mat im_mat;
-    typedef Eigen::Matrix<uint_fast8_t, Eigen::Dynamic, Eigen::Dynamic> MatrixXuint;
+    cv::Mat tmparr;
+    cv::Mat tmparrorig;
+    cv::Mat bitarr;
     
     unsigned int w;
     unsigned int h;
     
-    unsigned int entries;
     unsigned int im_bits__length;
     const unsigned int n_channels = 3;
-    std::vector<bool> im_bits;
+    
     for (int i=2; i<argc; i++){
         im_mat = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
@@ -70,19 +67,27 @@ int main(const int argc, char *argv[]){
         w = im_mat.cols;
         h = im_mat.rows;
         
-        entries = w*h*n_channels;
-        
         std::vector<cv::Mat> channel_planes;
         cv::split(im_mat, channel_planes);
         
-        std::vector<MatrixXuint> channel_arrs;
+        std::vector<cv::Mat> channel_planes_orig;
+        cv::split(im_mat.clone(), channel_planes_orig);
+        
         for (int i=0; i<n_channels; i++){
-            MatrixXuint arr;
-            cv::cv2eigen(channel_planes[i], arr);
-            std::cout << "Channel" << i << std::endl << arr << std::endl << std::endl;
-            channel_arrs.push_back(arr & (arr / 2));
+            tmparr      = channel_planes[i];
+            tmparrorig  = channel_planes_orig[i];
+            bitshift_down(tmparr, w, h);
+            print_cv_arr("channel_planes_orig", i, tmparrorig);
+            print_cv_arr("bitshifted down    ", i, tmparr);
+            tmparr      = tmparr ^ tmparrorig;
+            print_cv_arr("XOR'd with orig    ", i, tmparr);
             // Bitshifting down ensures that the first bits of (arr >> 1) are 0 - so the first digit of the CGC'd arr is retained
-            std::cout << "CGC:" << std::endl << channel_arrs[i] << std::endl << std::endl << std::endl;
+            for (int j=0; j<n_bits; j++){
+                cv::bitwise_and(tmparr, 1 << j, bitarr);
+                print_cv_arr("bitplane", j, bitarr);
+                iterate_over_bitgrids(bitarr, w, h, grid_w, grid_h, decode_grid);
+            }
+            std::cout << std::endl << std::endl;
         }
     }
     return 0;
