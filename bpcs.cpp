@@ -1,5 +1,7 @@
+#include <args.hxx>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp> // for calcHist
 #ifdef DEBUG6
     #define DEBUG5 DEBUG6
 #endif
@@ -71,14 +73,12 @@ float grid_complexity(cv::Mat grid, unsigned int grid_w, unsigned int grid_h){
     return (float)complexity_int / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
 }
 
-void iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
+cv::Mat iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
     const unsigned int n_hztl_grids = bitplane_w / grid_w;
     const unsigned int n_vert_grids = bitplane_h / grid_h;
     float complexity;
     // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results
-    #ifdef DEBUG1
-        std::vector<float> complexities;
-    #endif
+    cv::Mat complexities = cv::Mat::zeros(n_hztl_grids, n_vert_grids, CV_32F);
     cv::Mat grid;
     unsigned long int n_grids_used = 0;
     for (int i=0; i<n_hztl_grids; i++){
@@ -89,9 +89,9 @@ void iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int 
             cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
             bitplane(grid_shape).copyTo(grid);
             complexity = grid_complexity(grid, grid_w, grid_h);
-            #ifdef DEBUG1
-                complexities.push_back(complexity);
-            #endif
+            
+            complexities.at<float>(i, j) = complexity;
+            
             if (complexity < min_complexity)
                 continue;
             grid_fnct(grid);
@@ -101,19 +101,57 @@ void iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int 
             std::cout << n_grids_used << " grids with complexity >= " << min_complexity << std::endl;
         #endif
     }
-    #ifdef DEBUG1
-        std::cout << "Complexities:" << std::endl;
-        unsigned int n = complexities.size();
-        for (int i=0; i<n; i++)
-            std::cout << "  " << complexities[i] << std::endl;
-    #endif
+    return complexities;
 }
 
 int main(const int argc, char *argv[]){
+    args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
+    args::HelpFlag                      Ahelp           (parser, "help", "Display help", {'h', "help"});
+    args::ValueFlag<uint_fast8_t>       An_bits         (parser, "n_bits", "n_bits", {'b', "bits"});
+    args::ValueFlag<uint_fast8_t>       An_chns         (parser, "n_chns", "n_chns", {'c', "channels"});
+    args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `encoding`", {'m', "msg"});
+    args::Positional<float>             Amin_complexity (parser, "min_complexity", "Minimum bitplane complexity");
+    args::Positional<std::string>       Aout_fmt        (parser, "out_fmt", "Format of output file path(s)");
+    args::PositionalList<std::string>   Aimg_fps        (parser, "img_fps", "File path(s) of input image file(s)");
+    
+    try {
+        parser.ParseCLI(argc, argv);
+    } catch (const args::Completion& e) {
+        std::cout << e.what();
+        return 0;
+    } catch (const args::Help&) {
+        std::cout << parser;
+        return 0;
+    } catch (const args::ParseError& e) {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+    
     unsigned int grid_w = 3;
     unsigned int grid_h = 3;
     
-    const unsigned int n_bits = 8;
+    uint_fast8_t n_bits;
+    if (An_bits){
+        n_bits = args::get(An_bits);
+    } else {
+        n_bits = 8;
+    }
+    
+    uint_fast8_t n_channels;
+    if (An_chns){
+        n_channels = args::get(An_chns);
+    } else {
+        n_channels = 3;
+    }
+    
+    std::string mode;
+    if (Amsg_fps){
+        std::vector<std::string>msg_fps = args::get(Amsg_fps);
+        mode = "Encoding";
+    } else {
+        mode = "Decoding";
+    }
     
     cv::Mat im_mat;
     cv::Mat tmparr;
@@ -123,11 +161,18 @@ int main(const int argc, char *argv[]){
     unsigned int w;
     unsigned int h;
     
-    unsigned int im_bits__length;
-    const unsigned int n_channels = 3;
+    std::vector<std::string>img_fps = args::get(Aimg_fps);
+    unsigned int img_fps_len        = img_fps.size();
     
-    for (int i=2; i<argc; i++){
-        im_mat = cv::imread(argv[i], CV_LOAD_IMAGE_COLOR);
+    float min_complexity = args::get(Amin_complexity);
+    
+    #ifdef DEBUG1
+        std::cout << mode << " " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << ", " << +n_channels << " channels, " << +n_bits << " bits" << std::endl;
+        // Preceding primitive data type with `+` operator makes it print ASCII character representing that numerical value, rather than the ASCII character of that value
+    #endif
+    
+    for (int i=0; i<img_fps_len; i++){
+        im_mat = cv::imread(img_fps[i], CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
         
         w = im_mat.cols;
@@ -141,31 +186,40 @@ int main(const int argc, char *argv[]){
         std::vector<cv::Mat> channel_planes_orig;
         cv::split(im_mat.clone(), channel_planes_orig);
         
-        for (int i=0; i<n_channels; i++){
-            tmparrorig  = channel_planes_orig[i];
-            tmparr      = bitshift_down(channel_planes[i], w, h);
+        std::vector<cv::Mat> complexity_mats;
+        
+        for (int j=0; j<n_channels; j++){
+            tmparrorig  = channel_planes_orig[j];
+            tmparr      = bitshift_down(channel_planes[j], w, h);
             #ifdef DEBUG3
-                print_cv_arr("channel_planes_orig", i, tmparrorig);
+                print_cv_arr("channel_planes_orig", j, tmparrorig);
             #endif
             #ifdef DEBUG5
-                print_cv_arr("bitshifted down    ", i, tmparr);
+                print_cv_arr("bitshifted down    ", j, tmparr);
             #endif
             tmparr      = tmparr ^ tmparrorig;
             #ifdef DEBUG5
-                print_cv_arr("XOR'd with orig    ", i, tmparr);
+                print_cv_arr("XOR'd with orig    ", j, tmparr);
             #endif
             // Bitshifting down ensures that the first bits of (arr >> 1) are 0 - so the first digit of the CGC'd arr is retained
-            for (int j=0; j<n_bits; j++){
-                bitandshift(tmparr, bitplane, w, h, j);
+            for (int k=0; k<n_bits; k++){
+                bitandshift(tmparr, bitplane, w, h, k);
                 #ifdef DEBUG5
-                    print_cv_arr("bitplane", j, bitplane);
+                    print_cv_arr("bitplane", k, bitplane);
                 #endif
-                iterate_over_bitgrids(bitplane, 0.45, w, h, grid_w, grid_h, decode_grid);
+                complexity_mats.push_back(iterate_over_bitgrids(bitplane, min_complexity, w, h, grid_w, grid_h, decode_grid));
             }
             #ifdef DEBUG3
                 std::cout << std::endl << std::endl;
             #endif
         }
+        cv::Mat hist;
+        const int n_bins = 11;
+        float range[] = {0.0, 1.0};
+        const float* hist_range = {range};
+        // 2nd var is complexity_mats.size()
+        cv::calcHist(&complexity_mats[0], 1, 0, cv::Mat(), hist, 1, &n_bins, &hist_range, true, false);
+        std::cout << hist << std::endl;
     }
     return 0;
 }
