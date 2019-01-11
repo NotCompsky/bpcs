@@ -4,13 +4,21 @@
 #include <fstream>
 #include <functional> // for std::function
 
+cv::Mat bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
+    std::cout << "bitshift_down" << std::endl << arr << std::endl << std::endl;
+    cv::Mat dest = cv::Mat::zeros(w, h, CV_8UC1);
+    for (int i=0; i<w; i++)
+        for (int j=0; j<h; j++)
+            dest.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) >> 1;
+    std::cout << "bitshift_down" << std::endl << dest << std::endl << std::endl;
+    return dest;
+}
 
-void bitshift_down(cv::Mat arr, unsigned int w, unsigned int h){
-    for (int i=0; i<w; i++){
-        for (int j=0; j<h; j++){
-            arr.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) >> 1;
-        }
-    }
+unsigned int xor_adj(std::vector<uint_fast8_t> arr, unsigned int len){
+    unsigned int sum = 0;
+    for (int i=1; i<len; i++)
+        sum += arr[i-1] ^ arr[i];
+    return sum;
 }
 
 void bitandshift(cv::Mat arr, cv::Mat dest, unsigned int w, unsigned int h, unsigned int n){
@@ -28,7 +36,16 @@ void decode_grid(cv::Mat grid){
 }
 
 float grid_complexity(cv::Mat grid, unsigned int grid_w, unsigned int grid_h){
-    return 0.5;
+    std::vector<uint_fast8_t> col_or_row_sum;
+    unsigned int complexity_int;
+    cv::reduce(grid, col_or_row_sum, 0, cv::REDUCE_SUM, CV_8UC1); // sum rows
+    complexity_int  = xor_adj(col_or_row_sum, grid_w);
+    
+    cv::reduce(grid, col_or_row_sum, 1, cv::REDUCE_SUM, CV_8UC1); // sum columns
+    // The summing and consequent bitshifting is just to XOR adjacent bits
+    complexity_int += complexity_int  = xor_adj(col_or_row_sum, grid_h);
+    
+    return (float)complexity_int / (float)(grid_w * grid_h);
 }
 
 void iterate_over_bitgrids(cv::Mat bitplane, float min_complexity, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<void(cv::Mat&)> grid_fnct){
@@ -86,9 +103,8 @@ int main(const int argc, char *argv[]){
         cv::split(im_mat.clone(), channel_planes_orig);
         
         for (int i=0; i<n_channels; i++){
-            tmparr      = channel_planes[i];
             tmparrorig  = channel_planes_orig[i];
-            bitshift_down(tmparr, w, h);
+            tmparr      = bitshift_down(channel_planes[i], w, h);
             print_cv_arr("channel_planes_orig", i, tmparrorig);
             print_cv_arr("bitshifted down    ", i, tmparr);
             tmparr      = tmparr ^ tmparrorig;
