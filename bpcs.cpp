@@ -99,24 +99,35 @@ void print_cv_arr(const char* name, int i, cv::Mat &arr){
 }
 #endif
 
+void conjugate_grid(cv::Mat &grid){
+    // Just specified for verbosity / to remember
+    cv::bitwise_xor(grid, 1, grid);
+}
+
 int decode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
     #ifdef DEBUG6
         std::cout << "decode_grid(grid, " << grid_w << ", " << grid_h << ", msg)" << std::endl;
     #endif
+    
+    if (grid.at<uint_fast8_t>(0,0) == 1)
+        conjugate_grid(grid);
+    
+    unsigned int index = 0;
     for (int j=0; j<grid_h; j++)
-        for (int i=0; i<grid_w; i++)
+        for (int i=0; i<grid_w; i++){
+            if (index == 0)
+                // Do not add conjugation status bit to msg
+                continue;
             msg.push_back((bool)grid.at<uint_fast8_t>(i,j));
+            index++;
+        }
+    
     return 1;
 }
 
 float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
     return (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
-}
-
-void conjugate_grid(cv::Mat &grid){
-    // Just specified for verbosity / to remember
-    cv::bitwise_xor(grid, 1, grid);
 }
 
 int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
@@ -125,7 +136,9 @@ int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
         std::cout << "encode_grid(grid, " << grid_w << ", " << grid_h << ", msg)" << std::endl;
     #endif
     
-    if (msg.size() == 0)
+    long unsigned msg_size = msg.size();
+    
+    if (msg_size == 0)
         // We've successfully embedded the entirety of the message bits into the image grids
         // Note that we can only guarantee that the msg will either entirely fit or have 0 length if we ensure its length is divisible by grid_w*grid_h earlier, after initialising it.
         return 0;
@@ -139,24 +152,58 @@ int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
     If the above condition is met, ill reult in stack error
     */
     
-    unsigned int index = 0;
-    for (int j=0; j<grid_h; j++)
-        for (int i=0; i<grid_w; i++){
-            grid.at<uint_fast8_t>(i,j) = (uint_fast8_t)msg[index];
-            index++;
-        }
+    int index = -2;
     
-    msg.erase(std::begin(msg), std::begin(msg) + grid_w*grid_h);
+    #ifdef DEBUG7
+        bool debugg = false;
+        if (msg_size < 130){
+            std::cout << "encode_grid(grid, " << grid_w << ", " << grid_h << ", msg)" << std::endl << "grid" << std::endl << grid << std::endl << "msg  size == " << msg_size << std::endl << "[";
+            for (int i=0; i<msg_size; i++)
+                std::cout << +msg[i] << ", ";
+            std::cout << "]" << std::endl;
+            debugg = true;
+        }
+    #endif
+    
+    for (int j=0; j<grid_h; ++j){
+        #ifdef DEBUG7
+            if (debugg)
+                std::cout << "j";
+        #endif
+        for (int i=0; i<grid_w; ++i){
+            ++index;
+            #ifdef DEBUG7
+                if (debugg)
+                    std::cout << " " << +index;
+            #endif
+            if (index == -1){
+                #ifdef DEBUG7
+                    if (debugg)
+                        std::cout << "!";
+                    continue;
+                #endif
+                // First bit (at (0,0)) of grid is reserved for conjugation status
+            }
+            grid.at<uint_fast8_t>(i,j) = msg[index];
+        }
+        #ifdef DEBUG7
+            if (debugg)
+                std::cout << std::endl;
+        #endif
+    }
+    
+    msg.erase(std::begin(msg), std::begin(msg) + index + 1);
     
     if (grid_complexity(grid, grid_w, grid_h) < min_complexity){
         conjugate_grid(grid);
-        return -1;
+        grid.at<uint_fast8_t>(0,0) = 1;
     }
+    // In other words, the first bit of each message grid tells us whether it was conjugated
     
     return 1;
 }
 
-int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, unsigned int n_hztl_grids, unsigned int n_vert_grids, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<int(const float, cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg, std::vector<unsigned long int> &conjugated_grids){
+int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, unsigned int n_hztl_grids, unsigned int n_vert_grids, unsigned int bitplane_w, unsigned int bitplane_h, unsigned int grid_w, unsigned int grid_h, std::function<int(const float, cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg){
     // Pass reference to complexities, else a copy is passed (and changes are not kept)
     // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results. Hence we use float not double
     cv::Mat grid;
@@ -185,14 +232,11 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
             if (grid_fnct_status == 0)
                 return 0;
             
-            if (grid_fnct_status == -1)
-                conjugated_grids.push_back(n_grids_used);
-            
             n_grids_used++;
         }
         #ifdef DEBUG3
             n_grids_so_far += n_vert_grids;
-            if (i % 10 == 0 || n_hztl_grids < 11)
+            if (i % 10 == 0 || n_hztl_grids < 11 || msg.size() < 20000)
                 std::cout << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity << "\tmsg size = " << msg.size() << std::endl;
         #endif
     }
@@ -347,10 +391,8 @@ int main(const int argc, char *argv[]){
     for (int i=0; i<msg_fps_len; i++){
         add_msgfile_bits(msg, msg_fps[i].c_str());
     }
-    const unsigned int diff = grid_w*grid_h - msg.size() % (grid_w * grid_h);
-    #ifdef DEBUG5
-        std::cout << msg.size() << " % " << (grid_w * grid_h) << " == " << msg.size() % (grid_w * grid_h) << std::endl;
-    #endif
+    const unsigned int bits_encoded_per_grid = grid_w * grid_h -1;
+    const unsigned int diff = bits_encoded_per_grid - msg.size() % bits_encoded_per_grid;
     for (int i=0; i<diff; i++)
         msg.push_back(i & 1);
         // Alternate the junk bit so that we get a chequered style, a cheap pattern that is likely to result in a high complexity (which is what we desire)
@@ -404,24 +446,13 @@ int main(const int argc, char *argv[]){
                 #endif
                 // i.e. dest is bitplane
                 
-                std::vector<unsigned long int> conjugated_grids;
-                conjugated_grids.reserve((n_hztl_grids * n_vert_grids) >> 2);
-                // Guess at a good number - std::vector memory doubles when runs out so not a huge issue if we're off by a magnitude or two
-                
-                if (iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg, conjugated_grids) == 0){
+                if (iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg) == 0){
                     msg_exhausted = true;
                     #ifdef DEBUG1
                         std::cout << "Incomplete histogram as exited early - msg was exhausted" << std::endl;
                     #endif
                     goto msg_exhausted;
                 }
-                
-                // TMP
-                unsigned int n_conjugated_grids = conjugated_grids.size();
-                std::cout << "Conjugated grids:" << std::endl;
-                for (int l=0; l<n_conjugated_grids; l++)
-                    std::cout << conjugated_grids[l] << ", ";
-                std::cout << std::endl;
             }
         }
         
