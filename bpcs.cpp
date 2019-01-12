@@ -154,42 +154,15 @@ int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
     
     int index = -2;
     
-    #ifdef DEBUG7
-        bool debugg = false;
-        if (msg_size < 130){
-            std::cout << "encode_grid(grid, " << grid_w << ", " << grid_h << ", msg)" << std::endl << "grid" << std::endl << grid << std::endl << "msg  size == " << msg_size << std::endl << "[";
-            for (int i=0; i<msg_size; i++)
-                std::cout << +msg[i] << ", ";
-            std::cout << "]" << std::endl;
-            debugg = true;
-        }
-    #endif
-    
     for (int j=0; j<grid_h; ++j){
-        #ifdef DEBUG7
-            if (debugg)
-                std::cout << "j";
-        #endif
         for (int i=0; i<grid_w; ++i){
             ++index;
-            #ifdef DEBUG7
-                if (debugg)
-                    std::cout << " " << +index;
-            #endif
-            if (index == -1){
-                #ifdef DEBUG7
-                    if (debugg)
-                        std::cout << "!";
-                    continue;
-                #endif
+            if (index == -1)
+                continue;
                 // First bit (at (0,0)) of grid is reserved for conjugation status
-            }
+            
             grid.at<uint_fast8_t>(i,j) = msg[index];
         }
-        #ifdef DEBUG7
-            if (debugg)
-                std::cout << std::endl;
-        #endif
     }
     
     msg.erase(std::begin(msg), std::begin(msg) + index + 1);
@@ -211,6 +184,7 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
     float complexity;
     int grid_fnct_status;
     #ifdef DEBUG3
+        unsigned long int msg_size = 0;
         unsigned long int n_grids_so_far = 0;
         unsigned long int n_grids_total  = n_hztl_grids * n_vert_grids;
     #endif
@@ -236,8 +210,10 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
         }
         #ifdef DEBUG3
             n_grids_so_far += n_vert_grids;
-            if (i % 10 == 0 || n_hztl_grids < 11 || msg.size() < 20000)
-                std::cout << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity << "\tmsg size = " << msg.size() << std::endl;
+            if (i % 10 == 0 || n_hztl_grids < 11 || msg_size < 20000){
+                msg_size = msg.size();
+                std::cout << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity << "\tmsg size = " << msg_size << std::endl;
+            }
         #endif
     }
     return 1;
