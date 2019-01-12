@@ -56,46 +56,47 @@ void add_msgfile_bits(std::vector<uint_fast8_t> &msg, const char* fp){
     
     std::ifstream msg_file(fp, std::ios::binary);
     
-    char C;
-    unsigned char c;
-    #ifdef DEBUG6
-        std::cout << "msg_bytes: ";
-    #endif
-    while (msg_file.get(C)){
-        c = (unsigned char)C;
-        bytes.push_back(c);
-    }
+    char c;
+    while (msg_file.get(c))
+        bytes.push_back((unsigned char)c);
     
-    std::map<int,int> byte_freq;
+    std::map<uint_fast8_t, unsigned long int> byte_freq;
     
-    int min1 = 2;
-    int min2 = 2;
+    for (auto &vi : bytes)
+        // access arbitrary elements in bytes vector - we don't care about the ordering
+        ++byte_freq[vi];
+    
+    unsigned long int min1 = fsize;
+    unsigned long int min2 = fsize;
+    
     uint_fast8_t esc_byte;
     uint_fast8_t end_byte;
+    
+    unsigned long int freq;
+    
+    uint_fast8_t i=0;
+    do {
+        std::cout << +i << " ";
+        freq = byte_freq[i];
+        if (freq < min2){
+            if (freq < min1){
+                min1 = freq;
+                esc_byte = i;
+            } else {
+                min2 = freq;
+                end_byte = i;
+            }
+        }
+    } while (++i != 0);
     
     #ifdef DEBUG4
         std::cout << "esc_byte " << +esc_byte << ", end_byte " << +end_byte << std::endl;
     #endif
     
-    std::vector<uint_fast8_t>::iterator vi;
-    
-    for (vi=bytes.begin(); vi!=bytes.end(); ++vi){
-        // access arbitrary elements in bytes vector - we don't care about the ordering
-        if (++byte_freq[*vi] < min2){
-            if (byte_freq[*vi] < min1){
-                esc_byte = *vi;
-                ++min1;
-            } else if (*vi != esc_byte) {
-                end_byte = *vi;
-                ++min2;
-            }
-        }
-    }
-    
-    for (vi=bytes.begin(); vi!=bytes.end(); ++vi){
-        if (*vi == esc_byte || *vi == end_byte)
+    for (auto &vi : bytes){
+        if (vi == esc_byte || vi == end_byte)
             add_msg_bits(msg, esc_byte);
-        add_msg_bits(msg, *vi);
+        add_msg_bits(msg, vi);
     }
     
     #ifdef DEBUG6
@@ -406,7 +407,9 @@ int main(const int argc, char *argv[]){
     #endif
     
     std::vector<uint_fast8_t> msg;
+    
     const unsigned int msg_fps_len = msg_fps.size();
+    
     for (int i=0; i<msg_fps_len; i++){
         add_msgfile_bits(msg, msg_fps[i].c_str());
         // TODO: Read input files one by one, rather than all at once. Reduces memory requirement and possibly disk usage too in cases of debugging and errors.
