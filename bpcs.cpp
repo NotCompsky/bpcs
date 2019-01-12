@@ -425,7 +425,7 @@ int main(const int argc, char *argv[]){
         std::cout << (msg.size() >> 3) << "B to encode" << std::endl;
     #endif
     
-    bool msg_exhausted = false;
+    bool msg_was_exhausted = false;
     
     for (int i=0; i<img_fps_len; ++i){
         im_mat = cv::imread(img_fps[i], CV_LOAD_IMAGE_COLOR);
@@ -472,7 +472,7 @@ int main(const int argc, char *argv[]){
                 // i.e. dest is bitplane
                 
                 if (iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg) == 0){
-                    msg_exhausted = true;
+                    msg_was_exhausted = true;
                     #ifdef DEBUG1
                         std::cout << "Incomplete histogram as exited early - msg was exhausted" << std::endl;
                     #endif
@@ -485,7 +485,7 @@ int main(const int argc, char *argv[]){
         #ifdef DEBUG1
             print_histogram(complexities, n_bins, n_binchars);
         #endif
-        if (msg_exhausted)
+        if (msg_was_exhausted)
             goto exit;
     }
     exit:
