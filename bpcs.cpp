@@ -23,6 +23,7 @@
 #include <fstream>
 #include <functional> // for std::function
 #include <sys/stat.h> // for stat
+#include <map> // for std::map
 
 
 long unsigned int get_fsize(const char* fp){
@@ -31,8 +32,27 @@ long unsigned int get_fsize(const char* fp){
     return rc == 0 ? stat_buf.st_size : -1;
 }
 
+void add_msg_bits(std::vector<uint_fast8_t> &msg, uint_fast8_t c){
+    #ifdef DEBUG6
+        std::cout << +c << "  ";
+    #endif
+    msg.push_back(c & 1);
+    msg.push_back((c & 2) >> 1);
+    msg.push_back((c & 4) >> 2);
+    msg.push_back((c & 8) >> 3);
+    msg.push_back((c & 16) >> 4);
+    msg.push_back((c & 32) >> 5);
+    msg.push_back((c & 64) >> 6);
+    msg.push_back((c & 128) >> 7);
+}
+
 void add_msgfile_bits(std::vector<uint_fast8_t> &msg, const char* fp){
-    msg.reserve(get_fsize(fp));
+    // TODO: Improve performance via something like mmap
+    unsigned long int fsize = get_fsize(fp);
+    msg.reserve(fsize << 3);
+    
+    std::vector<uint_fast8_t> bytes;
+    bytes.reserve(fsize);
     
     std::ifstream msg_file(fp, std::ios::binary);
     
@@ -43,18 +63,41 @@ void add_msgfile_bits(std::vector<uint_fast8_t> &msg, const char* fp){
     #endif
     while (msg_file.get(C)){
         c = (unsigned char)C;
-        #ifdef DEBUG6
-            std::cout << +c << "  ";
-        #endif
-        msg.push_back(c & 1);
-        msg.push_back((c & 2) >> 1);
-        msg.push_back((c & 4) >> 2);
-        msg.push_back((c & 8) >> 3);
-        msg.push_back((c & 16) >> 4);
-        msg.push_back((c & 32) >> 5);
-        msg.push_back((c & 64) >> 6);
-        msg.push_back((c & 128) >> 7);
+        bytes.push_back(c);
     }
+    
+    std::map<int,int> byte_freq;
+    
+    int min1 = 2;
+    int min2 = 2;
+    uint_fast8_t esc_byte;
+    uint_fast8_t end_byte;
+    
+    #ifdef DEBUG4
+        std::cout << "esc_byte " << +esc_byte << ", end_byte " << +end_byte << std::endl;
+    #endif
+    
+    std::vector<uint_fast8_t>::iterator vi;
+    
+    for (vi=bytes.begin(); vi!=bytes.end(); ++vi){
+        // access arbitrary elements in bytes vector - we don't care about the ordering
+        if (++byte_freq[*vi] < min2){
+            if (byte_freq[*vi] < min1){
+                esc_byte = *vi;
+                ++min1;
+            } else if (*vi != esc_byte) {
+                end_byte = *vi;
+                ++min2;
+            }
+        }
+    }
+    
+    for (vi=bytes.begin(); vi!=bytes.end(); ++vi){
+        if (*vi == esc_byte || *vi == end_byte)
+            add_msg_bits(msg, esc_byte);
+        add_msg_bits(msg, *vi);
+    }
+    
     #ifdef DEBUG6
         std::cout << std::endl;
     #endif
@@ -119,7 +162,7 @@ int decode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
             if (index == 0)
                 // Do not add conjugation status bit to msg
                 continue;
-            msg.push_back((bool)grid.at<uint_fast8_t>(i,j));
+            msg.push_back(grid.at<uint_fast8_t>(i,j));
             index++;
         }
     
@@ -366,6 +409,7 @@ int main(const int argc, char *argv[]){
     const unsigned int msg_fps_len = msg_fps.size();
     for (int i=0; i<msg_fps_len; i++){
         add_msgfile_bits(msg, msg_fps[i].c_str());
+        // TODO: Read input files one by one, rather than all at once. Reduces memory requirement and possibly disk usage too in cases of debugging and errors.
     }
     const unsigned int bits_encoded_per_grid = grid_w * grid_h -1;
     const unsigned int diff = bits_encoded_per_grid - msg.size() % bits_encoded_per_grid;
