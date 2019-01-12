@@ -111,8 +111,8 @@ cv::Mat bitshift_down(cv::Mat &arr, unsigned int w, unsigned int h){
         std::cout << "bitshift_down" << std::endl << arr << std::endl << std::endl;
     #endif
     cv::Mat dest = cv::Mat::zeros(w, h, CV_8UC1);
-    for (int i=0; i<w; i++)
-        for (int j=0; j<h; j++)
+    for (int i=0; i<w; ++i)
+        for (int j=0; j<h; ++j)
             dest.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) >> 1;
     #ifdef DEBUG6
         std::cout << "bitshift_down" << std::endl << dest << std::endl << std::endl;
@@ -122,18 +122,18 @@ cv::Mat bitshift_down(cv::Mat &arr, unsigned int w, unsigned int h){
 
 unsigned int xor_adj(cv::Mat &arr, unsigned int w, unsigned int h){
     unsigned int sum = 0;
-    for (int j=0; j<h; j++)
-        for (int i=1; i<w; i++)
+    for (int j=0; j<h; ++j)
+        for (int i=1; i<w; ++i)
             sum += arr.at<uint_fast8_t>(i,j) ^ arr.at<uint_fast8_t>(i-1,j);
-    for (int i=0; i<w; i++)
-        for (int j=1; j<h; j++)
+    for (int i=0; i<w; ++i)
+        for (int j=1; j<h; ++j)
             sum += arr.at<uint_fast8_t>(i,j) ^ arr.at<uint_fast8_t>(i,j-1);
     return sum;
 }
 
 void bitandshift(cv::Mat &arr, cv::Mat &dest, unsigned int w, unsigned int h, unsigned int n){
-    for (int i=0; i<w; i++)
-        for (int j=0; j<h; j++)
+    for (int i=0; i<w; ++i)
+        for (int j=0; j<h; ++j)
             dest.at<uint_fast8_t>(i,j) = (arr.at<uint_fast8_t>(i,j) >> n) & 1;
 }
 
@@ -157,14 +157,15 @@ int decode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
     if (grid.at<uint_fast8_t>(0,0) == 1)
         conjugate_grid(grid);
     
-    unsigned int index = 0;
-    for (int j=0; j<grid_h; j++)
-        for (int i=0; i<grid_w; i++){
-            if (index == 0)
+    bool not_encountered_first_el = true;
+    for (int j=0; j<grid_h; ++j)
+        for (int i=0; i<grid_w; ++i){
+            if (not_encountered_first_el){
                 // Do not add conjugation status bit to msg
+                not_encountered_first_el = false;
                 continue;
+            }
             msg.push_back(grid.at<uint_fast8_t>(i,j));
-            index++;
         }
     
     return 1;
@@ -196,16 +197,17 @@ int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
     If the above condition is met, ill reult in stack error
     */
     
-    int index = -2;
+    bool not_encountered_first_el = true;
+    unsigned int index = 0;
     
     for (int j=0; j<grid_h; ++j){
         for (int i=0; i<grid_w; ++i){
-            ++index;
-            if (index == -1)
+            if (not_encountered_first_el){
+                not_encountered_first_el = false;
                 continue;
                 // First bit (at (0,0)) of grid is reserved for conjugation status
-            
-            grid.at<uint_fast8_t>(i,j) = msg[index];
+            }
+            grid.at<uint_fast8_t>(i,j) = msg[index++];
         }
     }
     
@@ -232,8 +234,8 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
         unsigned long int n_grids_so_far = 0;
         unsigned long int n_grids_total  = n_hztl_grids * n_vert_grids;
     #endif
-    for (int i=0; i<n_hztl_grids; i++){
-        for (int j=0; j<n_vert_grids; j++){
+    for (int i=0; i<n_hztl_grids; ++i){
+        for (int j=0; j<n_vert_grids; ++j){
             cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
             bitplane(grid_shape).copyTo(grid);
             complexity = grid_complexity(grid, grid_w, grid_h);
@@ -250,7 +252,7 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
             if (grid_fnct_status == 0)
                 return 0;
             
-            n_grids_used++;
+            ++n_grids_used;
         }
         #ifdef DEBUG3
             n_grids_so_far += n_vert_grids;
@@ -287,7 +289,7 @@ void print_histogram(std::vector<float> &complexities, unsigned int n_bins, unsi
         bin_max = step;
         bin_total = 0;
         
-        for (unsigned long int j=0; j<len_complexities; j++){
+        for (unsigned long int j=0; j<len_complexities; ++j){
             while (complexities[j] > bin_max){
                 #ifdef DEBUG5
                     std::cout << "Bin" << bin_totals.size() << ":  " << complexities[j] << " == complexities[" << j << "] > bin_max == " << bin_max << std::endl;
@@ -296,14 +298,14 @@ void print_histogram(std::vector<float> &complexities, unsigned int n_bins, unsi
                 bin_max += step;
                 bin_total = 0;
             }
-            bin_total++;
+            ++bin_total;
         }
         bin_totals.push_back(bin_total);
         
-        for (int j=0; j<n_bins; j++){
+        for (int j=0; j<n_bins; ++j){
             bin_total = n_binchars * bin_totals[j] / len_complexities;
             std::cout << j * step << ": " << bin_totals[j] << std::endl << "   ";
-            for (int k=0; k<bin_total; k++)
+            for (int k=0; k<bin_total; ++k)
                 std::cout << "#";
             std::cout << std::endl;
         }
@@ -410,13 +412,13 @@ int main(const int argc, char *argv[]){
     
     const unsigned int msg_fps_len = msg_fps.size();
     
-    for (int i=0; i<msg_fps_len; i++){
+    for (int i=0; i<msg_fps_len; ++i){
         add_msgfile_bits(msg, msg_fps[i].c_str());
         // TODO: Read input files one by one, rather than all at once. Reduces memory requirement and possibly disk usage too in cases of debugging and errors.
     }
     const unsigned int bits_encoded_per_grid = grid_w * grid_h -1;
     const unsigned int diff = bits_encoded_per_grid - msg.size() % bits_encoded_per_grid;
-    for (int i=0; i<diff; i++)
+    for (int i=0; i<diff; ++i)
         msg.push_back(i & 1);
         // Alternate the junk bit so that we get a chequered style, a cheap pattern that is likely to result in a high complexity (which is what we desire)
     #ifdef DEBUG1
@@ -425,7 +427,7 @@ int main(const int argc, char *argv[]){
     
     bool msg_exhausted = false;
     
-    for (int i=0; i<img_fps_len; i++){
+    for (int i=0; i<img_fps_len; ++i){
         im_mat = cv::imread(img_fps[i], CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
         
@@ -448,7 +450,7 @@ int main(const int argc, char *argv[]){
         complexities.reserve(n_hztl_grids * n_vert_grids);
         // Speeds up assignments by reserving required memory beforehand
         
-        for (int j=0; j<n_channels; j++){
+        for (int j=0; j<n_channels; ++j){
             tmparrorig  = channel_planes_orig[j];
             tmparr      = bitshift_down(channel_planes[j], w, h);
             #ifdef DEBUG5
@@ -462,7 +464,7 @@ int main(const int argc, char *argv[]){
                 print_cv_arr("XOR'd with orig    ", j, tmparr);
             #endif
             // Happily, bitshifting down makes the first bits of (arr >> 1) are 0 - so the first digit of the CGC'd arr is retained
-            for (int k=0; k<n_bits; k++){
+            for (int k=0; k<n_bits; ++k){
                 bitandshift(tmparr, bitplane, w, h, k);
                 #ifdef DEBUG6
                     print_cv_arr("bitplane", k, bitplane);
