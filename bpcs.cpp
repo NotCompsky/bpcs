@@ -198,7 +198,7 @@ int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
     */
     
     bool not_encountered_first_el = true;
-    unsigned int index = 0;
+    int index = -1;
     
     for (int j=0; j<grid_h; ++j){
         for (int i=0; i<grid_w; ++i){
@@ -207,7 +207,7 @@ int encode_grid(const float min_complexity, cv::Mat &grid, unsigned int grid_w, 
                 continue;
                 // First bit (at (0,0)) of grid is reserved for conjugation status
             }
-            grid.at<uint_fast8_t>(i,j) = msg[index++];
+            grid.at<uint_fast8_t>(i,j) = msg[++index];
         }
     }
     
