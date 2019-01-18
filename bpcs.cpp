@@ -28,15 +28,27 @@
 #include <sys/stat.h> // for stat
 #include <map> // for std::map
 #include <regex> // for std::basic_regex
+#include <libavcodec/avcodec.h>
+extern "C" {
+    #include <libavutil/avutil.h>
+    #include <libavformat/avformat.h>
+    #include <libavutil/avutil.h>
+}
 
 
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
 // Groups are full_match, optional, parent_dir, filename, basename, ext
-const std::regex fmt_fp("(^|[^{])[{]fp[}]");
-const std::regex fmt_dir("(^|[^{])[{]dir[}]");
-const std::regex fmt_fname("(^|[^{])[{]fname[}]");
-const std::regex fmt_basename("(^|[^{])[{]basename[}]");
-const std::regex fmt_ext("(^|[^{])[{]ext[}]");
+const std::regex fmt_fp("[{]fp[}]");
+const std::regex fmt_dir("[{]dir[}]");
+const std::regex fmt_fname("[{]fname[}]");
+const std::regex fmt_basename("[{]basename[}]");
+const std::regex fmt_ext("[{]ext[}]");
+// WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
+
+
+std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
+    return std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, (std::string)path_regexp_match[0]), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[4]);
+}
 
 
 long unsigned int get_fsize(const char* fp){
@@ -118,7 +130,12 @@ uint_fast8_t add_bytes_to_msg(std::vector<uint_fast8_t> &msg, std::vector<uint_f
 
 uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
     std::vector<uint_fast8_t> fp_as_vector(fp.begin(), fp.end());
-    add_bytes_to_msg(msg, fp_as_vector);
+    uint_fast8_t end_byte;
+
+    end_byte = add_bytes_to_msg(msg, fp_as_vector);
+    
+    add_msg_bits(msg, end_byte+1);
+    // Add junk bit to ensure that there aren't two consecutive `end_byte`s (which would signal end of all data streams)
     
     const char* fp_c_str = fp.c_str();
     // TODO: Improve performance via something like mmap
@@ -246,8 +263,6 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
     If the above condition is met, ill reult in stack error
     */
     
-    std::cout << "encode_grid before" << std::endl << grid << std::endl;
-    
     bool not_encountered_first_el = true;
     int index = -1;
     
@@ -264,8 +279,6 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
     
     msg.erase(std::begin(msg), std::begin(msg) + index + 1);
     
-    std::cout << "encode_grid after" << std::endl << grid << std::endl;
-    
     if (grid_complexity(grid, grid_w, grid_h) < min_complexity){
         conjugate_grid(grid);
         assert(("grid compleity fell below min_complexity", grid_complexity(grid, grid_w, grid_h)));
@@ -274,8 +287,6 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
         grid.at<uint_fast8_t>(0,0) = 0;
     
     grid.copyTo(bitplane(grid_shape));
-    
-    std::cout << "encode_grid after" << std::endl << grid << std::endl;
     
     // In other words, the first bit of each message grid tells us whether it was conjugated
     
@@ -414,7 +425,6 @@ uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, unsigned long int ind
     unsigned long int endx = indx + 8;
     uint_fast8_t shift = 0;
     for (unsigned long int j=indx; j!=endx; ++j){
-        std::cout << +msg[j] << "   ";
         byte |= msg[j] << shift++;
     }
     std::cout << "  ==  " << +byte << std::endl;
@@ -429,7 +439,6 @@ int main(const int argc, char *argv[]){
     // Image format args
     // TODO: automatically detect these settings per image file
     args::ValueFlag<uint_fast8_t>       An_bits         (parser, "n_bits", "n_bits", {'b', "bits"});
-    args::ValueFlag<uint_fast8_t>       An_chns         (parser, "n_chns", "n_chns", {'c', "channels"});
     
     // Histogram args
     args::ValueFlag<uint_fast8_t>       An_bins         (parser, "n_bins", "Number of histogram bins", {'B', "bins"});
@@ -438,14 +447,18 @@ int main(const int argc, char *argv[]){
     // Debugging args
     args::Flag                          Amsg_empty      (parser, "msg_empty", "Embed a msg of 0 bytes", {"msg-empty"});
     
-    args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `encoding`", {'m', "msg"});
+    args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
+    
+    args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
     
     args::Positional<float>             Amin_complexity (parser, "min_complexity", "Minimum bitplane complexity");
-    args::Positional<std::string>       Aout_fmt        (parser, "out-fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext");
     args::PositionalList<std::string>   Aimg_fps        (parser, "img_fps", "File path(s) of input image file(s)");
     
+    #ifdef DEBUG1
     try {
+    #endif
         parser.ParseCLI(argc, argv);
+    #ifdef DEBUG1
     } catch (const args::Completion& e) {
         std::cout << e.what();
         return 0;
@@ -457,6 +470,7 @@ int main(const int argc, char *argv[]){
         std::cerr << parser;
         return 1;
     }
+    #endif
     
     unsigned int grid_w = 8;
     unsigned int grid_h = 8;
@@ -471,10 +485,6 @@ int main(const int argc, char *argv[]){
         n_bits = 8;
     
     uint_fast8_t n_channels;
-    if (An_chns)
-        n_channels = args::get(An_chns);
-    else
-        n_channels = 3;
     
     uint_fast8_t n_bins;
     if (An_bins)
@@ -604,11 +614,22 @@ int main(const int argc, char *argv[]){
     int iterate_over_bitgrids__result;
     
     std::smatch path_regexp_match;
-    std::map<std::string, std::string> path_subs;
+    
+    std::string ext;
+    
+    std::string fp;
     
     for (i=0; i<img_fps_len; ++i){
-        im_mat = cv::imread(img_fps[i], CV_LOAD_IMAGE_COLOR);
+        fp = img_fps[i];
+        im_mat = cv::imread(fp, CV_LOAD_IMAGE_COLOR);
         // WARNING: OpenCV loads images as BGR, not RGB
+        
+        if (im_mat.data == NULL){
+            std::cerr << "Cannot load image data from:  " << fp << std::endl;
+            throw std::invalid_argument(fp);
+        }
+        
+        n_channels = im_mat.channels();
         
         w = im_mat.cols;
         h = im_mat.rows;
@@ -632,12 +653,12 @@ int main(const int argc, char *argv[]){
             
             cv::Mat byteplane = cv::Mat::zeros(w, h, CV_8UC1);
             
-            for (int k=0; k<n_bits; ++k){
+            for (uint_fast8_t k=0; k<n_bits; ++k){
                 bitandshift(XORed_byteplane, bitplane, w, h, k);
                 if (!msg_was_exhausted){
                     iterate_over_bitgrids__result = iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg);
                     
-                    if (iterate_over_bitgrids__result)
+                    if (iterate_over_bitgrids__result == 0)
                         msg_was_exhausted = true;
                 }
                 if (encoding){
@@ -669,17 +690,19 @@ int main(const int argc, char *argv[]){
         
         if (encoding){
             // i.e. if (mode == "Encoding")
+            std::regex_search(fp, path_regexp_match, path_regexp);
+            out_fp = format_out_fp(out_fmt, path_regexp_match);
             
             cv::merge(channel_byteplanes, im_mat);
             #ifdef DEBUG1
-                std::cout << "Saving to /tmp/tmp/out.png" << std::endl;
+                std::cout << "Saving to:  " << out_fp << std::endl;
             #endif
-            cv::imwrite("/tmp/tmp/out.png", im_mat);
+            cv::imwrite(out_fp, im_mat);
         } else {
             unsigned long int n_msg_bits = msg.size();
             uint_fast8_t shift = 0;
             uint_fast8_t byte = 0;
-            uint_fast8_t new_esc_byte;
+            uint_fast8_t either_endbyte_or_junk;
             #ifdef DEBUG1
                 std::cout << "Extracted message" << std::endl;
             #endif
@@ -691,21 +714,26 @@ int main(const int argc, char *argv[]){
             for (j=16; j!=n_msg_bits; ++j){
                 byte |= msg[j] << shift;
                 if (++shift == 8){
-                    std::cout << +byte << std::endl;
                     if (escaped) {
                         extracted_msg.push_back(byte);
                         escaped = false;
                         // Should be no need to set n_consecutive_ends = 0, as an unescaped end_byte should never appear in the data stream
                     } else if (byte == end_byte) {
-                        new_esc_byte = get_byte_from(msg, ++j);
-                        std::cout << "End of an embedded data stream" << std::endl;
+                        either_endbyte_or_junk = get_byte_from(msg, ++j);
+                        #ifdef DEBUG3
+                            std::cout << "End of an embedded data stream" << std::endl;
+                        #endif
                         extracted_msgs.push_back(extracted_msg);
-                        if (new_esc_byte == end_byte){
-                            std::cout << "End of embedded data" << std::endl;
+                        if (either_endbyte_or_junk == end_byte){
+                            #ifdef DEBUG3
+                                std::cout << "End of embedded data" << std::endl;
+                            #endif
                             goto print_extracted_msg;
                         }
                         j += 8;
-                        escape_byte = new_esc_byte;
+                        // Discard the previously calculated byte
+                        escape_byte = get_byte_from(msg, j);
+                        j += 8;
                         end_byte    = get_byte_from(msg, j);
                         j += 7;
                         std::vector<uint_fast8_t> extracted_msg;
@@ -721,34 +749,38 @@ int main(const int argc, char *argv[]){
             }
             print_extracted_msg:
             int n_extracted_msgs = extracted_msgs.size();
-            std::cout << +n_extracted_msgs << " data streams extracted" << std::endl;
+            #ifdef DEBUG3
+                std::cout << +n_extracted_msgs << " data streams extracted" << std::endl;
+            #endif
             unsigned long int n_extracted_msg_bytes;
-            std::string fp;
+            
+            unsigned long int k;
+            
             for (j=0; j<n_extracted_msgs; ++j){
                 extracted_msg = extracted_msgs[j];
                 n_extracted_msg_bytes = extracted_msg.size();
                 if ((j & 1) == 0){
                     fp = "";
-                    for (unsigned int k=0; k<n_extracted_msg_bytes; ++k)
+                    for (k=0; k!=n_extracted_msg_bytes; k++)
                         fp += extracted_msg[k];
-                    std::cout << "fp: " << fp << std::endl;
                     
-                    assert(("Bad filename format", std::regex_search(fp, path_regexp_match, path_regexp)));
-                    // This also assigns captured groups to path_regexp_match
+                    if (!std::regex_search(fp, path_regexp_match, path_regexp)){
+                        // This also assigns captured groups to path_regexp_match
+                        std::cerr << "Filename did not match regexp:  " << fp << std::endl;
+                        throw std::invalid_argument(fp);
+                    }
                     
-                    out_fp = std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, fp), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[5]);
+                    out_fp = format_out_fp(out_fmt, path_regexp_match);
+                    ext = (std::string)path_regexp_match[5];
                     #ifdef DEBUG1
                         std::cout << "Saving to: " << out_fp << std::endl;
                     #endif
                 } else {
-                    for (unsigned int k=0; k<n_extracted_msg_bytes; ++k){
-                        byte = extracted_msg[k];
-                        std::cout << byte << " (" << +byte << ") ";
-                        if (byte < 100)
-                            std::cout << " ";
-                        if (byte < 10)
-                            std::cout << " ";
-                    }
+                    // extracted_msg is file data
+                    
+                    for (k=0; k<n_extracted_msg_bytes; ++k)
+                        std::cout << extracted_msg[k];
+                    std::cout << std::endl;
                 }
             }
         }
