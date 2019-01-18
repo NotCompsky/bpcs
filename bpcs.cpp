@@ -442,7 +442,7 @@ void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std
 }
 
 
-int notmain(const int argc, char *argv[]){
+int main(const int argc, char *argv[]){
     args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
     args::HelpFlag                      Ahelp           (parser, "help", "Display help", {'h', "help"});
     
@@ -465,8 +465,6 @@ int notmain(const int argc, char *argv[]){
     args::PositionalList<std::string>   Aimg_fps        (parser, "img_fps", "File path(s) of input image file(s)");
     
     #ifdef DEBUG1
-    char* errmsg;
-    
     try {
     #endif
         parser.ParseCLI(argc, argv);
@@ -627,8 +625,8 @@ int notmain(const int argc, char *argv[]){
             }
             std::cout << std::endl;
             if (shift != 0){
-                sprintf(errmsg, "Encoded a non-byte number of bits;  %d extra bits", shift);
-                throw std::runtime_error((std::string)errmsg);
+                std::cout << "Encoded a non-byte number of bits: " << +shift << " extra bits" << std::endl;
+                throw std::invalid_argument("");
             }
         #endif
         #ifdef DEBUG7
@@ -655,8 +653,10 @@ int notmain(const int argc, char *argv[]){
         // WARNING: OpenCV loads images as BGR, not RGB
         
         if (im_mat.data == NULL){
-            sprintf(errmsg, "Cannot load image data from:  %s", fp.c_str());
-            throw std::runtime_error((std::string)errmsg);
+            #ifdef DEBUG1
+                std::cerr << "Cannot load image data from:  " << fp << std::endl;
+            #endif
+            throw std::invalid_argument(fp);
         }
         
         n_channels = im_mat.channels();
@@ -762,6 +762,9 @@ int notmain(const int argc, char *argv[]){
                             #endif
                             goto print_extracted_msg;
                         } else if (either_endbyte_or_junk != end_byte+1){
+                            #ifdef DEBUG1
+                                std::cerr << "Unescaped end_byte (" << +end_byte << ") was followed by a byte (" << +either_endbyte_or_junk << ") that was neither another end_byte (signalling end of embedded data) nor junk byte (end_byte + 1 == " << +(end_byte +1) << ")" << std::endl;
+                            #endif
                             #ifdef DEBUG7
                                 get_byte_from(msg, j-32, "pre-pre-end_byte");
                                 get_byte_from(msg, j-16, "pre-end_byte");
@@ -770,8 +773,9 @@ int notmain(const int argc, char *argv[]){
                                 get_byte_from(msg, j+8, "post-post-end_byte");
                                 get_byte_from(msg, j+16, "post-post-end_byte");
                             #endif
-                            sprintf(errmsg, "Unescaped end_byte (%d) was followed by a byte (%d) that was neither another end_byte (signalling end of embedded data) nor junk byte (end_byte + 1 == %d)", end_byte, either_endbyte_or_junk, end_byte+1);
-                            throw std::runtime_error((std::string)errmsg);
+                            char* n_as_str;
+                            sprintf(n_as_str, "%d", either_endbyte_or_junk);
+                            throw std::invalid_argument(n_as_str);
                         }
                         j += 8;
                         // Discard the previously calculated byte
@@ -809,8 +813,10 @@ int notmain(const int argc, char *argv[]){
                     
                     if (!std::regex_search(fp, path_regexp_match, path_regexp)){
                         // This also assigns captured groups to path_regexp_match
-                        sprintf(errmsg, "Filename did not match regexp:  %s", fp.c_str());
-                        throw std::runtime_error((std::string)errmsg);
+                        #ifdef DEBUG1
+                            std::cerr << "Filename did not match regexp:  " << fp << std::endl;
+                        #endif
+                        throw std::invalid_argument(fp);
                     }
                     
                     out_fp = format_out_fp(out_fmt, path_regexp_match);
@@ -834,10 +840,11 @@ int notmain(const int argc, char *argv[]){
                             cv::Mat rawdata(1, n_extracted_msg_bytes, CV_8UC1, extracted_msg_pointer);
                             cv::Mat decoded_img = cv::imdecode(rawdata, CV_LOAD_IMAGE_UNCHANGED);
                             if (decoded_img.data == NULL){
-                                sprintf(errmsg, "No image data loaded from %dB data stream claiming to originate from file `%s`. Saved extracted bytes to `/tmp/bpcs.msg.txt` for debugging.", (int)n_extracted_msg_bytes, fp.c_str());
-                                std::cerr << errmsg << std::endl;
+                                #ifdef DEBUG1
+                                    std::cerr << "No image data loaded from " << n_extracted_msg_bytes << "B data stream claiming to originate from file `" << fp << "`. Saved extracted bytes to `/tmp/bpcs.msg.txt` for debugging." << std::endl;
+                                #endif
                                 vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "/tmp/bpcs.msg.txt");
-                                return 1;
+                                throw std::invalid_argument(fp);
                             }
                             cv::imshow(fp, decoded_img);
                         }
@@ -854,15 +861,4 @@ int notmain(const int argc, char *argv[]){
     }
     exit:
     return 0;
-}
-
-int main(const int argc, char *argv[]){
-    try {
-        if (notmain(argc, argv) == 0)
-            return 0;
-    } catch (const std::exception &e){
-        std::cerr << "E:  " << e.what() << std::endl;
-        return 1;
-    }
-    return 1;
 }
