@@ -3,7 +3,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp> // for calcHist
 #ifdef DEBUG7
-    #define DEBUG5 DEBUG7
+    #define DEBUG6 DEBUG7
 #endif
 #ifdef DEBUG6
     #define DEBUG5 DEBUG6
@@ -58,14 +58,6 @@ long unsigned int get_fsize(const char* fp){
 }
 
 void add_msg_bits(std::vector<uint_fast8_t> &msg, uint_fast8_t c){
-    #ifdef DEBUG6
-        std::cout << c;
-        std::cout << +c << " ";
-        if (c < 100)
-            std::cout << " ";
-        if (c < 10)
-            std::cout << " ";
-    #endif
     msg.push_back(c & 1);
     msg.push_back((c & 2) >> 1);
     msg.push_back((c & 4) >> 2);
@@ -125,6 +117,7 @@ uint_fast8_t add_bytes_to_msg(std::vector<uint_fast8_t> &msg, std::vector<uint_f
     add_msg_bits(msg, end_byte);
     // Signal end of data stream
     
+    
     return end_byte;
 }
 
@@ -136,6 +129,7 @@ uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
     
     add_msg_bits(msg, end_byte+1);
     // Add junk bit to ensure that there aren't two consecutive `end_byte`s (which would signal end of all data streams)
+    
     
     const char* fp_c_str = fp.c_str();
     // TODO: Improve performance via something like mmap
@@ -156,10 +150,12 @@ uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
 }
 
 cv::Mat bitshifted_up(cv::Mat &arr, unsigned int w, unsigned int h){
-    cv::Mat dest = cv::Mat::zeros(w, h, CV_8UC1);
-    for (int i=0; i<w; ++i)
-        for (int j=0; j<h; ++j)
-            dest.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) << 1;
+    cv::Mat dest = cv::Mat(h, w, CV_8UC1);
+    unsigned int i;
+    unsigned int j;
+    for (j=0; j<h; ++j)
+        for (i=0; i<w; ++i)
+            dest.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) << 1;
     return dest;
 }
 
@@ -168,10 +164,10 @@ unsigned int xor_adj(cv::Mat &arr, unsigned int w, unsigned int h){
     
     for (int j=0; j<h; ++j)
         for (int i=1; i<w; ++i)
-            sum += arr.at<uint_fast8_t>(i,j) ^ arr.at<uint_fast8_t>(i-1,j);
+            sum += arr.at<uint_fast8_t>(j,i) ^ arr.at<uint_fast8_t>(j,i-1);
     for (int i=0; i<w; ++i)
         for (int j=1; j<h; ++j)
-            sum += arr.at<uint_fast8_t>(i,j) ^ arr.at<uint_fast8_t>(i,j-1);
+            sum += arr.at<uint_fast8_t>(j,i) ^ arr.at<uint_fast8_t>(j-1,i);
     
     return sum;
 }
@@ -179,13 +175,13 @@ unsigned int xor_adj(cv::Mat &arr, unsigned int w, unsigned int h){
 void bitandshift(cv::Mat &arr, cv::Mat &dest, unsigned int w, unsigned int h, unsigned int n){
     for (int i=0; i<w; ++i)
         for (int j=0; j<h; ++j)
-            dest.at<uint_fast8_t>(i,j) = (arr.at<uint_fast8_t>(i,j) >> n) & 1;
+            dest.at<uint_fast8_t>(j,i) = (arr.at<uint_fast8_t>(j,i) >> n) & 1;
 }
 
 void bitshift_up(cv::Mat &arr, unsigned int w, unsigned int h, unsigned int n){
     for (int i=0; i<w; ++i)
         for (int j=0; j<h; ++j)
-            arr.at<uint_fast8_t>(i,j) = arr.at<uint_fast8_t>(i,j) << n;
+            arr.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) << n;
 }
 
 #ifdef DEBUG1
@@ -196,11 +192,10 @@ void print_cv_arr(const char* name, int i, cv::Mat &arr){
 
 cv::Mat chequerboard(unsigned int indx, unsigned int w, unsigned int h){
     // indx should be 0 or 1
-    cv::Mat arr = cv::Mat::zeros(w, h, CV_8UC1);
+    cv::Mat arr = cv::Mat(h, w, CV_8UC1);
     for (int i=0; i<w; ++i)
         for (int j=0; j<h; ++j){
-            arr.at<uint_fast8_t>(i, j) = indx & 1;
-            ++indx;
+            arr.at<uint_fast8_t>(j, i) = ((i ^ j) ^ indx) & 1;
         }
     return arr;
 }
@@ -234,14 +229,22 @@ int decode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
                 not_encountered_first_el = false;
                 continue;
             }
-            msg.push_back(grid.at<uint_fast8_t>(i,j));
+            msg.push_back(grid.at<uint_fast8_t>(j, i));
         }
     
     return 1;
 }
 
 float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
-    return (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
+    float value = (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
+    if (value < 0 || value > 1){
+        #ifdef DEBUG1
+            std::cerr << "Complexity of `" << +value << "` out of bounds for " << +grid_w << "x" << +grid_h << " grid" << std::endl;
+            std::cout << grid << std::endl;
+        #endif
+        throw std::runtime_error("");
+    }
+    return value;
 }
 
 int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
@@ -273,18 +276,34 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
                 continue;
                 // First bit (at (0,0)) of grid is reserved for conjugation status
             }
-            grid.at<uint_fast8_t>(i,j) = msg[++index];
+            grid.at<uint_fast8_t>(j, i) = msg[++index];
         }
     }
     
     msg.erase(std::begin(msg), std::begin(msg) + index + 1);
     
-    if (grid_complexity(grid, grid_w, grid_h) < min_complexity){
-        conjugate_grid(grid);
-        assert(("grid compleity fell below min_complexity", grid_complexity(grid, grid_w, grid_h)));
-        grid.at<uint_fast8_t>(0,0) = 1;
-    } else
+    float old_complexity = grid_complexity(grid, grid_w, grid_h);
+    float new_complexity;
+    bool to_conjugate = true;
+    
+    if (old_complexity >= min_complexity){
         grid.at<uint_fast8_t>(0,0) = 0;
+        new_complexity = grid_complexity(grid, grid_w, grid_h);
+        if (new_complexity >= min_complexity)
+            to_conjugate = false;
+    }
+    
+    if (to_conjugate){
+        conjugate_grid(grid);
+        grid.at<uint_fast8_t>(0,0) = 1;
+        new_complexity = grid_complexity(grid, grid_w, grid_h);
+        if (new_complexity < min_complexity){
+            #ifdef DEBUG1
+                std::cout << "Grid complexity fell below minimum value; from " << old_complexity << " to " << new_complexity << std::endl;
+            #endif
+            throw std::runtime_error("");
+        }
+    }
     
     grid.copyTo(bitplane(grid_shape));
     
@@ -317,6 +336,7 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
     for (int i=0; i<n_hztl_grids; ++i){
         for (int j=0; j<n_vert_grids; ++j){
             cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
+            // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height)
             bitplane(grid_shape).copyTo(grid);
             complexity = grid_complexity(grid, grid_w, grid_h);
             
@@ -344,7 +364,7 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
         #ifdef DEBUG4
             if (i % 10 == 0 || n_hztl_grids < 11 || msg_size < 20000){
                 msg_size = msg.size();
-                iterate_over_bitgrids__msg("msg exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg_size);
+                iterate_over_bitgrids__msg("debug", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg_size);
             }
         #endif
     }
@@ -434,8 +454,11 @@ uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, c
 }
 
 
-void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std::string fp){
+void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std::string name, std::string fp){
     std::ofstream outfile;
+    #ifdef DEBUG7
+        std::cout << "Written " << name << " to " << fp << std::endl;
+    #endif
     outfile.open(fp, std::ios::out | std::ios::binary);
     outfile.write((char*)extracted_msg_pointer, n_bytes);
     outfile.close();
@@ -450,9 +473,11 @@ int main(const int argc, char *argv[]){
     // TODO: automatically detect these settings per image file
     args::ValueFlag<uint_fast8_t>       An_bits         (parser, "n_bits", "n_bits", {'b', "bits"});
     
+    #ifdef DEBUG1
     // Histogram args
     args::ValueFlag<uint_fast8_t>       An_bins         (parser, "n_bins", "Number of histogram bins", {'B', "bins"});
     args::ValueFlag<uint_fast8_t>       An_binchars     (parser, "n_binchars", "Total number of `#` characters printed out in histogram totals", {"binchars"});
+    #endif
     
     // Debugging args
     args::Flag                          Amsg_empty      (parser, "msg_empty", "Embed a msg of 0 bytes", {"msg-empty"});
@@ -460,6 +485,10 @@ int main(const int argc, char *argv[]){
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
     
     args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
+    
+    // Encoding variables
+    args::ValueFlag<uint_fast16_t>      Agrid_w         (parser, "grid_w", "Width of individual complexity grids", {'w', "gridw"});
+    args::ValueFlag<uint_fast16_t>      Agrid_h         (parser, "grid_h", "Height of individual complexity grids", {'h', "gridh"});
     
     args::Positional<float>             Amin_complexity (parser, "min_complexity", "Minimum bitplane complexity");
     args::PositionalList<std::string>   Aimg_fps        (parser, "img_fps", "File path(s) of input image file(s)");
@@ -482,8 +511,17 @@ int main(const int argc, char *argv[]){
     }
     #endif
     
-    unsigned int grid_w = 8;
-    unsigned int grid_h = 8;
+    uint_fast16_t grid_w;
+    if (Agrid_w)
+        grid_w = args::get(Agrid_w);
+    else
+        grid_w = 8;
+    
+    uint_fast16_t grid_h;
+    if (Agrid_h)
+        grid_h = args::get(Agrid_h);
+    else
+        grid_h = 8;
     
     chequerboard_a = chequerboard(0, grid_w, grid_h);
     chequerboard_b = chequerboard(1, grid_w, grid_h);
@@ -496,6 +534,7 @@ int main(const int argc, char *argv[]){
     
     uint_fast8_t n_channels;
     
+    #ifdef DEBUG1
     uint_fast8_t n_bins;
     if (An_bins)
         n_bins = args::get(An_bins);
@@ -507,6 +546,7 @@ int main(const int argc, char *argv[]){
         n_binchars = args::get(An_binchars);
     else
         n_binchars = 200;
+    #endif
     
     std::string out_fmt;
     std::string out_fp;
@@ -554,6 +594,12 @@ int main(const int argc, char *argv[]){
     unsigned int img_fps_len        = img_fps.size();
     
     const float min_complexity = args::get(Amin_complexity);
+    if (min_complexity > 0.5){
+        #ifdef DEBUG1
+            std::cerr << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
+        #endif
+        throw std::runtime_error("");
+    }
     
     #ifdef DEBUG1
         std::cout << mode << " " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << ", " << +n_channels << " channels, " << +n_bits << " bits" << std::endl;
@@ -589,7 +635,10 @@ int main(const int argc, char *argv[]){
         // else we are encoding a msg of 0 bytes
         
         const unsigned int bits_encoded_per_grid = grid_w * grid_h -1;
-        unsigned int diff = msg.size() % bits_encoded_per_grid;
+        uint_fast64_t msg_size = msg.size();
+        
+        
+        int diff = (int)msg_size % bits_encoded_per_grid;
         if (diff != 0){
             diff = bits_encoded_per_grid - diff;
             
@@ -601,7 +650,6 @@ int main(const int argc, char *argv[]){
         }
         
         #ifdef DEBUG1
-            uint_fast64_t msg_size = msg.size();
             std::cout << msg_size << "b to encode" << std::endl;
         #endif
         #ifdef DEBUG7
@@ -609,13 +657,11 @@ int main(const int argc, char *argv[]){
             msg_as_bytes.reserve(msg_size >> 3);
         #endif
         #ifdef DEBUG4
-            std::cout << "msg: ";
             uint_fast8_t byte = 0;
             uint_fast8_t shift = 0;
             for (i=0; i<msg_size; ++i){
                 byte |= msg[i] << shift++;
                 if (shift == 8){
-                    std::cout << byte << " (" << +byte << ")   ";
                     #ifdef DEBUG7
                         msg_as_bytes.push_back(byte);
                     #endif
@@ -624,14 +670,14 @@ int main(const int argc, char *argv[]){
                 }
             }
             std::cout << std::endl;
+            #ifdef DEBUG7
+                uint_fast8_t* msg_pointer = &msg_as_bytes[0];
+                vector2file(msg_pointer, msg_size >> 3, "msg_as_bytes", "/tmp/bpcs.encoded.msg.txt");
+            #endif
             if (shift != 0){
                 std::cout << "Encoded a non-byte number of bits: " << +shift << " extra bits" << std::endl;
                 throw std::invalid_argument("");
             }
-        #endif
-        #ifdef DEBUG7
-            uint_fast8_t* msg_pointer = &msg_as_bytes[0];
-            vector2file(msg_pointer, msg_size >> 3, "/tmp/bpcs.encoded.msg.txt");
         #endif
     }
     
@@ -664,10 +710,16 @@ int main(const int argc, char *argv[]){
         w = im_mat.cols;
         h = im_mat.rows;
         
+        // NOTE: OpenCV treats matrices in row-major order - i.e. accessed as (row_id, column_id). For images, this is (y, x).
+        
+        #ifdef DEBUG1
+            std::cout << +w << "x" << +h << "\t" << +n_channels << " channels" << std::endl;
+        #endif
+        
         n_hztl_grids = w / grid_w;
         n_vert_grids = h / grid_h;
         
-        bitplane = cv::Mat::zeros(w, h, CV_8UC1);
+        bitplane = cv::Mat(h, w, CV_8UC1);
         // CV_8UC1 - aka CV_8UC(1) - means 1 channel of uint8
         
         std::vector<cv::Mat> channel_byteplanes;
@@ -681,7 +733,7 @@ int main(const int argc, char *argv[]){
             convert_to_cgc(channel_byteplanes[j], w, h, XORed_byteplane);
             // Bitshifting up ensures that the last bits of (arr >> 1) are 0 - so the last digit of this CGC'd (or XOR'd-ish) arr is retained
             
-            cv::Mat byteplane = cv::Mat::zeros(w, h, CV_8UC1);
+            cv::Mat byteplane = cv::Mat::zeros(h, w, CV_8UC1);
             
             for (uint_fast8_t k=0; k<n_bits; ++k){
                 bitandshift(XORed_byteplane, bitplane, w, h, k);
@@ -727,6 +779,18 @@ int main(const int argc, char *argv[]){
             #ifdef DEBUG1
                 std::cout << "Saving to:  " << out_fp << std::endl;
             #endif
+            
+            std::regex_search(out_fp, path_regexp_match, path_regexp);
+            
+            std::string out_ext = path_regexp_match[5];
+            
+            if (out_ext != "png"){
+                #ifdef DEBUG1
+                    std::cerr << "Must be encoded with lossless format, not `" << out_ext << "`" << std::endl;
+                #endif
+                return 1;
+            }
+            
             cv::imwrite(out_fp, im_mat);
         } else {
             uint_fast64_t n_msg_bits = msg.size();
@@ -738,24 +802,25 @@ int main(const int argc, char *argv[]){
             #endif
             escape_byte = get_byte_from(msg, 0, "esc_byte");
             end_byte = get_byte_from(msg, 8, "end_byte");
-            bool escaped = false;
-            std::vector<std::vector<uint_fast8_t>> extracted_msgs;
             std::vector<uint_fast8_t> extracted_msg;
+            extracted_msg.reserve(n_msg_bits >> 3);
+            std::vector<uint_fast64_t> stream_starts = {0};
+            // NOTE: Also indicates index of the start of all data streams - which should be 3 bytes along from the end of the last data stream. Also indicates the index of the end of all embedded data - given as 3 bytes along from the end of the final data stream. Also does not contain `0` (or -2, which it would be to be consistent with the above) as it is implied that embedded streams begin from 0.
             uint_fast8_t* extracted_msg_pointer;
             j = 16;
+            uint_fast64_t index = 0;
             do {
-                byte |= msg[j++] << shift;
-                if (++shift == 8){
-                    if (escaped) {
-                        extracted_msg.push_back(byte);
-                        escaped = false;
-                        // Should be no need to set n_consecutive_ends = 0, as an unescaped end_byte should never appear in the data stream
+                byte |= msg[j++] << shift++;
+                if (shift == 8){
+                    if (byte == escape_byte) {
+                        extracted_msg.push_back(get_byte_from(msg, j, "escaped byte"));
+                        j += 8;
                     } else if (byte == end_byte) {
                         either_endbyte_or_junk = get_byte_from(msg, j, "end_byte or junk");
                         #ifdef DEBUG3
                             std::cout << "End of an embedded data stream" << std::endl;
                         #endif
-                        extracted_msgs.push_back(extracted_msg);
+                        stream_starts.push_back(index);
                         if (either_endbyte_or_junk == end_byte){
                             #ifdef DEBUG3
                                 std::cout << "End of embedded data" << std::endl;
@@ -765,17 +830,7 @@ int main(const int argc, char *argv[]){
                             #ifdef DEBUG1
                                 std::cerr << "Unescaped end_byte (" << +end_byte << ") was followed by a byte (" << +either_endbyte_or_junk << ") that was neither another end_byte (signalling end of embedded data) nor junk byte (end_byte + 1 == " << +(end_byte +1) << ")" << std::endl;
                             #endif
-                            #ifdef DEBUG7
-                                get_byte_from(msg, j-32, "pre-pre-end_byte");
-                                get_byte_from(msg, j-16, "pre-end_byte");
-                                get_byte_from(msg, j-8, "end_byte");
-                                get_byte_from(msg, j, "post-end_byte");
-                                get_byte_from(msg, j+8, "post-post-end_byte");
-                                get_byte_from(msg, j+16, "post-post-end_byte");
-                            #endif
-                            char* n_as_str;
-                            sprintf(n_as_str, "%d", either_endbyte_or_junk);
-                            throw std::invalid_argument(n_as_str);
+                            goto goto_print_histogram;
                         }
                         j += 8;
                         // Discard the previously calculated byte
@@ -783,32 +838,41 @@ int main(const int argc, char *argv[]){
                         j += 8;
                         end_byte    = get_byte_from(msg, j, "end_byte");
                         j += 8;
-                        std::vector<uint_fast8_t> extracted_msg;
-                    } else if (byte == escape_byte) {
-                        escaped = true;
                     } else {
                         extracted_msg.push_back(byte);
                         // Should be no need to set n_consecutive_ends = 0, as an unescaped end_byte should never appear in the data stream
                     }
                     shift = 0;
                     byte = 0;
+                    ++index;
                 }
-            } while (j!=n_msg_bits);
+            } while (true);
+            
             print_extracted_msg:
-            int n_extracted_msgs = extracted_msgs.size();
+            int n_extracted_msgs = stream_starts.size() -1;
             #ifdef DEBUG3
                 std::cout << +n_extracted_msgs << " data streams extracted" << std::endl;
+            #endif
+            #ifdef DEBUG7
+                std::cout << "Data stream starts: ";
+                for (j=0; j!=n_extracted_msgs+1; ++j)
+                    std::cout << +stream_starts[j] << " ";
+                std::cout << std::endl;
             #endif
             uint_fast64_t n_extracted_msg_bytes;
             
             uint_fast64_t k;
             
+            uint_fast64_t next_index;
+            
             for (j=0; j<n_extracted_msgs; ++j){
-                extracted_msg = extracted_msgs[j];
-                n_extracted_msg_bytes = extracted_msg.size();
+                index = stream_starts[j];
+                next_index = stream_starts[j+1];
+                n_extracted_msg_bytes = next_index - index;
                 if ((j & 1) == 0){
+                    // This stream is the file metadata (filename)
                     fp = "";
-                    for (k=0; k!=n_extracted_msg_bytes; k++)
+                    for (k=index; k!=next_index; k++)
                         fp += extracted_msg[k];
                     
                     if (!std::regex_search(fp, path_regexp_match, path_regexp)){
@@ -822,7 +886,7 @@ int main(const int argc, char *argv[]){
                     out_fp = format_out_fp(out_fmt, path_regexp_match);
                     ext = (std::string)path_regexp_match[5];
                 } else {
-                    // extracted_msg is file data
+                    // This stream is the file contents
                     
                     if (save_extracted){
                         #ifdef DEBUG1
@@ -831,10 +895,10 @@ int main(const int argc, char *argv[]){
                             
                     } else {
                         #ifdef DEBUG1
-                            std::cout << "Reading data stream originating from: " << fp << std::endl;
+                            std::cout << "Reading `" << ext << "` data stream originating from: " << fp << std::endl;
                         #endif
                         
-                        extracted_msg_pointer = &extracted_msg[0];
+                        extracted_msg_pointer = &extracted_msg[index];
                         
                         if (ext == "jpg" || ext == "png" || ext == "jpeg" || ext == "bmp"){
                             cv::Mat rawdata(1, n_extracted_msg_bytes, CV_8UC1, extracted_msg_pointer);
@@ -843,16 +907,21 @@ int main(const int argc, char *argv[]){
                                 #ifdef DEBUG1
                                     std::cerr << "No image data loaded from " << n_extracted_msg_bytes << "B data stream claiming to originate from file `" << fp << "`. Saved extracted bytes to `/tmp/bpcs.msg.txt` for debugging." << std::endl;
                                 #endif
-                                vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "/tmp/bpcs.msg.txt");
+                                vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", "/tmp/bpcs.msg.txt");
                                 throw std::invalid_argument(fp);
                             }
+                            #ifdef DEBUG3
+                                std::cout << "Displaying image" << std::endl;
+                            #endif
                             cv::imshow(fp, decoded_img);
+                            cv::waitKey(0);
                         }
                     }
                 }
             }
         }
         
+        goto_print_histogram:
         #ifdef DEBUG1
             print_histogram(complexities, n_bins, n_binchars);
         #endif
