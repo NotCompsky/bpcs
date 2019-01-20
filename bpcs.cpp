@@ -46,6 +46,15 @@ const std::regex fmt_ext("[{]ext[}]");
 // WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
 
 
+#ifdef DEBUG5
+void print_vector(std::string name, std::vector<uint_fast8_t> &v, uint_fast64_t from, uint_fast64_t to){
+    std::cout << name << ":  ";
+    for (uint_fast64_t i=from; i!=to; ++i)
+        std::cout << v[i];
+    std::cout << std::endl;
+}
+#endif
+
 std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
     return std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, (std::string)path_regexp_match[0]), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[4]);
 }
@@ -109,8 +118,12 @@ uint_fast8_t add_bytes_to_msg(std::vector<uint_fast8_t> &msg, std::vector<uint_f
     uint_fast8_t byte;
     for (int j=0; j<n_bytes; ++j){
         byte = bytes[j];
-        if (byte == esc_byte || byte == end_byte)
+        if (byte == esc_byte || byte == end_byte){
             add_msg_bits(msg, esc_byte);
+            #ifdef DEBUG7
+                std::cout << "[" << +j << "] escaped byte  ==  " << +byte << std::endl;
+            #endif
+        }
         add_msg_bits(msg, byte);
     }
     
@@ -236,15 +249,22 @@ int decode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
 }
 
 float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
-    float value = (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
-    if (value < 0 || value > 1){
-        #ifdef DEBUG1
-            std::cerr << "Complexity of `" << +value << "` out of bounds for " << +grid_w << "x" << +grid_h << " grid" << std::endl;
-            std::cout << grid << std::endl;
-        #endif
-        throw std::runtime_error("");
-    }
-    return value;
+    #ifdef TESTS
+        float value = 
+    #else
+        return 
+    #endif
+    (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
+    #ifdef TESTS
+        if (value < 0 || value > 1){
+            #ifdef DEBUG1
+                std::cerr << "Complexity of `" << +value << "` out of bounds for " << +grid_w << "x" << +grid_h << " grid" << std::endl;
+                std::cout << grid << std::endl;
+            #endif
+            throw std::runtime_error("");
+        }
+        return value;
+    #endif
 }
 
 int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
@@ -427,19 +447,6 @@ void convert_to_cgc(cv::Mat &arr, unsigned int w, unsigned int h, cv::Mat &dest)
     cv::bitwise_xor(arr, bitshifted_up(arr, w, h), dest);
 }
 
-#ifdef ASSERTS
-cv::Mat converted_to_cgc(cv::Mat &arr, unsigned int w, unsigned int h){
-    cv::Mat dest;
-    cv::bitwise_xor(arr, bitshifted_up(arr, w, h), dest);
-    return dest;
-}
-bool convert_to_from_cgc(cv::Mat &im_mat, unsigned int w, unsigned int h){
-    std::vector<cv::Mat> channel_byteplanes;
-    cv::split(im_mat.clone(), channel_byteplanes);
-    
-}
-#endif
-
 uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, const char* name){
     uint_fast8_t byte = 0;
     uint_fast64_t endx = indx + 8;
@@ -448,7 +455,8 @@ uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, c
         byte |= msg[j] << shift++;
     }
     #ifdef DEBUG5
-        std::cout << name << "  ==  " << +byte << std::endl;
+        if (name != "")
+            std::cout << "[" << +(indx >> 3) << "] " << name << "  ==  " << +byte << std::endl;
     #endif
     return byte;
 }
@@ -813,22 +821,34 @@ int main(const int argc, char *argv[]){
                 byte |= msg[j++] << shift++;
                 if (shift == 8){
                     if (byte == escape_byte) {
-                        extracted_msg.push_back(get_byte_from(msg, j, "escaped byte"));
+                        extracted_msg.push_back(get_byte_from(msg, j, ""));
+                        #ifdef DEBUG7
+                            byte = get_byte_from(msg, j, "escaped byte");
+                            if (byte != escape_byte && byte != end_byte){
+                                std::cerr << "[" << +j << "] Byte `" << +byte << "` was escaped, but is neither the esc_byte `" << +escape_byte << "` nor end_byte `" << +end_byte << "`." << std::endl;
+                                return 1;
+                            }
+                        #endif
                         j += 8;
                     } else if (byte == end_byte) {
                         either_endbyte_or_junk = get_byte_from(msg, j, "end_byte or junk");
                         #ifdef DEBUG3
-                            std::cout << "End of an embedded data stream" << std::endl;
+                            std::cout << "[" << +j << "] End of an embedded data stream" << std::endl;
+                            #ifdef DEBUG5
+                                if (stream_starts.size() & 1)
+                                    // Only print first (metadata) of every pair
+                                    print_vector("Extracted stream", extracted_msg, stream_starts[stream_starts.size()-1], index);
+                            #endif
                         #endif
                         stream_starts.push_back(index);
                         if (either_endbyte_or_junk == end_byte){
                             #ifdef DEBUG3
-                                std::cout << "End of embedded data" << std::endl;
+                                std::cout << "[" << +j << "] End of embedded data" << std::endl;
                             #endif
                             goto print_extracted_msg;
                         } else if (either_endbyte_or_junk != end_byte+1){
                             #ifdef DEBUG1
-                                std::cerr << "Unescaped end_byte (" << +end_byte << ") was followed by a byte (" << +either_endbyte_or_junk << ") that was neither another end_byte (signalling end of embedded data) nor junk byte (end_byte + 1 == " << +(end_byte +1) << ")" << std::endl;
+                                std::cerr << "[" << +j << "] Unescaped end_byte (" << +end_byte << ") was followed by a byte (" << +either_endbyte_or_junk << ") that was neither another end_byte (signalling end of embedded data) nor junk byte (end_byte + 1 == " << +(end_byte +1) << ")" << std::endl;
                             #endif
                             goto goto_print_histogram;
                         }
@@ -851,7 +871,7 @@ int main(const int argc, char *argv[]){
             print_extracted_msg:
             int n_extracted_msgs = stream_starts.size() -1;
             #ifdef DEBUG3
-                std::cout << +n_extracted_msgs << " data streams extracted" << std::endl;
+                std::cout << "[" << +j << "] " << +n_extracted_msgs << " data streams extracted" << std::endl;
             #endif
             #ifdef DEBUG7
                 std::cout << "Data stream starts: ";
