@@ -162,13 +162,13 @@ uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
     // returns the trailing end_byte
 }
 
-cv::Mat bitshifted_up(cv::Mat &arr, unsigned int w, unsigned int h){
+cv::Mat bitshifted_down(cv::Mat &arr, unsigned int w, unsigned int h){
     cv::Mat dest = cv::Mat(h, w, CV_8UC1);
     unsigned int i;
     unsigned int j;
     for (j=0; j<h; ++j)
         for (i=0; i<w; ++i)
-            dest.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) << 1;
+            dest.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) >> 1;
     return dest;
 }
 
@@ -444,7 +444,7 @@ void print_histogram(std::vector<float> &complexities, unsigned int n_bins, unsi
 #endif
 
 void convert_to_cgc(cv::Mat &arr, unsigned int w, unsigned int h, cv::Mat &dest){
-    cv::bitwise_xor(arr, bitshifted_up(arr, w, h), dest);
+    cv::bitwise_xor(arr, bitshifted_down(arr, w, h), dest);
 }
 
 uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, const char* name){
@@ -744,7 +744,7 @@ int main(const int argc, char *argv[]){
             cv::Mat byteplane = cv::Mat::zeros(h, w, CV_8UC1);
             
             for (uint_fast8_t k=0; k<n_bits; ++k){
-                bitandshift(XORed_byteplane, bitplane, w, h, k);
+                bitandshift(XORed_byteplane, bitplane, w, h, n_bits-k);
                 if (!msg_was_exhausted){
                     iterate_over_bitgrids__result = iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg);
                     
@@ -764,7 +764,7 @@ int main(const int argc, char *argv[]){
                     prev_bitplane = unXORed_bitplane.clone();
                     // WARNING: MUST BE DEEP COPY!
                     
-                    bitshift_up(unXORed_bitplane, w, h, k);
+                    bitshift_up(unXORed_bitplane, w, h, n_bits-k);
                     
                     cv::bitwise_or(byteplane, unXORed_bitplane, byteplane);
                 }
