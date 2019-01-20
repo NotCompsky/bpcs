@@ -28,12 +28,16 @@
 #include <sys/stat.h> // for stat
 #include <map> // for std::map
 #include <regex> // for std::basic_regex
-#include <libavcodec/avcodec.h>
+
+#ifdef FFMPEG
 extern "C" {
+    #include <libavcodec/avcodec.h>
     #include <libavutil/avutil.h>
     #include <libavformat/avformat.h>
     #include <libavutil/avutil.h>
 }
+#include <boost/interprocess/streams/bufferstream.hpp> // for boost::interprocess::bufferstream
+#endif
 
 
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
@@ -44,6 +48,19 @@ const std::regex fmt_fname("[{]fname[}]");
 const std::regex fmt_basename("[{]basename[}]");
 const std::regex fmt_ext("[{]ext[}]");
 // WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
+
+
+
+
+#ifdef FFMPEG
+// src: Tomaka17's answer (to his own question) https://stackoverflow.com/questions/9604633/reading-a-file-located-in-memory-with-libavformat
+static int readFunction(void* opaque, uint8_t* buf, int buf_size) {
+    auto& me = *reinterpret_cast<std::istream*>(opaque);
+    me.read(reinterpret_cast<char*>(buf), buf_size);
+    return me.gcount();
+}
+// end src
+#endif
 
 
 #ifdef DEBUG5
@@ -519,6 +536,10 @@ int main(const int argc, char *argv[]){
     }
     #endif
     
+    #ifdef FFMPEG
+        av_register_all();
+    #endif
+    
     uint_fast16_t grid_w;
     if (Agrid_w)
         grid_w = args::get(Agrid_w);
@@ -823,11 +844,13 @@ int main(const int argc, char *argv[]){
                     if (byte == escape_byte) {
                         extracted_msg.push_back(get_byte_from(msg, j, ""));
                         #ifdef DEBUG7
+                        #ifdef TESTS
                             byte = get_byte_from(msg, j, "escaped byte");
                             if (byte != escape_byte && byte != end_byte){
                                 std::cerr << "[" << +j << "] Byte `" << +byte << "` was escaped, but is neither the esc_byte `" << +escape_byte << "` nor end_byte `" << +end_byte << "`." << std::endl;
                                 return 1;
                             }
+                        #endif
                         #endif
                         j += 8;
                     } else if (byte == end_byte) {
@@ -923,19 +946,51 @@ int main(const int argc, char *argv[]){
                         if (ext == "jpg" || ext == "png" || ext == "jpeg" || ext == "bmp"){
                             cv::Mat rawdata(1, n_extracted_msg_bytes, CV_8UC1, extracted_msg_pointer);
                             cv::Mat decoded_img = cv::imdecode(rawdata, CV_LOAD_IMAGE_UNCHANGED);
-                            if (decoded_img.data == NULL){
-                                #ifdef DEBUG1
-                                    std::cerr << "No image data loaded from " << n_extracted_msg_bytes << "B data stream claiming to originate from file `" << fp << "`. Saved extracted bytes to `/tmp/bpcs.msg.txt` for debugging." << std::endl;
-                                #endif
-                                vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", "/tmp/bpcs.msg.txt");
-                                throw std::invalid_argument(fp);
-                            }
+                            #ifdef TESTS
+                                if (decoded_img.data == NULL){
+                                    #ifdef DEBUG1
+                                        std::cerr << "No image data loaded from " << n_extracted_msg_bytes << "B data stream claiming to originate from file `" << fp << "`. Saved extracted bytes to `/tmp/bpcs.msg.txt` for debugging." << std::endl;
+                                    #endif
+                                    vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", "/tmp/bpcs.msg.txt");
+                                    throw std::invalid_argument(fp);
+                                }
+                            #endif
                             #ifdef DEBUG3
                                 std::cout << "Displaying image" << std::endl;
                             #endif
                             cv::imshow(fp, decoded_img);
                             cv::waitKey(0);
                         }
+                        #ifdef FFMPEG
+                            else if (ext == "mp3" || ext == "mp4" || ext == "webm" || ext == "mkv"){
+                                boost::interprocess::bufferstream input_stream(reinterpret_cast<char*>(extracted_msg_pointer), n_extracted_msg_bytes);
+                                
+                                // src: Tomaka17's answer (to his own question) https://stackoverflow.com/questions/9604633/reading-a-file-located-in-memory-with-libavformat
+                                const std::shared_ptr<unsigned char> buffer(reinterpret_cast<unsigned char*>(av_malloc(4096)), &av_free);
+                                const std::shared_ptr<AVIOContext> avioContext(avio_alloc_context(buffer.get(), 4096, 0, reinterpret_cast<void*>(static_cast<std::istream*>(&input_stream)), &readFunction, nullptr, nullptr), &av_free);
+
+                                const auto avFormat = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
+                                auto avFormatPtr = avFormat.get();
+                                avFormat->pb = avioContext.get();
+                                if (avformat_open_input(&avFormatPtr, "dummyFilename", nullptr, nullptr) != 0){
+                                    std::cerr << "Cannot open" << std::endl;
+                                    return 1;
+                                }
+                                if (avformat_find_stream_info(avFormatPtr, 0) < 0) {
+                                    std::cerr << "Cannot find stream info" << std::endl;
+                                    return 1;
+                                }
+                                #ifdef DEBUG2
+                                    std::cout << "bit_rate " << avFormatPtr->bit_rate << std::endl;
+                                    std::cout << "duration " << avFormatPtr->duration << std::endl;
+                                    
+                                    std::cout << std::endl << "Stream 0" << std::endl;
+                                    std::cout << "codec " << avFormatPtr->streams[0]->codec << std::endl;
+                                    std::cout << "duration " << avFormatPtr->streams[0]->duration << std::endl;
+                                #endif
+                                // end src
+                            }
+                        #endif
                     }
                 }
             }
