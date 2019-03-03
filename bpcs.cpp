@@ -561,7 +561,6 @@ int main(const int argc, char *argv[]){
         SDL_Overlay* bmp = NULL;
         
         AVFrame* pFrame = av_frame_alloc();
-        AVFrame* pFrameRGB = av_frame_alloc();
         
         SDL_Rect sld_rect;
     #endif
@@ -957,17 +956,17 @@ int main(const int argc, char *argv[]){
                 } else {
                     // This stream is the file contents
                     
+                    extracted_msg_pointer = &extracted_msg[index];
+                    
                     if (save_extracted){
                         #ifdef DEBUG1
                             std::cout << "Saving to: " << out_fp << std::endl;
                         #endif
-                            
+                        vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", out_fp);
                     } else {
                         #ifdef DEBUG1
                             std::cout << "Reading `" << ext << "` data stream originating from: " << fp << std::endl;
                         #endif
-                        
-                        extracted_msg_pointer = &extracted_msg[index];
                         
                         if (ext == "jpg" || ext == "png" || ext == "jpeg" || ext == "bmp"){
                             cv::Mat rawdata(1, n_extracted_msg_bytes, CV_8UC1, extracted_msg_pointer);
@@ -996,32 +995,48 @@ int main(const int argc, char *argv[]){
                                 const std::shared_ptr<AVIOContext> avioContext(avio_alloc_context(buffer.get(), 4096, 0, reinterpret_cast<void*>(static_cast<std::istream*>(&input_stream)), &readFunction, nullptr, nullptr), &av_free);
 
                                 const auto avFormat = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
-                                auto avFormatPtr = avFormat.get();
-                                // Same object as `video_ctx` in tutorials
+                                AVFormatContext* pFormatCtx = avFormat.get();
+                                // Same object as `video_ctx`, `pFormatCtx` in tutorials
                                 avFormat->pb = avioContext.get();
                                 // end src
                                 
-                                if (avformat_open_input(&avFormatPtr, "dummyFilename", nullptr, nullptr) != 0){
+                                if (avformat_open_input(&pFormatCtx, "dummyFilename", nullptr, nullptr) != 0){
                                     std::cerr << "Cannot open" << std::endl;
                                     return 1;
                                 }
-                                if (avformat_find_stream_info(avFormatPtr, 0) < 0) {
+                                if (avformat_find_stream_info(pFormatCtx, 0) < 0) {
                                     std::cerr << "Cannot find stream info" << std::endl;
                                     return 1;
                                 }
                                 #ifdef DEBUG3
-                                    av_dump_format(avFormatPtr, 0, "dummyFilename", 0);
+                                    av_dump_format(pFormatCtx, 0, "dummyFilename", 0);
                                 #endif
+                                
+                                #ifdef DEBUG3
+                                    std::cout << "pFormatCtx->nb_streams == " << +(pFormatCtx->nb_streams) << std::endl;
+                                #endif
+                                
+                                if (pFormatCtx->nb_streams == 0){
+                                    #ifdef DEBUG1
+                                        std::cerr << "No video or audio streams found. If this contradicts av_dump_format (ffprobe) output, there is a library mismatch. Note that output of `ldd " << argv[0] << " | grep libav` will likely give different version numbers for libavutil and libav(codec|format), and this is normal." << std::endl;
+                                    #endif
+                                    avformat_close_input(&pFormatCtx);
+                                    return 1;
+                                }
                                 
                                 // src: http://dranger.com/ffmpeg/tutorial01.html
                                 int video_stream = -1;
                                 int audio_stream = -1;
-                                for (k=0; k<avFormatPtr->nb_streams; ++k){
-                                    if (avFormatPtr->streams[k]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
+                                for (k=0; k<pFormatCtx->nb_streams; ++k){
+                                    if (pFormatCtx->streams[k]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
                                         video_stream = k;
-                                    else if (avFormatPtr->streams[k]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+                                    else if (pFormatCtx->streams[k]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
                                         audio_stream = k;
                                 }
+                                
+                                #ifdef DEBUG3
+                                    std::cout << ".";
+                                #endif
                                 
                                 AVFormatContext* video_fmt_ctx;
                                 AVCodecContext* video_ctx;
@@ -1031,9 +1046,25 @@ int main(const int argc, char *argv[]){
                                 AVCodec* video_codec;
                                 AVCodec* audio_codec;
                                 
+                                #ifdef DEBUG3
+                                    std::cout << ".";
+                                #endif
+                                
+                                #ifdef DEBUG3
+                                    std::cout << std::endl << "video_stream == " << +video_stream << std::endl << "audio_stream == " << +audio_stream << std::endl;
+                                #endif
+                                
                                 if (video_stream != -1){
-                                    video_ctx = avFormatPtr->streams[video_stream]->codec;
+                                    #ifdef DEBUG3
+                                        std::cout << ".";
+                                    #endif
+                                    
+                                    video_ctx = pFormatCtx->streams[video_stream]->codec;
                                     video_codec = avcodec_find_decoder(video_ctx->codec_id);
+                                    
+                                    #ifdef DEBUG3
+                                        std::cout << ".";
+                                    #endif
                                     
                                     if (video_codec == NULL){
                                         std::cerr << "Unsupported video codec" << std::endl;
@@ -1045,13 +1076,26 @@ int main(const int argc, char *argv[]){
                                                 std::cerr << "Could not open video_codec" << std::endl;
                                             #endif
                                         } else {
+                                            #ifdef DEBUG2
+                                                std::cout << "Displaying video stream ";
+                                            #endif
+                                            
                                             // src: http://dranger.com/ffmpeg/tutorial02.html
                                             screen = SDL_SetVideoMode(video_ctx->width, video_ctx->height, 0, 0);
                                             if (!screen){
                                                 std::cerr << "SDL could not set video mode" << std::endl;
                                                 return 1;
                                             }
+                                            
+                                            #ifdef DEBUG3
+                                                std::cout << ".";
+                                            #endif
+                                            
                                             bmp = SDL_CreateYUVOverlay(video_ctx->width, video_ctx->height, SDL_YV12_OVERLAY, screen);
+                                            
+                                            #ifdef DEBUG3
+                                                std::cout << ".";
+                                            #endif
                                             
                                             // initialize SWS context for software scaling
                                             sws_ctx = sws_getContext(video_ctx->width,
@@ -1059,19 +1103,27 @@ int main(const int argc, char *argv[]){
                                                 video_ctx->pix_fmt,
                                                 video_ctx->width,
                                                 video_ctx->height,
-                                                PIX_FMT_YUV420P,
+                                                AV_PIX_FMT_YUV420P,
                                                 SWS_BILINEAR,
                                                 NULL,
                                                 NULL,
                                                 NULL
                                             );
                                             
+                                            #ifdef DEBUG3
+                                                std::cout << ".";
+                                            #endif
+                                            
                                             int frameFinished = 0;
                                             AVPacket packet;
-                                            // av_init_packet(&packet); needed?
+                                            av_init_packet(&packet);
+                                            
+                                            #ifdef DEBUG3
+                                                std::cout << ".";
+                                            #endif
                                             
                                             k = 0;
-                                            while (av_read_frame(video_fmt_ctx, &packet) >= 0){
+                                            while (av_read_frame(pFormatCtx, &packet) >= 0){
                                                 if (packet.stream_index == video_stream){
                                                     avcodec_decode_video2(video_ctx, pFrame, &frameFinished, &packet);
                                                     
@@ -1101,13 +1153,17 @@ int main(const int argc, char *argv[]){
                                                     }
                                                 }
                                             }
+                                            /*av_free(buffer);
+                                            av_free(pFrame);*/
+                                            avcodec_close(video_ctx);
+                                            avformat_close_input(&pFormatCtx);
                                             // end src
                                         }
                                     }
                                 }
                                 
                                 if (audio_stream != -1){
-                                    audio_ctx = avFormatPtr->streams[audio_stream]->codec;
+                                    audio_ctx = pFormatCtx->streams[audio_stream]->codec;
                                     audio_codec = avcodec_find_decoder(audio_ctx->codec_id);
                                     
                                     if (audio_codec == NULL){
