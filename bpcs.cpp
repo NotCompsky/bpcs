@@ -32,6 +32,27 @@
 #include <fcntl.h>    // For O_WRONLY
 #include <unistd.h>   // For open()
 
+/*
+Example usage:
+    A:
+        PIPE_FP=/tmp/bpcs.pipe
+        a=0.45
+        ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.txt -o '/tmp/bpcs.png'
+        (typed-piper "$PIPE_FP")& ./bpcs "$a" /tmp/bpcs.png -o "$PIPE_FP"
+    B:
+        PIPE_FP=/tmp/bpcs.pipe
+        a=0.45
+        ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.mp4 -o '/tmp/bpcs.png'
+        (ffmpeg "$PIPE_FP")& ./bpcs "$a" /tmp/bpcs.png -o "$PIPE_FP"
+    
+    C:
+        # No need for pipe because OpenCV can disply images
+        
+        a=0.45
+        ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.jpg -o '/tmp/bpcs.png'
+        ./bpcs "$a" /tmp/bpcs.png
+*/
+
 
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
 // Groups are full_match, optional, parent_dir, filename, basename, ext
@@ -502,6 +523,7 @@ int main(const int argc, char *argv[]){
     
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
     args::Flag                          Ato_disk        (parser, "to_disk", "Write to disk (as opposed to psuedofile)", {'d', "to-disk"});
+    args::Flag                          Aedit           (parser, "edit", "Edit embedded file (as opposed to psuedofile)", {'e', "edit"});
     
     args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
     
@@ -597,18 +619,15 @@ int main(const int argc, char *argv[]){
     
     std::string out_fmt;
     std::string out_fp;
-    bool save_extracted;
     if (Aout_fmt){
         out_fmt = args::get(Aout_fmt);
-        save_extracted = true;
         #ifdef DEBUG1
             mode += " to ";
             if (Ato_disk)
-                mode += "pseudo";
-            mode += "file";
+                mode += "file";
+            mode += "display";
         #endif
     } else {
-        save_extracted = false;
         out_fmt = "/tmp/bpcs.{fname}";
         #ifdef DEBUG1
             mode += " to display";
@@ -940,14 +959,11 @@ int main(const int argc, char *argv[]){
                     
                     extracted_msg_pointer = &extracted_msg[index];
                     
-                    if (save_extracted){
+                    if (Ato_disk){
                         #ifdef DEBUG1
                             std::cout << "Saving to: " << out_fp << std::endl;
                         #endif
-                        if (Ato_disk)
-                            vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", out_fp);
-                        else
-                            throw std::runtime_error("Not yet implemented pseudofiles");
+                        vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", out_fp);
                     } else {
                         #ifdef DEBUG1
                             std::cout << "Reading `" << ext << "` data stream originating from: " << fp << std::endl;
@@ -988,29 +1004,30 @@ int main(const int argc, char *argv[]){
                                 }
                             }
                             
-                            /*
-                            if (socket(AF_LOCAL, SOCK_STREAM | SOCK_NONBLOCK, 0) == -1){
-                                #ifdef DEBUG1
-                                    std::cerr << "Failed to create named pipe `" << named_pipe_fp << "`" << std::endl;
-                                #endif
-                                throw std::runtime_error("");
-                            }
-                            */
-                            
-                            #ifdef DEBUG1
+                            #ifdef DEBUG3
                                 printf("Writing to `%s`\n", named_pipe_fp);
                             #endif
                             
-                            if (ext == "mp3" || ext == "mp4" || ext == "webm" || ext == "mkv"){
-                                int fd = open(named_pipe_fp, O_WRONLY);
-                                write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
-                                close(fd);
-                                //vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "named pipe", named_pipe_fp);
-                            }
+                            int fd = open(named_pipe_fp, O_WRONLY);
+                            write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
+                            close(fd);
                             
-                            #ifdef DEBUG1
+                            #ifdef DEBUG4
                                 printf("Written to `%s`\n", named_pipe_fp);
                             #endif
+                            
+                            if (Aedit){
+                                // E.g. for editing txt, you could send it to a slightly modified version of NoFrillsTextEditor, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
+                                #ifdef DEBUG2
+                                    std::cout << "Reading edited file from `/tmp/bpcs.inpipe`" << std::endl;
+                                #endif
+                                FILE* named_pipe_inf = fopen("/tmp/bpcs.inpipe", "r");
+                                char c;
+                                while ((c=getc(named_pipe_inf)) != EOF){
+                                    std::cout << c;
+                                }
+                                fclose(named_pipe_inf);
+                            }
                         }
                     }
                 }
