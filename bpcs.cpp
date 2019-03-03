@@ -64,14 +64,9 @@ const std::regex fmt_ext("[{]ext[}]");
 // WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
 
 
-#ifdef DEBUG5
-void print_vector(std::string name, std::vector<uint_fast8_t> &v, uint_fast64_t from, uint_fast64_t to){
-    std::cout << name << ":  ";
-    for (uint_fast64_t i=from; i!=to; ++i)
-        std::cout << v[i];
-    std::cout << std::endl;
-}
-#endif
+
+
+
 
 std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
     return std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, (std::string)path_regexp_match[0]), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[4]);
@@ -83,6 +78,15 @@ long unsigned int get_fsize(const char* fp){
     int rc = stat(fp, &stat_buf);
     return rc == 0 ? stat_buf.st_size : -1;
 }
+
+
+
+
+
+
+/*
+ * Creating bytearrays
+ */
 
 void add_msg_bits(std::vector<uint_fast8_t> &msg, uint_fast8_t c){
     msg.push_back(c & 1);
@@ -180,6 +184,14 @@ uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
     // returns the trailing end_byte
 }
 
+
+
+
+
+/*
+ * Bitwise operations on OpenCV Matrices
+ */
+
 cv::Mat bitshifted_down(cv::Mat &arr, unsigned int w, unsigned int h){
     cv::Mat dest = cv::Mat(h, w, CV_8UC1);
     unsigned int i;
@@ -215,12 +227,18 @@ void bitshift_up(cv::Mat &arr, unsigned int w, unsigned int h, unsigned int n){
             arr.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) << n;
 }
 
-#ifdef DEBUG1
-void print_cv_arr(const char* name, int i, cv::Mat &arr){
-    std::cout << name << i << std::endl << arr << std::endl << std::endl;
+void convert_to_cgc(cv::Mat &arr, unsigned int w, unsigned int h, cv::Mat &dest){
+    cv::bitwise_xor(arr, bitshifted_down(arr, w, h), dest);
 }
-#endif
 
+
+
+
+
+
+/*
+ * Initialise chequerboards
+ */
 cv::Mat chequerboard(unsigned int indx, unsigned int w, unsigned int h){
     // indx should be 0 or 1
     cv::Mat arr = cv::Mat(h, w, CV_8UC1);
@@ -234,6 +252,32 @@ cv::Mat chequerboard(unsigned int indx, unsigned int w, unsigned int h){
 cv::Mat chequerboard_a;
 cv::Mat chequerboard_b;
 
+
+
+
+/*
+ * Grid complexity
+ */
+
+float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
+    #ifdef TESTS
+        float value = 
+    #else
+        return 
+    #endif
+    (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
+    #ifdef TESTS
+        if (value < 0 || value > 1){
+            #ifdef DEBUG1
+                std::cerr << "Complexity of `" << +value << "` out of bounds for " << +grid_w << "x" << +grid_h << " grid" << std::endl;
+                std::cout << grid << std::endl;
+            #endif
+            throw std::runtime_error("");
+        }
+        return value;
+    #endif
+}
+
 void conjugate_grid(cv::Mat &grid){
     cv::Mat arr1;
     cv::Mat arr2;
@@ -245,6 +289,20 @@ void conjugate_grid(cv::Mat &grid){
     
     cv::bitwise_or(arr1, arr2, grid);
 }
+
+
+
+
+
+
+
+
+
+
+
+/*
+ * Act on complex grids
+ */
 
 int decode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
@@ -264,25 +322,6 @@ int decode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
         }
     
     return 1;
-}
-
-float grid_complexity(cv::Mat &grid, unsigned int grid_w, unsigned int grid_h){
-    #ifdef TESTS
-        float value = 
-    #else
-        return 
-    #endif
-    (float)xor_adj(grid, grid_w, grid_h) / (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
-    #ifdef TESTS
-        if (value < 0 || value > 1){
-            #ifdef DEBUG1
-                std::cerr << "Complexity of `" << +value << "` out of bounds for " << +grid_w << "x" << +grid_h << " grid" << std::endl;
-                std::cout << grid << std::endl;
-            #endif
-            throw std::runtime_error("");
-        }
-        return value;
-    #endif
 }
 
 int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, unsigned int grid_w, unsigned int grid_h, std::vector<uint_fast8_t> &msg){
@@ -350,6 +389,20 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
     return 1;
 }
 
+
+
+
+
+
+
+
+
+
+
+/*
+ * Iterate over complex grids
+ */
+
 #ifdef DEBUG3
 void iterate_over_bitgrids__msg(const char* msg, uint_fast32_t n_grids_so_far, uint_fast32_t n_grids_used, uint_fast32_t n_grids_total, float min_complexity, uint_fast64_t msg_size){
     std::cout << msg << ", at state:  " << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity;
@@ -412,6 +465,21 @@ int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, f
     return 1;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+/*
+ * Display statistics
+ */
+
 #ifdef DEBUG1
 void print_histogram(std::vector<float> &complexities, unsigned int n_bins, unsigned int n_binchars){
     uint_fast32_t len_complexities;
@@ -461,9 +529,15 @@ void print_histogram(std::vector<float> &complexities, unsigned int n_bins, unsi
 }
 #endif
 
-void convert_to_cgc(cv::Mat &arr, unsigned int w, unsigned int h, cv::Mat &dest){
-    cv::bitwise_xor(arr, bitshifted_down(arr, w, h), dest);
-}
+
+
+
+
+
+
+/*
+ * Bitarrays
+ */
 
 uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, const char* name){
     uint_fast8_t byte = 0;
@@ -480,6 +554,12 @@ uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, c
 }
 
 
+
+
+/*
+ * Bytearrays
+ */
+
 void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std::string name, std::string fp){
     std::ofstream outfile;
     #ifdef DEBUG7
@@ -490,19 +570,13 @@ void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std
     outfile.close();
 }
 
-/*
-FILE* vector_as_FILE(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std::string name, std::string fp, const char* opentype){
-    // WARNING: fmemopen is a POSIX function - not available on Windows, and probably needs to be installed on Android.
-    FILE* f = std::fmemopen((char*)extracted_msg_pointer, (size_t)n_bytes, opentype);
-    if (f == NULL){
-        #ifdef DEBUG1
-            std::cerr << "Error wrapping `" << name << "` as `" << opentype << "` FILE* using fmemopen" << std::endl;
-        #endif
-        throw std::runtime_error("");
-    }
-    return f;
-}
-*/
+
+
+
+
+
+
+
 
 int main(const int argc, char *argv[]){
     args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
@@ -576,20 +650,18 @@ int main(const int argc, char *argv[]){
     uint_fast8_t n_channels;
     
     #ifdef DEBUG1
-    uint_fast8_t n_bins;
-    if (An_bins)
-        n_bins = args::get(An_bins);
-    else
-        n_bins = 10;
-    
-    uint_fast8_t n_binchars;
-    if (An_binchars)
-        n_binchars = args::get(An_binchars);
-    else
-        n_binchars = 200;
-    #endif
-    
-    #ifdef DEBUG1
+        uint_fast8_t n_bins;
+        if (An_bins)
+            n_bins = args::get(An_bins);
+        else
+            n_bins = 10;
+        
+        uint_fast8_t n_binchars;
+        if (An_binchars)
+            n_binchars = args::get(An_binchars);
+        else
+            n_binchars = 200;
+        
         std::string mode;
     #endif
     std::vector<std::string> msg_fps;
@@ -704,35 +776,8 @@ int main(const int argc, char *argv[]){
             } while (++i != diff);
         }
         
-        #ifdef DEBUG1
+        #ifdef DEBUG2
             std::cout << msg_size << "b to encode" << std::endl;
-        #endif
-        #ifdef DEBUG7
-            std::vector<uint_fast8_t> msg_as_bytes;
-            msg_as_bytes.reserve(msg_size >> 3);
-        #endif
-        #ifdef DEBUG4
-            uint_fast8_t byte = 0;
-            uint_fast8_t shift = 0;
-            for (i=0; i<msg_size; ++i){
-                byte |= msg[i] << shift++;
-                if (shift == 8){
-                    #ifdef DEBUG7
-                        msg_as_bytes.push_back(byte);
-                    #endif
-                    byte = 0;
-                    shift = 0;
-                }
-            }
-            std::cout << std::endl;
-            #ifdef DEBUG7
-                uint_fast8_t* msg_pointer = &msg_as_bytes[0];
-                vector2file(msg_pointer, msg_size >> 3, "msg_as_bytes", "/tmp/bpcs.encoded.msg.txt");
-            #endif
-            if (shift != 0){
-                std::cout << "Encoded a non-byte number of bits: " << +shift << " extra bits" << std::endl;
-                throw std::invalid_argument("");
-            }
         #endif
     }
     
@@ -745,7 +790,6 @@ int main(const int argc, char *argv[]){
     std::smatch path_regexp_match;
     
     std::string ext;
-    
     std::string fp;
     
     for (i=0; i<img_fps_len; ++i){
@@ -757,7 +801,7 @@ int main(const int argc, char *argv[]){
             #ifdef DEBUG1
                 std::cerr << "Cannot load image data from:  " << fp << std::endl;
             #endif
-            throw std::invalid_argument(fp);
+            return 1;
         }
         
         n_channels = im_mat.channels();
@@ -767,7 +811,7 @@ int main(const int argc, char *argv[]){
         
         // NOTE: OpenCV treats matrices in row-major order - i.e. accessed as (row_id, column_id). For images, this is (y, x).
         
-        #ifdef DEBUG1
+        #ifdef DEBUG3
             std::cout << +w << "x" << +h << "\t" << +n_channels << " channels" << std::endl;
         #endif
         
@@ -869,36 +913,13 @@ int main(const int argc, char *argv[]){
                 if (shift == 8){
                     if (byte == escape_byte) {
                         extracted_msg.push_back(get_byte_from(msg, j, ""));
-                        #ifdef DEBUG7
-                        #ifdef TESTS
-                            byte = get_byte_from(msg, j, "escaped byte");
-                            if (byte != escape_byte && byte != end_byte){
-                                std::cerr << "[" << +j << "] Byte `" << +byte << "` was escaped, but is neither the esc_byte `" << +escape_byte << "` nor end_byte `" << +end_byte << "`." << std::endl;
-                                return 1;
-                            }
-                        #endif
-                        #endif
                         j += 8;
                     } else if (byte == end_byte) {
                         either_endbyte_or_junk = get_byte_from(msg, j, "end_byte or junk");
-                        #ifdef DEBUG3
-                            std::cout << "[" << +j << "] End of an embedded data stream" << std::endl;
-                            #ifdef DEBUG5
-                                if (stream_starts.size() & 1)
-                                    // Only print first (metadata) of every pair
-                                    print_vector("Extracted stream", extracted_msg, stream_starts[stream_starts.size()-1], index);
-                            #endif
-                        #endif
                         stream_starts.push_back(index);
                         if (either_endbyte_or_junk == end_byte){
-                            #ifdef DEBUG3
-                                std::cout << "[" << +j << "] End of embedded data" << std::endl;
-                            #endif
                             goto print_extracted_msg;
                         } else if (either_endbyte_or_junk != end_byte+1){
-                            #ifdef DEBUG1
-                                std::cerr << "[" << +j << "] Unescaped end_byte (" << +end_byte << ") was followed by a byte (" << +either_endbyte_or_junk << ") that was neither another end_byte (signalling end of embedded data) nor junk byte (end_byte + 1 == " << +(end_byte +1) << ")" << std::endl;
-                            #endif
                             goto goto_print_histogram;
                         }
                         j += 8;
@@ -919,15 +940,7 @@ int main(const int argc, char *argv[]){
             
             print_extracted_msg:
             int n_extracted_msgs = stream_starts.size() -1;
-            #ifdef DEBUG3
-                std::cout << "[" << +j << "] " << +n_extracted_msgs << " data streams extracted" << std::endl;
-            #endif
-            #ifdef DEBUG7
-                std::cout << "Data stream starts: ";
-                for (j=0; j!=n_extracted_msgs+1; ++j)
-                    std::cout << +stream_starts[j] << " ";
-                std::cout << std::endl;
-            #endif
+            
             uint_fast64_t n_extracted_msg_bytes;
             
             uint_fast64_t k;
@@ -949,7 +962,7 @@ int main(const int argc, char *argv[]){
                         #ifdef DEBUG1
                             std::cerr << "Filename did not match regexp:  " << fp << std::endl;
                         #endif
-                        throw std::invalid_argument(fp);
+                        throw std::invalid_argument("");
                     }
                     
                     out_fp = format_out_fp(out_fmt, path_regexp_match);
@@ -1005,19 +1018,15 @@ int main(const int argc, char *argv[]){
                             }
                             
                             #ifdef DEBUG3
-                                printf("Writing to `%s`\n", named_pipe_fp);
+                                printf("Piping to `%s`\n", named_pipe_fp);
                             #endif
                             
                             int fd = open(named_pipe_fp, O_WRONLY);
                             write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
                             close(fd);
                             
-                            #ifdef DEBUG4
-                                printf("Written to `%s`\n", named_pipe_fp);
-                            #endif
-                            
                             if (Aedit){
-                                // E.g. for editing txt, you could send it to a slightly modified version of NoFrillsTextEditor, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
+                                // E.g. editing txt - we'd send it to our edited NoFrillsTextEditor `typed-piper`, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
                                 #ifdef DEBUG2
                                     std::cout << "Reading edited file from `/tmp/bpcs.inpipe`" << std::endl;
                                 #endif
