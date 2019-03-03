@@ -37,6 +37,8 @@ extern "C" {
     #include <libavutil/avutil.h>
 }
 #include <boost/interprocess/streams/bufferstream.hpp> // for boost::interprocess::bufferstream
+#include <SDL.h> // Simple Direct Layer, cross-platform multimedia
+#include <SDL_thread.h>
 #endif
 
 
@@ -538,6 +540,16 @@ int main(const int argc, char *argv[]){
     
     #ifdef FFMPEG
         av_register_all();
+        
+        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
+            std::cerr << "Could not initialize SDL" << SDL_GetError() << std::endl;
+            return 1;
+        }
+        
+        SDL_Surface* screen;
+        
+        SDL_Overlay* bmp = NULL;
+        struct SWSContext* sws_ctx = NULL;
     #endif
     
     uint_fast16_t grid_w;
@@ -1016,6 +1028,32 @@ int main(const int argc, char *argv[]){
                                             #ifdef DEBUG1
                                                 std::cerr << "Could not open video_codec" << std::endl;
                                             #endif
+                                        } else {
+                                            // src: http://dranger.com/ffmpeg/tutorial02.html
+                                            screen = SDL_SetVideoMode(video_ctx->width, video_ctx->height, 0, 0);
+                                            if (!screen){
+                                                std::cerr << "SDL could not set video mode" << std::endl;
+                                                return 1;
+                                            }
+                                            bmp = SDL_CreateYUVOverlay(video_ctx->width, video_ctx->height, SDL_YV12_OVERLAY, screen);
+                                            
+                                            // initialize SWS context for software scaling
+                                            sws_ctx = sws_getContext(pCodecCtx->width,
+                                                pCodecCtx->height,
+                                                pCodecCtx->pix_fmt,
+                                                pCodecCtx->width,
+                                                pCodecCtx->height,
+                                                PIX_FMT_YUV420P,
+                                                SWS_BILINEAR,
+                                                NULL,
+                                                NULL,
+                                                NULL
+                                            );
+                                            
+                                            
+
+                                            
+                                            // end src
                                         }
                                     }
                                 }
@@ -1038,6 +1076,53 @@ int main(const int argc, char *argv[]){
                                 }
                                 
                                 // end src
+                                
+                                
+                                
+                                // src: https://ffmpeg.zeranoe.com/forum/viewtopic.php?t=235
+                                AVFrame* av_frame = avcodec_alloc_frame();
+                                AVFrame* av_frame_tmp = avcodec_alloc_frame();
+                                
+                                if (av_frame == NULL || av_frame_tmp == NULL){
+                                    std::cerr << "Unable to allocate frames" << std::endl;
+                                }
+                                
+                                // Allocate memory to fit frame dimensions/size
+                                uint_fast8_t* buffer;
+                                int numBytes = avpicture_get_size(PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);
+                                buffer = (uint_fast8_t*)av_malloc(numBytes * sizeof(uint8_fast8_t));
+                                
+                                avpicture_fill((AVPicture*) av_frame_tmp, buffer, PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);
+                                
+                                int frameFinished = 0;
+                                AVPacket packet;
+                                av_init_packet(&packet);
+                                k = 0;
+                                while (av_read_frame(pFormatCtx, &packet) >= 0){
+                                    if (packet.stream_index == video_stream){
+                                        avcodec_decode_video2(video_ctx, av_frame, &frameFinished, &packet);
+                                        
+                                        if (frameFinished){
+                                            // if we got a video frame
+                                            //convert the image to RGB
+                                            SwsContext *img_convert_ctx = sws_getContext(
+                                                pFrame->width,
+                                                pFrame->height,
+                                                pCodecCtx->pix_fmt,
+                                                pFrameRGB->width,
+                                                pFrameRGB->height,
+                                                PIX_FMT_RGB24,
+                                                SWS_BICUBIC,
+                                                NULL,
+                                                NULL,
+                                                NULL);
+                                            if (img_convert_ctx == NULL){
+                                                std::cerr << "Cannot initialise the video conversion context" << std::endl;
+                                                return 1;
+                                            }
+                                            
+                                // end src
+                                
                             }
                         #endif
                     }
