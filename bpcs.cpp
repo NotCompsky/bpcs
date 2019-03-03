@@ -29,26 +29,8 @@
 #include <map> // for std::map
 #include <regex> // for std::basic_regex
 
-#ifdef FFMPEG
-extern "C" {
-    #include <libavcodec/avcodec.h>
-    #include <libavutil/avutil.h>
-    #include <libavformat/avformat.h>
-    #include <libavutil/avutil.h>
-    #include <libswscale/swscale.h>
-    #include <libavutil/frame.h> // for av_frame_alloc // Multiple definitions errors with avcodec.h, avutil.h
-}
-#include <boost/interprocess/streams/bufferstream.hpp> // for boost::interprocess::bufferstream
-#include <SDL/SDL.h> // Simple Direct Layer, cross-platform multimedia
-#include <SDL/SDL_thread.h>
-#endif
-
-
-
-/*
-Will not compile unless following steps are taken to remove conflicting (duplicate) declarations:
-    Edit `/usr/local/include/libavutil/frame.h` and place definitions of `AVColorSpace`, `AVColorRange`, `AVFrame` into #ifndef #endif wrappers.
-*/
+#include <fcntl.h>    // For O_WRONLY
+#include <unistd.h>   // For open()
 
 
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
@@ -59,20 +41,6 @@ const std::regex fmt_fname("[{]fname[}]");
 const std::regex fmt_basename("[{]basename[}]");
 const std::regex fmt_ext("[{]ext[}]");
 // WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
-
-
-
-#ifdef FFMPEG
-struct SwsContext* sws_ctx = NULL;
-
-// src: Tomaka17's answer (to his own question) https://stackoverflow.com/questions/9604633/reading-a-file-located-in-memory-with-libavformat
-static int readFunction(void* opaque, uint8_t* buf, int buf_size) {
-    auto& me = *reinterpret_cast<std::istream*>(opaque);
-    me.read(reinterpret_cast<char*>(buf), buf_size);
-    return me.gcount();
-}
-// end src
-#endif
 
 
 #ifdef DEBUG5
@@ -501,6 +469,19 @@ void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std
     outfile.close();
 }
 
+/*
+FILE* vector_as_FILE(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std::string name, std::string fp, const char* opentype){
+    // WARNING: fmemopen is a POSIX function - not available on Windows, and probably needs to be installed on Android.
+    FILE* f = std::fmemopen((char*)extracted_msg_pointer, (size_t)n_bytes, opentype);
+    if (f == NULL){
+        #ifdef DEBUG1
+            std::cerr << "Error wrapping `" << name << "` as `" << opentype << "` FILE* using fmemopen" << std::endl;
+        #endif
+        throw std::runtime_error("");
+    }
+    return f;
+}
+*/
 
 int main(const int argc, char *argv[]){
     args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
@@ -520,6 +501,7 @@ int main(const int argc, char *argv[]){
     args::Flag                          Amsg_empty      (parser, "msg_empty", "Embed a msg of 0 bytes", {"msg-empty"});
     
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
+    args::Flag                          Ato_disk        (parser, "to_disk", "Write to disk (as opposed to psuedofile)", {'d', "to-disk"});
     
     args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
     
@@ -546,23 +528,6 @@ int main(const int argc, char *argv[]){
         std::cerr << parser;
         return 1;
     }
-    #endif
-    
-    #ifdef FFMPEG
-        av_register_all();
-        
-        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
-            std::cerr << "Could not initialize SDL" << SDL_GetError() << std::endl;
-            return 1;
-        }
-        
-        SDL_Surface* screen;
-        
-        SDL_Overlay* bmp = NULL;
-        
-        AVFrame* pFrame = av_frame_alloc();
-        
-        SDL_Rect sld_rect;
     #endif
     
     uint_fast16_t grid_w;
@@ -602,35 +567,52 @@ int main(const int argc, char *argv[]){
         n_binchars = 200;
     #endif
     
-    std::string out_fmt;
-    std::string out_fp;
-    bool save_extracted;
-    if (Aout_fmt){
-        out_fmt = args::get(Aout_fmt);
-        save_extracted = true;
-    } else {
-        save_extracted = false;
-        out_fmt = "%(fp)s";
-    }
-    
-    std::string mode;
+    #ifdef DEBUG1
+        std::string mode;
+    #endif
     std::vector<std::string> msg_fps;
     std::function<int(cv::Mat&, cv::Rect&, const float, cv::Mat&, unsigned int, unsigned int, std::vector<uint_fast8_t>&)> grid_fnct;
     
     bool encoding;
     if (Amsg_empty){
         encoding = true;
-        mode = "Encoding blank";
+        #ifdef DEBUG1
+            mode = "Encoding blank";
+        #endif
         grid_fnct = encode_grid;
     } else if (Amsg_fps){
         encoding = true;
         msg_fps = args::get(Amsg_fps);
-        mode = "Encoding";
+        #ifdef DEBUG1
+            mode = "Encoding";
+        #endif
         grid_fnct = encode_grid;
     } else {
         encoding = false;
-        mode = "Decoding";
+        #ifdef DEBUG1
+            mode = "Decoding";
+        #endif
         grid_fnct = decode_grid;
+    }
+    
+    std::string out_fmt;
+    std::string out_fp;
+    bool save_extracted;
+    if (Aout_fmt){
+        out_fmt = args::get(Aout_fmt);
+        save_extracted = true;
+        #ifdef DEBUG1
+            mode += " to ";
+            if (Ato_disk)
+                mode += "pseudo";
+            mode += "file";
+        #endif
+    } else {
+        save_extracted = false;
+        out_fmt = "/tmp/bpcs.{fname}";
+        #ifdef DEBUG1
+            mode += " to display";
+        #endif
     }
     
     cv::Mat im_mat;
@@ -656,7 +638,7 @@ int main(const int argc, char *argv[]){
     }
     
     #ifdef DEBUG1
-        std::cout << mode << " " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << ", " << +n_channels << " channels, " << +n_bits << " bits" << std::endl;
+        std::cout << mode << ": " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << ", " << +n_channels << " channels, " << +n_bits << " bits" << std::endl;
         // Preceding primitive data type with `+` operator makes it print ASCII character representing that numerical value, rather than the ASCII character of that value
     #endif
     
@@ -962,7 +944,10 @@ int main(const int argc, char *argv[]){
                         #ifdef DEBUG1
                             std::cout << "Saving to: " << out_fp << std::endl;
                         #endif
-                        vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", out_fp);
+                        if (Ato_disk)
+                            vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", out_fp);
+                        else
+                            throw std::runtime_error("Not yet implemented pseudofiles");
                     } else {
                         #ifdef DEBUG1
                             std::cout << "Reading `" << ext << "` data stream originating from: " << fp << std::endl;
@@ -985,202 +970,48 @@ int main(const int argc, char *argv[]){
                             #endif
                             cv::imshow(fp, decoded_img);
                             cv::waitKey(0);
-                        }
-                        #ifdef FFMPEG
-                            else if (ext == "mp3" || ext == "mp4" || ext == "webm" || ext == "mkv"){
-                                boost::interprocess::bufferstream input_stream(reinterpret_cast<char*>(extracted_msg_pointer), n_extracted_msg_bytes);
-                                
-                                // src: Tomaka17's answer (to his own question) https://stackoverflow.com/questions/9604633/reading-a-file-located-in-memory-with-libavformat
-                                const std::shared_ptr<unsigned char> buffer(reinterpret_cast<unsigned char*>(av_malloc(4096)), &av_free);
-                                const std::shared_ptr<AVIOContext> avioContext(avio_alloc_context(buffer.get(), 4096, 0, reinterpret_cast<void*>(static_cast<std::istream*>(&input_stream)), &readFunction, nullptr, nullptr), &av_free);
-
-                                const auto avFormat = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
-                                AVFormatContext* pFormatCtx = avFormat.get();
-                                // Same object as `video_ctx`, `pFormatCtx` in tutorials
-                                avFormat->pb = avioContext.get();
-                                // end src
-                                
-                                if (avformat_open_input(&pFormatCtx, "dummyFilename", nullptr, nullptr) != 0){
-                                    std::cerr << "Cannot open" << std::endl;
-                                    return 1;
-                                }
-                                if (avformat_find_stream_info(pFormatCtx, 0) < 0) {
-                                    std::cerr << "Cannot find stream info" << std::endl;
-                                    return 1;
-                                }
-                                #ifdef DEBUG3
-                                    av_dump_format(pFormatCtx, 0, "dummyFilename", 0);
-                                #endif
-                                
-                                #ifdef DEBUG3
-                                    std::cout << "pFormatCtx->nb_streams == " << +(pFormatCtx->nb_streams) << std::endl;
-                                #endif
-                                
-                                if (pFormatCtx->nb_streams == 0){
+                        } else {
+                            // FILE* f = vector_as_FILE(extracted_msg_pointer, n_extracted_msg_bytes, "extracted_msg", out_fp, "r");
+                            
+                            const char* named_pipe_fp = out_fp.c_str();
+                            
+                            struct stat buffer;
+                            
+                            if (stat(named_pipe_fp, &buffer) != 0){
+                                // Ensure named_pipe exists, else create
+                                if (mkfifo(named_pipe_fp, 0666) == -1){
+                                    // WARNING: mkfifo is POSIX-specific
                                     #ifdef DEBUG1
-                                        std::cerr << "No video or audio streams found. If this contradicts av_dump_format (ffprobe) output, there is a library mismatch. Note that output of `ldd " << argv[0] << " | grep libav` will likely give different version numbers for libavutil and libav(codec|format), and this is normal." << std::endl;
+                                        std::cerr << "Failed to create named pipe `" << named_pipe_fp << "`" << std::endl;
                                     #endif
-                                    avformat_close_input(&pFormatCtx);
-                                    return 1;
+                                    throw std::runtime_error("");
                                 }
-                                
-                                // src: http://dranger.com/ffmpeg/tutorial01.html
-                                int video_stream = -1;
-                                int audio_stream = -1;
-                                for (k=0; k<pFormatCtx->nb_streams; ++k){
-                                    if (pFormatCtx->streams[k]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
-                                        video_stream = k;
-                                    else if (pFormatCtx->streams[k]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
-                                        audio_stream = k;
-                                }
-                                
-                                #ifdef DEBUG3
-                                    std::cout << ".";
-                                #endif
-                                
-                                AVFormatContext* video_fmt_ctx;
-                                AVCodecContext* video_ctx;
-                                AVFormatContext* audio_fmt_ctx;
-                                AVCodecContext* audio_ctx;
-                                
-                                AVCodec* video_codec;
-                                AVCodec* audio_codec;
-                                
-                                #ifdef DEBUG3
-                                    std::cout << ".";
-                                #endif
-                                
-                                #ifdef DEBUG3
-                                    std::cout << std::endl << "video_stream == " << +video_stream << std::endl << "audio_stream == " << +audio_stream << std::endl;
-                                #endif
-                                
-                                if (video_stream != -1){
-                                    #ifdef DEBUG3
-                                        std::cout << ".";
-                                    #endif
-                                    
-                                    video_ctx = pFormatCtx->streams[video_stream]->codec;
-                                    video_codec = avcodec_find_decoder(video_ctx->codec_id);
-                                    
-                                    #ifdef DEBUG3
-                                        std::cout << ".";
-                                    #endif
-                                    
-                                    if (video_codec == NULL){
-                                        std::cerr << "Unsupported video codec" << std::endl;
-                                    } else {
-                                        video_ctx = avcodec_alloc_context3(video_codec);
-                                        
-                                        if (avcodec_open2(video_ctx, video_codec, nullptr) < 0){
-                                            #ifdef DEBUG1
-                                                std::cerr << "Could not open video_codec" << std::endl;
-                                            #endif
-                                        } else {
-                                            #ifdef DEBUG2
-                                                std::cout << "Displaying video stream ";
-                                            #endif
-                                            
-                                            // src: http://dranger.com/ffmpeg/tutorial02.html
-                                            screen = SDL_SetVideoMode(video_ctx->width, video_ctx->height, 0, 0);
-                                            if (!screen){
-                                                std::cerr << "SDL could not set video mode" << std::endl;
-                                                return 1;
-                                            }
-                                            
-                                            #ifdef DEBUG3
-                                                std::cout << ".";
-                                            #endif
-                                            
-                                            bmp = SDL_CreateYUVOverlay(video_ctx->width, video_ctx->height, SDL_YV12_OVERLAY, screen);
-                                            
-                                            #ifdef DEBUG3
-                                                std::cout << ".";
-                                            #endif
-                                            
-                                            // initialize SWS context for software scaling
-                                            sws_ctx = sws_getContext(video_ctx->width,
-                                                video_ctx->height,
-                                                video_ctx->pix_fmt,
-                                                video_ctx->width,
-                                                video_ctx->height,
-                                                AV_PIX_FMT_YUV420P,
-                                                SWS_BILINEAR,
-                                                NULL,
-                                                NULL,
-                                                NULL
-                                            );
-                                            
-                                            #ifdef DEBUG3
-                                                std::cout << ".";
-                                            #endif
-                                            
-                                            int frameFinished = 0;
-                                            AVPacket packet;
-                                            av_init_packet(&packet);
-                                            
-                                            #ifdef DEBUG3
-                                                std::cout << ".";
-                                            #endif
-                                            
-                                            k = 0;
-                                            while (av_read_frame(pFormatCtx, &packet) >= 0){
-                                                if (packet.stream_index == video_stream){
-                                                    avcodec_decode_video2(video_ctx, pFrame, &frameFinished, &packet);
-                                                    
-                                                    if (frameFinished){
-                                                        // Did we recieve a video frame?
-                                                        SDL_LockYUVOverlay(bmp);
-                                                        
-                                                        AVPicture pict;
-                                                        pict.data[0] = bmp->pixels[0];
-                                                        pict.data[1] = bmp->pixels[2];
-                                                        pict.data[2] = bmp->pixels[1];
-
-                                                        pict.linesize[0] = bmp->pitches[0];
-                                                        pict.linesize[1] = bmp->pitches[2];
-                                                        pict.linesize[2] = bmp->pitches[1];
-
-                                                        // Convert the image into YUV format that SDL uses
-                                                        sws_scale(sws_ctx, (uint8_t const* const*)pFrame->data, pFrame->linesize, 0, video_ctx->height, pict.data, pict.linesize);
-                                                        
-                                                        SDL_UnlockYUVOverlay(bmp);
-                                                        
-                                                        sld_rect.x = 0;
-                                                        sld_rect.y = 0;
-                                                        sld_rect.w = video_ctx->width;
-                                                        sld_rect.h = video_ctx->height;
-                                                        SDL_DisplayYUVOverlay(bmp, &sld_rect);
-                                                    }
-                                                }
-                                            }
-                                            /*av_free(buffer);
-                                            av_free(pFrame);*/
-                                            avcodec_close(video_ctx);
-                                            avformat_close_input(&pFormatCtx);
-                                            // end src
-                                        }
-                                    }
-                                }
-                                
-                                if (audio_stream != -1){
-                                    audio_ctx = pFormatCtx->streams[audio_stream]->codec;
-                                    audio_codec = avcodec_find_decoder(audio_ctx->codec_id);
-                                    
-                                    if (audio_codec == NULL){
-                                        std::cerr << "Unsupported video codec" << std::endl;
-                                    } else {
-                                        audio_ctx = avcodec_alloc_context3(audio_codec);
-                                        
-                                        if (avcodec_open2(audio_ctx, audio_codec, nullptr) < 0){
-                                            #ifdef DEBUG1
-                                                std::cerr << "Could not open audio_codec" << std::endl;
-                                            #endif
-                                        }
-                                    }
-                                }
-                                // end src
                             }
-                        #endif
+                            
+                            /*
+                            if (socket(AF_LOCAL, SOCK_STREAM | SOCK_NONBLOCK, 0) == -1){
+                                #ifdef DEBUG1
+                                    std::cerr << "Failed to create named pipe `" << named_pipe_fp << "`" << std::endl;
+                                #endif
+                                throw std::runtime_error("");
+                            }
+                            */
+                            
+                            #ifdef DEBUG1
+                                printf("Writing to `%s`\n", named_pipe_fp);
+                            #endif
+                            
+                            if (ext == "mp3" || ext == "mp4" || ext == "webm" || ext == "mkv"){
+                                int fd = open(named_pipe_fp, O_WRONLY);
+                                write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
+                                close(fd);
+                                //vector2file(extracted_msg_pointer, n_extracted_msg_bytes, "named pipe", named_pipe_fp);
+                            }
+                            
+                            #ifdef DEBUG1
+                                printf("Written to `%s`\n", named_pipe_fp);
+                            #endif
+                        }
                     }
                 }
             }
