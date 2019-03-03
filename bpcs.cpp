@@ -971,7 +971,10 @@ int main(const int argc, char *argv[]){
 
                                 const auto avFormat = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
                                 auto avFormatPtr = avFormat.get();
+                                // Same object as `pCodecCtx` in tutorials
                                 avFormat->pb = avioContext.get();
+                                // end src
+                                
                                 if (avformat_open_input(&avFormatPtr, "dummyFilename", nullptr, nullptr) != 0){
                                     std::cerr << "Cannot open" << std::endl;
                                     return 1;
@@ -980,14 +983,60 @@ int main(const int argc, char *argv[]){
                                     std::cerr << "Cannot find stream info" << std::endl;
                                     return 1;
                                 }
-                                #ifdef DEBUG2
-                                    std::cout << "bit_rate " << avFormatPtr->bit_rate << std::endl;
-                                    std::cout << "duration " << avFormatPtr->duration << std::endl;
-                                    
-                                    std::cout << std::endl << "Stream 0" << std::endl;
-                                    std::cout << "codec " << avFormatPtr->streams[0]->codec << std::endl;
-                                    std::cout << "duration " << avFormatPtr->streams[0]->duration << std::endl;
+                                #ifdef DEBUG3
+                                    av_dump_format(avFormatPtr, 0, "dummyFilename", 0);
                                 #endif
+                                
+                                // src: http://dranger.com/ffmpeg/tutorial01.html
+                                int video_stream = -1;
+                                int audio_stream = -1;
+                                for (k=0; k<avFormatPtr->nb_streams; ++k){
+                                    if (avFormatPtr->streams[k]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
+                                        video_stream = k;
+                                    else if (avFormatPtr->streams[k]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+                                        audio_stream = k;
+                                }
+                                
+                                AVCodecContext* video_ctx;
+                                AVCodecContext* audio_ctx;
+                                
+                                AVCodec* video_codec;
+                                AVCodec* audio_codec;
+                                
+                                if (video_stream != -1){
+                                    video_ctx = avFormatPtr->streams[video_stream]->codec;
+                                    video_codec = avcodec_find_decoder(video_ctx->codec_id);
+                                    
+                                    if (video_codec == NULL){
+                                        std::cerr << "Unsupported video codec" << std::endl;
+                                    } else {
+                                        video_ctx = avcodec_alloc_context3(video_codec);
+                                        
+                                        if (avcodec_open2(video_ctx, video_codec, nullptr) < 0){
+                                            #ifdef DEBUG1
+                                                std::cerr << "Could not open video_codec" << std::endl;
+                                            #endif
+                                        }
+                                    }
+                                }
+                                
+                                if (audio_stream != -1){
+                                    audio_ctx = avFormatPtr->streams[audio_stream]->codec;
+                                    audio_codec = avcodec_find_decoder(audio_ctx->codec_id);
+                                    
+                                    if (audio_codec == NULL){
+                                        std::cerr << "Unsupported audio codec" << std::endl;
+                                    } else {
+                                        audio_ctx = avcodec_alloc_context3(audio_codec);
+                                        
+                                        if (avcodec_open2(audio_ctx, audio_codec, nullptr) < 0){
+                                            #ifdef DEBUG1
+                                                std::cerr << "Could not open audio_codec" << std::endl;
+                                            #endif
+                                        }
+                                    }
+                                }
+                                
                                 // end src
                             }
                         #endif
