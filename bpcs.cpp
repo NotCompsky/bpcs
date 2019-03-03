@@ -35,11 +35,20 @@ extern "C" {
     #include <libavutil/avutil.h>
     #include <libavformat/avformat.h>
     #include <libavutil/avutil.h>
+    #include <libswscale/swscale.h>
+    #include <libavutil/frame.h> // for av_frame_alloc // Multiple definitions errors with avcodec.h, avutil.h
 }
 #include <boost/interprocess/streams/bufferstream.hpp> // for boost::interprocess::bufferstream
-#include <SDL.h> // Simple Direct Layer, cross-platform multimedia
-#include <SDL_thread.h>
+#include <SDL/SDL.h> // Simple Direct Layer, cross-platform multimedia
+#include <SDL/SDL_thread.h>
 #endif
+
+
+
+/*
+Will not compile unless following steps are taken to remove conflicting (duplicate) declarations:
+    Edit `/usr/local/include/libavutil/frame.h` and place definitions of `AVColorSpace`, `AVColorRange`, `AVFrame` into #ifndef #endif wrappers.
+*/
 
 
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
@@ -53,8 +62,9 @@ const std::regex fmt_ext("[{]ext[}]");
 
 
 
-
 #ifdef FFMPEG
+struct SwsContext* sws_ctx = NULL;
+
 // src: Tomaka17's answer (to his own question) https://stackoverflow.com/questions/9604633/reading-a-file-located-in-memory-with-libavformat
 static int readFunction(void* opaque, uint8_t* buf, int buf_size) {
     auto& me = *reinterpret_cast<std::istream*>(opaque);
@@ -549,7 +559,11 @@ int main(const int argc, char *argv[]){
         SDL_Surface* screen;
         
         SDL_Overlay* bmp = NULL;
-        struct SWSContext* sws_ctx = NULL;
+        
+        AVFrame* pFrame = av_frame_alloc();
+        AVFrame* pFrameRGB = av_frame_alloc();
+        
+        SDL_Rect sld_rect;
     #endif
     
     uint_fast16_t grid_w;
@@ -983,7 +997,7 @@ int main(const int argc, char *argv[]){
 
                                 const auto avFormat = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
                                 auto avFormatPtr = avFormat.get();
-                                // Same object as `pCodecCtx` in tutorials
+                                // Same object as `video_ctx` in tutorials
                                 avFormat->pb = avioContext.get();
                                 // end src
                                 
@@ -1009,7 +1023,9 @@ int main(const int argc, char *argv[]){
                                         audio_stream = k;
                                 }
                                 
+                                AVFormatContext* video_fmt_ctx;
                                 AVCodecContext* video_ctx;
+                                AVFormatContext* audio_fmt_ctx;
                                 AVCodecContext* audio_ctx;
                                 
                                 AVCodec* video_codec;
@@ -1038,11 +1054,11 @@ int main(const int argc, char *argv[]){
                                             bmp = SDL_CreateYUVOverlay(video_ctx->width, video_ctx->height, SDL_YV12_OVERLAY, screen);
                                             
                                             // initialize SWS context for software scaling
-                                            sws_ctx = sws_getContext(pCodecCtx->width,
-                                                pCodecCtx->height,
-                                                pCodecCtx->pix_fmt,
-                                                pCodecCtx->width,
-                                                pCodecCtx->height,
+                                            sws_ctx = sws_getContext(video_ctx->width,
+                                                video_ctx->height,
+                                                video_ctx->pix_fmt,
+                                                video_ctx->width,
+                                                video_ctx->height,
                                                 PIX_FMT_YUV420P,
                                                 SWS_BILINEAR,
                                                 NULL,
@@ -1050,9 +1066,41 @@ int main(const int argc, char *argv[]){
                                                 NULL
                                             );
                                             
+                                            int frameFinished = 0;
+                                            AVPacket packet;
+                                            // av_init_packet(&packet); needed?
                                             
+                                            k = 0;
+                                            while (av_read_frame(video_fmt_ctx, &packet) >= 0){
+                                                if (packet.stream_index == video_stream){
+                                                    avcodec_decode_video2(video_ctx, pFrame, &frameFinished, &packet);
+                                                    
+                                                    if (frameFinished){
+                                                        // Did we recieve a video frame?
+                                                        SDL_LockYUVOverlay(bmp);
+                                                        
+                                                        AVPicture pict;
+                                                        pict.data[0] = bmp->pixels[0];
+                                                        pict.data[1] = bmp->pixels[2];
+                                                        pict.data[2] = bmp->pixels[1];
 
-                                            
+                                                        pict.linesize[0] = bmp->pitches[0];
+                                                        pict.linesize[1] = bmp->pitches[2];
+                                                        pict.linesize[2] = bmp->pitches[1];
+
+                                                        // Convert the image into YUV format that SDL uses
+                                                        sws_scale(sws_ctx, (uint8_t const* const*)pFrame->data, pFrame->linesize, 0, video_ctx->height, pict.data, pict.linesize);
+                                                        
+                                                        SDL_UnlockYUVOverlay(bmp);
+                                                        
+                                                        sld_rect.x = 0;
+                                                        sld_rect.y = 0;
+                                                        sld_rect.w = video_ctx->width;
+                                                        sld_rect.h = video_ctx->height;
+                                                        SDL_DisplayYUVOverlay(bmp, &sld_rect);
+                                                    }
+                                                }
+                                            }
                                             // end src
                                         }
                                     }
@@ -1063,7 +1111,7 @@ int main(const int argc, char *argv[]){
                                     audio_codec = avcodec_find_decoder(audio_ctx->codec_id);
                                     
                                     if (audio_codec == NULL){
-                                        std::cerr << "Unsupported audio codec" << std::endl;
+                                        std::cerr << "Unsupported video codec" << std::endl;
                                     } else {
                                         audio_ctx = avcodec_alloc_context3(audio_codec);
                                         
@@ -1074,55 +1122,7 @@ int main(const int argc, char *argv[]){
                                         }
                                     }
                                 }
-                                
                                 // end src
-                                
-                                
-                                
-                                // src: https://ffmpeg.zeranoe.com/forum/viewtopic.php?t=235
-                                AVFrame* av_frame = avcodec_alloc_frame();
-                                AVFrame* av_frame_tmp = avcodec_alloc_frame();
-                                
-                                if (av_frame == NULL || av_frame_tmp == NULL){
-                                    std::cerr << "Unable to allocate frames" << std::endl;
-                                }
-                                
-                                // Allocate memory to fit frame dimensions/size
-                                uint_fast8_t* buffer;
-                                int numBytes = avpicture_get_size(PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);
-                                buffer = (uint_fast8_t*)av_malloc(numBytes * sizeof(uint8_fast8_t));
-                                
-                                avpicture_fill((AVPicture*) av_frame_tmp, buffer, PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);
-                                
-                                int frameFinished = 0;
-                                AVPacket packet;
-                                av_init_packet(&packet);
-                                k = 0;
-                                while (av_read_frame(pFormatCtx, &packet) >= 0){
-                                    if (packet.stream_index == video_stream){
-                                        avcodec_decode_video2(video_ctx, av_frame, &frameFinished, &packet);
-                                        
-                                        if (frameFinished){
-                                            // if we got a video frame
-                                            //convert the image to RGB
-                                            SwsContext *img_convert_ctx = sws_getContext(
-                                                pFrame->width,
-                                                pFrame->height,
-                                                pCodecCtx->pix_fmt,
-                                                pFrameRGB->width,
-                                                pFrameRGB->height,
-                                                PIX_FMT_RGB24,
-                                                SWS_BICUBIC,
-                                                NULL,
-                                                NULL,
-                                                NULL);
-                                            if (img_convert_ctx == NULL){
-                                                std::cerr << "Cannot initialise the video conversion context" << std::endl;
-                                                return 1;
-                                            }
-                                            
-                                // end src
-                                
                             }
                         #endif
                     }
