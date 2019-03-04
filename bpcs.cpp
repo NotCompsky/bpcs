@@ -217,7 +217,7 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
         mylog << '\n';
     }
     
-    mylog << n_bins * step << "\n\n" << std::endl;
+    mylog << n_bins * step << std::endl;
 }
 #endif
 
@@ -316,7 +316,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
 }
 
-inline void BPCSStreamBuf::unxor_bitplane(){
+void BPCSStreamBuf::unxor_bitplane(){
     #ifdef DEBUG
         mylog.dbg();
         mylog << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
@@ -342,7 +342,7 @@ inline void BPCSStreamBuf::unxor_bitplane(){
     cv::bitwise_or(this->byteplane, this->unXORed_bitplane, this->byteplane);
 }
 
-inline void BPCSStreamBuf::load_next_bitplane(){
+void BPCSStreamBuf::load_next_bitplane(){
     if (this->embedding && this->bitplane_n != 0)
         this->unxor_bitplane();
     bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
@@ -354,15 +354,21 @@ inline void BPCSStreamBuf::load_next_bitplane(){
     this->y = 0;
 }
 
-inline void BPCSStreamBuf::commit_channel(){
-    if (this->embedding && this->bitplane_n != 0){
-        // this->bitplane_n refers to the index of the NEXT bitplane to load - a value of 0 can only mean it has yet to be initialised
-        // Commit changes to last bitplane
-        while (this->bitplane_n < this->n_bitplanes){
-            this->load_next_bitplane();
-            this->unxor_bitplane();
-        }
-    }
+void BPCSStreamBuf::commit_channel(){
+    // Commit changes to last bitplane
+    while (this->bitplane_n < this->n_bitplanes)
+        // Ensure we sum with the bitplanes that we stopped before iterating over
+        // TODO: Replace with a simple AND and |=, rather than including the XOR and immediate unXOR
+        this->load_next_bitplane();
+    
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "About to add final bitplane to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
+    #endif
+    
+    this->unxor_bitplane();
+    // Add last bitplane
+    
     this->channel_byteplanes[this->channel_n -1] = this->byteplane; // WARNING: clone?
     #ifdef DEBUG
         mylog.dbg();
@@ -370,7 +376,7 @@ inline void BPCSStreamBuf::commit_channel(){
     #endif
 }
 
-inline void BPCSStreamBuf::load_next_channel(){
+void BPCSStreamBuf::load_next_channel(){
     #ifdef DEBUG
         mylog.dbg();
         mylog << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
@@ -614,6 +620,8 @@ int main(const int argc, char *argv[]){
     args::CounterFlag                   Averbose        (dbg_parser, "verbose", "verbose (count) - verbosity is 3 + verbose - quiet, between 0 and 5 inclusive", {'v', "verbose"});
     args::CounterFlag                   Aquiet          (dbg_parser, "quiet", "quiet (count)", {'q', "quiet"});
     
+    args::ValueFlag<std::string>        Alog_fmt        (parser, "log_fmt", "Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `", {"log-fmt"});
+    
     // Histogram args
     args::ValueFlag<uint_fast8_t>       An_bins         (dbg_parser, "n_bins", "Number of histogram bins", {'B', "bins"});
     args::ValueFlag<uint_fast8_t>       An_binchars     (dbg_parser, "n_binchars", "Total number of `#` characters printed out in histogram totals", {"binchars"});
@@ -639,10 +647,10 @@ int main(const int argc, char *argv[]){
         parser.ParseCLI(argc, argv);
     #ifdef DEBUG
     } catch (const args::Completion& e) {
-        mylog << e.what();
+        std::cerr << e.what();
         return 0;
     } catch (const args::Help&) {
-        mylog << parser;
+        std::cerr << parser;
         return 0;
     } catch (const args::ParseError& e) {
         std::cerr << e.what() << std::endl;
@@ -658,13 +666,22 @@ int main(const int argc, char *argv[]){
         return 1;
     }
     
-    uint_fast8_t verbosity = 3 + Averbose - Aquiet;
-    if (verbosity < 0)
-        verbosity = 0;
-    else if (verbosity > 5)
-        verbosity = 5;
-    mylog.setLevel(verbosity);
-    mylog.set_dt_fmt("[%T] ");
+    #ifdef DEBUG
+        uint_fast8_t verbosity = 3 + Averbose - Aquiet;
+        if (verbosity < 0)
+            verbosity = 0;
+        else if (verbosity > 5)
+            verbosity = 5;
+        mylog.setLevel(verbosity);
+        
+        mylog.dbg();
+        mylog << "Verbosity " << +verbosity << std::endl;
+        
+        if (Alog_fmt)
+            mylog.set_dt_fmt(args::get(Alog_fmt).c_str());
+        else
+            mylog.set_dt_fmt("[%T] ");
+    #endif
     
     if (sodium::sodium_init() == -1) {
         #ifdef DEBUG
