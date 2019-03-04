@@ -371,6 +371,11 @@ class BPCSStreamBuf {
     Matx87uc xor_adj_mat1{8, 7, CV_8UC1};
     Matx78uc xor_adj_mat2{7, 8, CV_8UC1};
     
+    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(7, 8)};
+    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(7, 8)};
+    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(8, 7)};
+    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(8, 7)};
+    
     cv::Mat grid_orig{8, 8, CV_8UC1};
     cv::Mat conjgrid_orig{8, 8, CV_8UC1};
     
@@ -389,6 +394,7 @@ class BPCSStreamBuf {
     void write_conjugation_map();
     
     inline float get_grid_complexity(Matx88uc&);
+    inline float get_grid_complexity(cv::Mat&);
     inline void conjugate_grid(Matx88uc&);
     #ifdef DEBUG
         void print_state();
@@ -410,6 +416,16 @@ void BPCSStreamBuf::print_state(){
 
 inline float BPCSStreamBuf::get_grid_complexity(Matx88uc &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2);
+}
+inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
+    float sum = 0;
+    cv::bitwise_xor(arr(this->xor_adj_rect2), arr(this->xor_adj_rect1), this->xor_adj_mat1);
+    sum += cv::sum(this->xor_adj_mat1)[0];
+    
+    cv::bitwise_xor(arr(this->xor_adj_rect4), arr(this->xor_adj_rect3), this->xor_adj_mat2);
+    sum += cv::sum(this->xor_adj_mat2)[0];
+    
+    return sum / (2*8*7);
 }
 
 inline void BPCSStreamBuf::conjugate_grid(Matx88uc &grid){
@@ -669,9 +685,9 @@ void BPCSStreamBuf::set_next_grid(){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
-            this->bitplane(grid_shape).copyTo(this->grid);
+            this->grid_orig = this->bitplane(grid_shape);
             
-            complexity = this->get_grid_complexity(this->grid);
+            complexity = this->get_grid_complexity(this->grid_orig);
             
             #ifdef DEBUG
                 //this->complexities.push_back(complexity);
@@ -681,6 +697,7 @@ void BPCSStreamBuf::set_next_grid(){
             
             if (complexity >= this->min_complexity){
                 this->grid_orig = this->bitplane(grid_shape);
+                this->grid_orig.copyTo(this->grid);
                 this->x = i;
                 this->y = j;
                 #ifdef DEBUG
