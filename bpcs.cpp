@@ -793,8 +793,12 @@ unsigned char BPCSStreamBuf::sgetc(){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "sgetc " << +c << " (" << c << ")" << std::endl;
-        mylog.set_cl(0);
+        mylog << "sgetc " << +c << " (";
+        if (c == '\n')
+            mylog << "\\n";
+        else
+            mylog << c;
+        mylog << ")  (x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
     #endif
     return c;
 }
@@ -803,7 +807,7 @@ void BPCSStreamBuf::sputc(unsigned char c){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "sputc " << +c << " (" << c << ") at gridbitindx " << +this->gridbitindx << std::endl;
+        mylog << "sputc " << +c << " (" << c << ") at gridbitindx " << +this->gridbitindx << "  (x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
         mylog.set_cl(0);
     #endif
     if (this->gridbitindx == 64){
