@@ -36,23 +36,26 @@ namespace sodium {
 
 
 
-const char* NULLCHAR      = "[NULL]";
-const std::string NULLSTR = "[NULL]";
+static const char* NULLCHAR      = "[NULL]";
+static const std::string NULLSTR = "[NULL]";
 
 
-const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
+static const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
 // Groups are full_match, optional, parent_dir, filename, basename, ext
-const std::regex fmt_fp("[{]fp[}]");
-const std::regex fmt_dir("[{]dir[}]");
-const std::regex fmt_fname("[{]fname[}]");
-const std::regex fmt_basename("[{]basename[}]");
-const std::regex fmt_ext("[{]ext[}]");
+static const std::regex fmt_fp("[{]fp[}]");
+static const std::regex fmt_dir("[{]dir[}]");
+static const std::regex fmt_fname("[{]fname[}]");
+static const std::regex fmt_basename("[{]basename[}]");
+static const std::regex fmt_ext("[{]ext[}]");
 // WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
 
 
 
 
-
+static const uint_fast8_t MODE_EMBEDDING = 0;
+static const uint_fast8_t MODE_CALC_MAX_CAP = 1;
+static const uint_fast8_t MODE_EXTRACT = 2;
+static const uint_fast8_t MODE_EDIT = 3;
 
 
 
@@ -535,10 +538,7 @@ uint_fast64_t get_fsize(const char* fp){
 
 
 
-static const uint_fast8_t MODE_EMBEDDING = 0;
-static const uint_fast8_t MODE_CALC_MAX_CAP = 1;
-static const uint_fast8_t MODE_EXTRACT = 2;
-static const uint_fast8_t MODE_EDIT = 3;
+
 
 
 int main(const int argc, char *argv[]){
