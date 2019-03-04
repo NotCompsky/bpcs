@@ -32,6 +32,7 @@ namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
 }
 
+#include <boost/log/trivial.hpp>
 
 
 
@@ -48,6 +49,15 @@ static const std::regex fmt_fname("[{]fname[}]");
 static const std::regex fmt_basename("[{]basename[}]");
 static const std::regex fmt_ext("[{]ext[}]");
 // WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
+
+
+
+
+
+std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
+    return std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, (std::string)path_regexp_match[0]), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[4]);
+}
+
 
 
 
@@ -91,7 +101,7 @@ void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
     for (uint_fast16_t i=0; i!=arr.rows*arr.cols; ++i)
         dest.data[i] = (arr.data[i] >> n) & 1;
     #ifdef DEBUG3
-        std::cout << "bitandshift\n  arr(sum==" << +cv::sum(arr)[0] << ")\n  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
+        std::cout << "bitandshift:  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
     #endif
 }
 
@@ -230,20 +240,26 @@ class BPCSStreamBuf { //: public std::streambuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, const std::vector<std::string> img_fps):
-    min_complexity(min_complexity), img_fps(img_fps), img_n(0), byteindx(0)
+    min_complexity(min_complexity), img_fps(img_fps), img_n(0), byteindx(0), grids_since_conjgrid(63)
     {}
+    
     
     char sgetc();
     char sputc(char c);
     
-    void init();
+    void load_next_img(); // Init
+    void end();
+    
     bool embedding;
+    std::string out_fmt;
   private:
-    void load_next_img();
     int set_next_grid();
     void unxor_bitplane();
     void load_next_bitplane();
     void load_next_channel();
+    void commit_channel();
+    
+    void save_im();
     
     inline float get_grid_complexity(cv::Mat&);
 
@@ -292,6 +308,8 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     cv::Mat byteplane;
     cv::Mat XORed_byteplane;
+    
+    std::smatch path_regexp_match;
 };
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
@@ -300,7 +318,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
 
 void BPCSStreamBuf::unxor_bitplane(){
     #ifdef DEBUG3
-        std::cout << "UnXORing bitplane " << +this->bitplane_n << std::endl;
+        std::cout << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
     #endif
     if (this->bitplane_n == 1)
         // Remember - value of this->bitplane_n is the index of the NEXT bitplane
@@ -309,51 +327,65 @@ void BPCSStreamBuf::unxor_bitplane(){
         // Revert conversion of non-first planes to CGC
         cv::bitwise_xor(this->bitplane, this->prev_bitplane, this->unXORed_bitplane);
     
-    this->prev_bitplane = this->unXORed_bitplane.clone();
-    // WARNING: MUST BE DEEP COPY!
+    if (this->bitplane_n != this->n_bitplanes)
+        this->prev_bitplane = this->unXORed_bitplane.clone();
+        // WARNING: MUST BE DEEP COPY!
     
-    bitshift_up(this->unXORed_bitplane, this->n_bitplanes - this->bitplane_n);
+    bitshift_up(this->unXORed_bitplane, this->n_bitplanes - this->bitplane_n -1);
+    
+    #ifdef DEBUG4
+        std::cout << "Adding unXORed bitplane(sum==" << +cv::sum(this->bitplane)[0] << ") to channel " << +this->byteplane.cols << "x" << +this->byteplane.rows << " byteplane" << std::endl;
+    #endif
+    
     cv::bitwise_or(this->byteplane, this->unXORed_bitplane, this->byteplane);
 }
 
 void BPCSStreamBuf::load_next_bitplane(){
-    if (this->embedding)
+    if (this->embedding && this->bitplane_n != 0)
         this->unxor_bitplane();
+    bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
     #ifdef DEBUG3
-        std::cout << "Loading bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
+        std::cout << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
     #endif
-    bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - this->bitplane_n);
     this->x = 0;
     this->y = 0;
-    ++this->bitplane_n;
 }
 
 void BPCSStreamBuf::load_next_channel(){
     #ifdef DEBUG3
-        std::cout << "Loading channel " << +this->channel_n << " of " << +this->n_channels << std::endl;
+        std::cout << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
-    if (this->embedding){
-        this->unxor_bitplane();
-        this->channel_byteplanes[this->channel_n] = this->byteplane; // WARNING: clone?
+    if (this->embedding && this->channel_n != 0){
+        // this->channel_n refers to the index of the NEXT channel to load - a value of 0 can only mean it has yet to be initialised
+        // Commit changes to last channel, then init next channel byteplane
+        this->commit_channel();
         this->byteplane = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
     }
-    convert_to_cgc(this->channel_byteplanes[++this->channel_n], this->XORed_byteplane);
+    convert_to_cgc(this->channel_byteplanes[this->channel_n++], this->XORed_byteplane);
     this->bitplane_n = 0;
     this->load_next_bitplane();
 }
 
-void BPCSStreamBuf::init(){
-    this->load_next_img();
-    // Init img
-    
-    this->set_next_grid();
-    this->byteindx = 0;
-    // Init grid
+void BPCSStreamBuf::commit_channel(){
+    #ifdef DEBUG3
+        std::cout << "Committing changes to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
+    #endif
+    if (this->embedding && this->bitplane_n != 0){
+        // this->bitplane_n refers to the index of the NEXT bitplane to load - a value of 0 can only mean it has yet to be initialised
+        // Commit changes to last bitplane
+        while (this->bitplane_n++ < this->n_bitplanes)
+            this->unxor_bitplane();
+    }
+    this->channel_byteplanes[this->channel_n -1] = this->byteplane; // WARNING: clone?
 }
 
 void BPCSStreamBuf::load_next_img(){
+    if (this->embedding && this->img_n != 0){
+        this->commit_channel();
+        this->save_im();
+    }
     #ifdef DEBUG2
-        std::cout << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " <<  +this->min_complexity << std::endl;
+        std::cout << "Loading img " << +(this->img_n + 1) << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " <<  +this->min_complexity << std::endl;
     #endif
     this->im_mat = cv::imread(this->img_fps[this->img_n++], CV_LOAD_IMAGE_COLOR);
     cv::split(this->im_mat, this->channel_byteplanes);
@@ -378,18 +410,14 @@ void BPCSStreamBuf::load_next_img(){
     
     this->channel_n = 0;
     this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
-    convert_to_cgc(this->channel_byteplanes[++this->channel_n], this->XORed_byteplane);
-    this->bitplane_n = 0;
-    this->load_next_bitplane();
-    
-    this->set_next_grid();
-    this->grids_since_conjgrid = 63;
-    this->set_next_grid();
-    // Start pasting data bytes only from second grid onwards, as first grid is reserved for conjugation map
+    this->load_next_channel();
+    if (this->embedding)
+        this->byteplane = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
 }
 
 int BPCSStreamBuf::set_next_grid(){
     if (++this->grids_since_conjgrid == 64){
+        // First grid in every 64 is reserved for conjugation map
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
         // The old such grid must have the conjugation map emptied into it
         
@@ -440,10 +468,6 @@ int BPCSStreamBuf::set_next_grid(){
         i = 0;
         j += 8;
     }
-    
-    #ifdef DEBUG1
-        print_histogram(complexities, 10, 200);
-    #endif
     
     // If we are here, we have exhausted the bitplane
     if (this->bitplane_n < this->n_bitplanes){
@@ -507,17 +531,44 @@ char BPCSStreamBuf::sputc(char c){
     return 0;
 }
 
-
-
-
-
-
-
-
-
-std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
-    return std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, (std::string)path_regexp_match[0]), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[4]);
+void BPCSStreamBuf::save_im(){
+    // Called either when we've exhausted this->im_mat's last channel, or by this->end()
+    #ifdef TESTS
+        assert(this->embedding);
+    #endif
+    this->commit_channel();
+    std::regex_search(this->img_fps[this->img_n -1], this->path_regexp_match, path_regexp);
+    std::string out_fp = format_out_fp(this->out_fmt, this->path_regexp_match);
+    cv::merge(this->channel_byteplanes, this->im_mat);
+    #ifdef DEBUG1
+        std::cout << "Saving to  `" << out_fp << "`" << std::endl;
+    #endif
+    
+    std::regex_search(out_fp, this->path_regexp_match, path_regexp);
+    
+    if (path_regexp_match[5] != "png"){
+        #ifdef DEBUG1
+            std::cerr << "Must be encoded with lossless format, not `" << path_regexp_match[5] << "`" << std::endl;
+        #endif
+        throw std::runtime_error("");
+    }
+    
+    cv::imwrite(out_fp, this->im_mat);
 }
+
+void BPCSStreamBuf::end(){
+    #ifdef DEBUG1
+        print_histogram(complexities, 10, 200);
+    #endif
+    assert(this->embedding);
+    this->unxor_bitplane();
+    this->save_im();
+}
+
+
+
+
+
 
 
 uint_fast64_t get_fsize(const char* fp){
@@ -681,14 +732,14 @@ int main(const int argc, char *argv[]){
     }
     
     BPCSStreamBuf bpcs_stream(min_complexity, args::get(Aimg_fps));
-    bpcs_stream.init();
+    bpcs_stream.embedding = (mode == MODE_EMBEDDING);
+    bpcs_stream.out_fmt = out_fmt;
+    bpcs_stream.load_next_img(); // Init
     
     uint_fast64_t i, j;
     std::string fp;
     uint_fast64_t n_msg_bytes;
     if (mode == MODE_EMBEDDING){
-        bpcs_stream.embedding = true;
-        
         FILE* msg_file;
         for (i=0; i<msg_fps.size(); ++i){
             fp = msg_fps[i];
@@ -724,6 +775,7 @@ int main(const int argc, char *argv[]){
         // TODO: XOR, as above
         for (j=0; j<8; ++j)
             bpcs_stream.sputc(0);
+        bpcs_stream.end();
     } else {
         i = 0;
         do {
