@@ -1189,11 +1189,7 @@ int main(const int argc, char *argv[]){
             #ifdef DEBUG
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
-                mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ")" << std::endl;
-                
-                mylog.set_verbosity(5);
-                mylog.set_cl(0);
-                mylog << "n_msg_bytes (filepath): " << +n_msg_bytes << std::endl;
+                mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
             #endif
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
@@ -1205,10 +1201,8 @@ int main(const int argc, char *argv[]){
                     mylog.set_verbosity(0);
                     mylog.set_cl('r');
                     mylog << "No such file:  " << fp << std::endl;
-                    throw std::runtime_error("No such file");
-                #else
-                    return 1;
                 #endif
+                return 1;
             }
             n_msg_bytes = stat_buf.st_size;
             #ifdef DEBUG
@@ -1249,11 +1243,6 @@ int main(const int argc, char *argv[]){
             for (j=0; j<8; ++j){
                 uchar c = bpcs_stream.sgetc();
                 n_msg_bytes |= (c << (8*j));
-                #ifdef DEBUG
-                    mylog.set_verbosity(5);
-                    mylog.set_cl(0);
-                    mylog << "n_msg_bytes byte: " << +c << " (" << c << "), total: " << +n_msg_bytes << std::endl;
-                #endif
             }
             #ifdef DEBUG
                 mylog.set_verbosity(3);
@@ -1302,10 +1291,8 @@ int main(const int argc, char *argv[]){
                             mylog.set_verbosity(0);
                             mylog.set_cl('r');
                             mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp_str << "`" << std::endl;
-                            throw std::invalid_argument("No image data loaded");
-                        #else
-                            return 1;
                         #endif
+                        return 1;
                     }
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
