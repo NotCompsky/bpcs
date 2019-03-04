@@ -131,7 +131,6 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
 
 
 
-
 /*
  * Bitwise operations on OpenCV Matrices
  */
@@ -326,7 +325,7 @@ class BPCSStreamBuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps, bool emb, char* outfmt):
-    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), gridbitindx(64), grids_since_conjgrid(63), conjugation_map_ptr(conjugation_map), img_fps(img_fps)
+    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), gridbitindx(64), grids_since_conjgrid(63), img_fps(img_fps)
     {}
     
     
@@ -541,6 +540,8 @@ void BPCSStreamBuf::load_next_img(){
         this->conjugation_grid = this->grid;
         this->conjugation_grid_ptr = this->grid_ptr;
         
+        this->conjugation_map_ptr = this->conjugation_map;
+        
         this->set_next_grid();
         this->grids_since_conjgrid = 0;
         this->gridbitindx = 0;
@@ -566,7 +567,7 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
     
     // NOTE: this->conjugation_map_ptr should at this stage always point at the 63rd element of this->conjugation_grid, as we have either written 63 complex grids, or it has been called by this->save_im() (where it should be set to the 63rd)
-    this->conjugation_map_ptr -= 63;
+    this->conjugation_map_ptr = this->conjugation_map;
     for (uint_fast8_t k=0; k<8; ++k){
         memcpy(this->conjugation_grid_ptr, this->conjugation_map_ptr, 8);
         this->conjugation_grid_ptr += this->bitplane.rows;
@@ -589,7 +590,7 @@ void BPCSStreamBuf::write_conjugation_map(){
     
     if (complexity < this->min_complexity){
         this->conjugate_grid(this->conjugation_grid);
-        *this->conjugation_map_ptr = 1;
+        *this->conjugation_grid_ptr = 1;
         if (1 - complexity - 1/57 < this->min_complexity)
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
             // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
@@ -669,8 +670,17 @@ int BPCSStreamBuf::set_next_grid(){
             this->conjugation_grid_ptr = this->grid_ptr;
         } else {
             if (*(this->grid_ptr + 7*(this->bitplane.cols) + 7) != 0)
+                // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
+                // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
                 this->conjugate_grid(this->grid);
             
+            this->conjugation_map_ptr = this->conjugation_map;
+            for (uint_fast8_t memi=0; memi<8; ++memi){
+                memcpy(this->conjugation_map_ptr, this->grid_ptr, 8);
+                this->conjugation_map_ptr += 8;
+                this->grid_ptr            += this->bitplane.cols;
+            }
+            this->conjugation_map_ptr = this->conjugation_map;
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
                     mylog.set_verbosity(5);
@@ -680,12 +690,6 @@ int BPCSStreamBuf::set_next_grid(){
                 mylog << std::endl;
                 mylog << "\n" << this->grid;
             #endif
-            for (uint_fast8_t memi=0; memi<8; ++memi){
-                memcpy(this->conjugation_map_ptr, this->grid_ptr, 8);
-                this->conjugation_map_ptr += 8;
-                this->grid_ptr            += this->bitplane.cols;
-            }
-            this->conjugation_map_ptr = this->conjugation_map;
         }
         
         #ifdef DEBUG
@@ -721,7 +725,7 @@ int BPCSStreamBuf::set_next_grid(){
                 //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
-                this->grid_ptr = this->bitplane.data + (j*this->bitplane.cols +i -8);
+                this->grid_ptr = this->bitplane.ptr<uchar>(j) +(i -8);
                 #ifdef DEBUG
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
@@ -795,7 +799,7 @@ uchar BPCSStreamBuf::sgetc(){
             #endif
             //return std::char_traits<char>::eof;
         
-        if (*this->conjugation_map_ptr)
+        if (*(this->conjugation_map_ptr++))
             this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
@@ -853,6 +857,7 @@ void BPCSStreamBuf::sputc(uchar c){
         } else {
             *this->conjugation_map_ptr = 0;
         }
+        ++this->conjugation_map_ptr;
         
         if (this->set_next_grid()){
             #ifdef DEBUG
