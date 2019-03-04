@@ -326,6 +326,11 @@ class BPCSStreamBuf { //: public std::streambuf {
     std::smatch path_regexp_match;
     
     bool past_first_grid;
+    
+    #ifdef DEBUG
+        uint_fast64_t conjx;
+        uint_fast64_t conjy;
+    #endif
 };
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
@@ -454,8 +459,9 @@ void BPCSStreamBuf::write_conjugation_map(){
     
     #ifdef DEBUG
         mylog.tedium('p');
-        mylog << "Conj ";
+        mylog << "Conj " << "\n";
         mylog.tedium();
+        mylog << this->conjugation_grid << "\n";
     #endif
     
         for (uint_fast8_t k=0; k<63; ++k){
@@ -492,6 +498,7 @@ void BPCSStreamBuf::write_conjugation_map(){
                     if (this->conjugation_grid.data[55] != 0)
                         throw std::runtime_error("Grid complexity fell below minimum value");
         }
+        mylog << this->conjugation_grid << std::endl;
     #ifdef TESTS
         for (uint_fast8_t i=0; i<64; ++i)
             if (this->conjugation_grid.data[i] != 0 && this->conjugation_grid.data[i] != 1){
@@ -550,11 +557,43 @@ int BPCSStreamBuf::set_next_grid(){
         #endif
         
         if (this->embedding){
-            if (this->past_first_grid)
+            if (this->past_first_grid){
+                #ifdef DEBUG
+                    mylog.dbg();
+                    mylog << "Writing conjugation grid(" << +this->conjx << ", " << +this->conjy << ")" << "\n";
+                    
+                    mylog.dbg('B');
+                    mylog << "conjgrid b4" << "\n";
+                    mylog.dbg();
+                    mylog << this->conjugation_grid << "\n";
+                #endif
                 this->write_conjugation_map();
-            else
+                #ifdef DEBUG
+                    mylog.dbg('B');
+                    mylog << "conjgrid after" << "\n";
+                    mylog.dbg();
+                    mylog << this->conjugation_grid << "\n";
+                    
+                    cv::Rect grid_shape(cv::Point(this->conjx, this->conjy), cv::Size(8, 8));
+                    
+                    mylog.dbg('B');
+                    mylog << "bitplane at conjgrid" << "\n";
+                    mylog.dbg();
+                    mylog << this->bitplane(grid_shape) << std::endl;
+                #endif
+            } else {
                 this->past_first_grid = true;
+                #ifdef DEBUG
+                    mylog.dbg();
+                    mylog << "Skipping write_conjugation_map for first grid" << std::endl;
+                #endif
+            }
+            
             this->conjugation_grid = this->grid;
+            #ifdef DEBUG
+                this->conjx = this->x -8;
+                this->conjy = this->y -8;
+            #endif
         } else {
             if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
@@ -581,6 +620,7 @@ int BPCSStreamBuf::set_next_grid(){
         
         this->grids_since_conjgrid = 0;
     }
+    
     float complexity;
     uint_fast32_t i = this->x;
     uint_fast32_t j = this->y;
@@ -637,6 +677,7 @@ int BPCSStreamBuf::set_next_grid(){
     return 1;
     
     try_again:
+    --this->grids_since_conjgrid;
     return this->set_next_grid();
 }
 
