@@ -36,9 +36,16 @@
 #include <tuple> // for std::tie
 #include <cstdio> // for std::remove
 
-#include <cryptopp/cryptlib.h> // for (en|de)cryption
+namespace sodium {
+    #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
+}
+
 
 /*
+WARNING: uint_fast8_t is specified for bitarrays. On 64-bit systems, uint_fast8_t might be 64-bits, meaning that our vectors take up 64 times the memory as the file it represents.
+
+TODO: Test performance gain/hit of this. For large enough bitearrays, the extra memory usage will potentially hit performance more than whatever operations are required to split 64-bits to 2 32-bits or 8 8-bits or 64 bits.
+
 Example usage (here $a = 0.45)
     A:
         PIPE_FP=/tmp/bpcs.pipe
@@ -589,15 +596,6 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
 
 
 
-
-
-
-
-
-
-
-
-
 /*
  * Iterate over complex grids
  */
@@ -884,6 +882,13 @@ int main(const int argc, char *argv[]){
     if (Amin && !Amsg_fps){
         #ifdef DEBUG1
             std::cerr << parser;
+        #endif
+        return 1;
+    }
+    
+    if (sodium::sodium_init() == -1) {
+        #ifdef DEBUG1
+            std::cerr << "libsodium init fail" << std::endl;
         #endif
         return 1;
     }
