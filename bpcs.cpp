@@ -34,6 +34,7 @@
 #include <fcntl.h>    // For O_WRONLY
 #include <unistd.h>   // For open()
 #include <tuple> // for std::tie
+#include <cstdio> // for std::remove
 
 /*
 Example usage:
@@ -1246,6 +1247,8 @@ int main(const int argc, char *argv[]){
                             write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
                             close(fd);
                             
+                            std::remove(named_pipe_fp);
+                            
                             if (Apipe_in){
                                 // E.g. editing txt - we'd send it to our edited NoFrillsTextEditor `typed-piper`, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
                                 #ifdef DEBUG2
@@ -1272,6 +1275,7 @@ int main(const int argc, char *argv[]){
                                     #endif
                                 }
                                 fclose(named_pipe_inf);
+                                std::remove(named_pipe_fp);
                             }
                         }
                     }
