@@ -375,8 +375,8 @@ class BPCSStreamBuf {
     uint8_t bitplane_n;
     
     uchar conjugation_map[64];
+    uint8_t conjugation_map_indx;
     
-    uchar* conjugation_map_ptr;
     uchar* conjugation_grid_ptr;
     
     uchar* grid_ptr;
@@ -561,10 +561,8 @@ void BPCSStreamBuf::load_next_img(){
             // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
             this->conjugate_grid(this->grid);
         
-        this->conjugation_map_ptr = this->conjugation_map; // Reset to first position
         for (uint_fast8_t memi=0; memi<8; ++memi){
-            memcpy(this->conjugation_map_ptr, this->grid_ptr, 8);
-            this->conjugation_map_ptr += 8;
+            memcpy(this->conjugation_map + (memi*8), this->grid_ptr, 8);
             this->grid_ptr            += this->bitplane.cols;
         }
         // No need to reset this->grid_ptr - we are not going to write conjugation data
@@ -573,7 +571,7 @@ void BPCSStreamBuf::load_next_img(){
     this->conjugation_grid = this->grid;
     this->conjugation_grid_ptr = this->grid_ptr;
     
-    this->conjugation_map_ptr = this->conjugation_map;
+    this->conjugation_map_indx = 0;
     
     this->grids_since_conjgrid = 0;
     
@@ -581,7 +579,7 @@ void BPCSStreamBuf::load_next_img(){
     this->set_next_grid();
     
     if (!this->embedding)
-        if (*(this->conjugation_map_ptr++))
+        if (this->conjugation_map[this->conjugation_map_indx++])
             this->conjugate_grid(this->grid);
 }
 
@@ -598,30 +596,10 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
     
     // NOTE: this->conjugation_map_ptr should at this stage always point at the 63rd element of this->conjugation_grid, as we have either written 63 complex grids, or it has been called by this->save_im() (where it should be set to the 63rd)
-    #ifdef TESTS
-        this->conjugation_map_ptr -= 63;
-        mylog.set_verbosity(4);
-        mylog << "conjugation_map_ptr ";
-        for (uint_fast8_t ptri=0; ptri<63; ++ptri){
-            mylog << "_" << +(*this->conjugation_map_ptr);
-            if (*(this->conjugation_map_ptr++) != this->conjugation_map[ptri]){
-                mylog.set_cl(0);
-                mylog.set_verbosity(3);
-                mylog << "n_complex_grids_found: " << +this->n_complex_grids_found << std::endl;
-                mylog.set_verbosity(0);
-                mylog.set_cl('r');
-                mylog << "*this->conjugation_map_ptr != this->conjugation_map[" << +ptri << "]" << std::endl;
-                throw std::runtime_error("");
-            }
-        }
-        mylog << std::endl;
-        this->conjugation_map_ptr += 63;
-    #endif
-    this->conjugation_map_ptr = this->conjugation_map;
+    this->conjugation_map_indx = 0;
     for (uint_fast8_t k=0; k<8; ++k){
-        memcpy(this->conjugation_grid_ptr, this->conjugation_map_ptr, 8);
+        memcpy(this->conjugation_grid_ptr, this->conjugation_map + (k*8), 8);
         this->conjugation_grid_ptr += this->bitplane.cols;
-        this->conjugation_map_ptr += 8;
     }
     
     // this->conjugation_grid_ptr should obviously be at the 65th element, due to the memcpy-ing above
@@ -636,11 +614,11 @@ void BPCSStreamBuf::write_conjugation_map(){
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
             // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
             
-            if (*(this->conjugation_map_ptr -1) != 0)
+            if (this->conjugation_map[this->conjugation_map_indx -1] != 0)
                 // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
                 // Hence the grid complexity would have been at least its previous value
                 
-                if (*(this->conjugation_map_ptr -8) != 0)
+                if (this->conjugation_map[this->conjugation_map_indx -8] != 0)
                     #ifdef DEBUG
                     throw std::runtime_error("Grid complexity fell below minimum value");
                     #else
@@ -690,10 +668,8 @@ int BPCSStreamBuf::set_next_grid(){
                 // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
                 this->conjugate_grid(this->grid);
             
-            this->conjugation_map_ptr = this->conjugation_map;
             for (uint_fast8_t memi=0; memi<8; ++memi){
-                memcpy(this->conjugation_map_ptr, this->grid_ptr, 8);
-                this->conjugation_map_ptr += 8;
+                memcpy(this->conjugation_map + (8*memi), this->grid_ptr, 8);
                 this->grid_ptr            += this->bitplane.cols;
             }
             // This specific this->grid_ptr is not used beyond this point, so no need to reset
@@ -707,7 +683,7 @@ int BPCSStreamBuf::set_next_grid(){
                 mylog << "\n" << this->grid;
             #endif
         }
-        this->conjugation_map_ptr = this->conjugation_map;
+        this->conjugation_map_indx = 0;
         
         #ifdef DEBUG
             mylog << std::endl;
@@ -818,7 +794,7 @@ uchar BPCSStreamBuf::sgetc(){
             abort();
             #endif
         
-        if (*(this->conjugation_map_ptr++))
+        if (this->conjugation_map[this->conjugation_map_indx++])
             this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
@@ -871,11 +847,11 @@ void BPCSStreamBuf::sputc(uchar c){
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
             this->conjugate_grid(this->grid);
-            *this->conjugation_map_ptr = 1;
+            this->conjugation_map[this->conjugation_map_indx] = 1;
         } else {
-            *this->conjugation_map_ptr = 0;
+            this->conjugation_map[this->conjugation_map_indx] = 0;
         }
-        ++this->conjugation_map_ptr;
+        ++this->conjugation_map_indx;
         
         if (this->set_next_grid()){
             #ifdef DEBUG
@@ -901,7 +877,7 @@ void BPCSStreamBuf::save_im(){
     #ifdef TESTS
         assert(this->embedding);
     #endif
-    this->conjugation_map_ptr += 63 -this->grids_since_conjgrid;
+    this->conjugation_map_indx += 63 -this->grids_since_conjgrid;
     this->write_conjugation_map();
     
     #ifdef DEBUG
