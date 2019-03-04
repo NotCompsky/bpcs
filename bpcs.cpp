@@ -219,15 +219,12 @@ cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
     return arr;
 }
 
-static const cv::Mat chequerboard_a = chequerboard(0, 8, 8);
-static const cv::Mat chequerboard_b = chequerboard(1, 8, 8);
+static const cv::Mat chequerboard = chequerboard(1, 8, 8);
 #else
 // Results in a larger binary size by 152B, but *surely* in slightly less overhead regardless...
-uchar chequered_arr_a[64] = {0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0};
-uchar chequered_arr_b[64] = {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
+uchar chequered_arr[64] = {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
 // NOTE: These are constants, but there is no OpenCV class for const data
-static const cv::Mat chequerboard_a = cv::Mat(8,8, CV_8UC1, chequered_arr_a);
-static const cv::Mat chequerboard_b = cv::Mat(8,8, CV_8UC1, chequered_arr_b);
+static const cv::Mat chequerboard = cv::Mat(8,8, CV_8UC1, chequered_arr);
 #endif
 
 
@@ -386,9 +383,6 @@ class BPCSStreamBuf {
     cv::Mat grid{8, 8, CV_8UC1};
     cv::Mat conjugation_grid{8, 8, CV_8UC1};
     
-    cv::Mat dummy_grid_a{8, 8, CV_8UC1};
-    cv::Mat dummy_grid_b{8, 8, CV_8UC1};
-    
     cv::Mat xor_adj_mat1{8, 7, CV_8UC1};
     cv::Mat xor_adj_mat2{7, 8, CV_8UC1};
     
@@ -418,12 +412,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
 }
 
 inline void BPCSStreamBuf::conjugate_grid(cv::Mat &grid){
-    cv::bitwise_and(grid, chequerboard_a, this->dummy_grid_a);
-    
-    cv::bitwise_not(grid, grid);
-    cv::bitwise_and(grid, chequerboard_b, this->dummy_grid_b);
-    
-    cv::bitwise_or(this->dummy_grid_a, this->dummy_grid_b, grid);
+    cv::bitwise_xor(grid, chequerboard, grid);
     
     #ifdef DEBUG
         mylog.set_verbosity(5);
