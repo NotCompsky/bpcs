@@ -1291,7 +1291,9 @@ int main(const int argc, char *argv[]){
                     // Reached end of embedded datas
                     mylog.set_verbosity(0);
                     mylog.set_cl('r');
-                    mylog << "n_msg_bytes = 0" << std::endl;
+                    mylog << "n_msg_bytes = 0";
+                    mylog.set_cl(0);
+                    mylog << std::endl;
                     return 0;
                 }
             #endif
