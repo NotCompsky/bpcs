@@ -210,7 +210,7 @@ inline void convert_to_cgc(cv::Mat &arr){
  * Initialise chequerboards
  */
 #ifdef DEBUG
-cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
+cv::Mat new_chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
     // indx should be 0 or 1
     cv::Mat arr = cv::Mat(h, w, CV_8UC1);
     for (uint_fast16_t i=0; i<w; ++i)
@@ -219,7 +219,7 @@ cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
     return arr;
 }
 
-static const cv::Mat chequerboard = chequerboard(1, 8, 8);
+static const cv::Mat chequerboard = new_chequerboard(1, 8, 8);
 #else
 // Results in a larger binary size by 152B, but *surely* in slightly less overhead regardless...
 uchar chequered_arr[64] = {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
