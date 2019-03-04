@@ -57,10 +57,6 @@ Example usage:
 */
 
 
-const char* named_pipe_in = "/tmp/bpcs.inpipe";
-
-
-
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
 // Groups are full_match, optional, parent_dir, filename, basename, ext
 const std::regex fmt_fp("[{]fp[}]");
@@ -845,7 +841,8 @@ int main(const int argc, char *argv[]){
     
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
     args::Flag                          Ato_disk        (parser, "to_disk", "Write to disk (as opposed to psuedofile)", {'d', "to-disk"});
-    args::Flag                          Aedit           (parser, "edit", "Edit embedded file (as opposed to psuedofile)", {'e', "edit"});
+    
+    args::ValueFlag<std::string>        Apipe_in        (parser, "pipe_in", "Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`", {'i', "pipe-in"});
     
     args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
     
@@ -915,6 +912,7 @@ int main(const int argc, char *argv[]){
     std::vector<std::string> msg_fps;
     std::function<int(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&)> grid_fnct;
     
+    const char* named_pipe_in;
     bool encoding;
     if (Amsg_empty){
         encoding = true;
@@ -929,6 +927,13 @@ int main(const int argc, char *argv[]){
             mode = "Encoding";
         #endif
         grid_fnct = encode_grid;
+    } else if (Apipe_in){
+        encoding = false;
+        #ifdef DEBUG1
+            mode = "Editing";
+        #endif
+        named_pipe_in = args::get(Apipe_in).c_str();
+        grid_fnct = decode_grid;
     } else {
         encoding = false;
         #ifdef DEBUG1
@@ -1188,7 +1193,7 @@ int main(const int argc, char *argv[]){
                             write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
                             close(fd);
                             
-                            if (Aedit){
+                            if (Apipe_in){
                                 // E.g. editing txt - we'd send it to our edited NoFrillsTextEditor `typed-piper`, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
                                 #ifdef DEBUG2
                                     std::cout << "Reading edited file from:  " << named_pipe_in << std::endl;
