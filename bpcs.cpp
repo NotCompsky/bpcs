@@ -757,6 +757,11 @@ void iterate_over_all_bitgrids(
             break;
     }
     
+    goto_print_histogram:
+    #ifdef DEBUG1
+        print_histogram(complexities, n_bins, n_binchars);
+    #endif
+    
     if (minimise_img){
         #ifdef DEBUG3
             std::cout << count_complex_grids << "\n\n";
@@ -1227,8 +1232,5 @@ int main(const int argc, char *argv[]){
             }
         }
     }
-    #ifdef DEBUG1
-        print_histogram(complexities, n_bins, n_binchars);
-    #endif
     return 0;
 }
