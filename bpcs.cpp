@@ -928,27 +928,26 @@ int main(const int argc, char *argv[]){
         }
         #endif
         
-        if (second_character == 'o' || arg == "--out"){
+        switch(second_character){
+            case 'o': out_fmt = nextarg; goto continue_argloop;
+            // --out-fmt
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
-            out_fmt = nextarg;
-            continue;
-        }
-        
-        if (second_character == 'd' || arg == "--disk"){
+            case 'd': to_disk = true; goto continue_argloop;
+            // --to-disk
             // Write to disk (as opposed to psuedofile)
-            to_disk = true;
-        }
-        
-        if (second_character == 'D' || arg == "--display"){
+            case 'D': to_display = true; goto continue_argloop;
+            // --to-display
             // Display embedded images through OpenCV::imshow (rather than pipe)
-            to_display = true;
-        }
-        
-        if (second_character == 'p' || arg == "--pipe"){
+            case 'p': named_pipe_in = nextarg; mode = MODE_EDIT; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
-            named_pipe_in = nextarg;
-            mode = MODE_EDIT;
-            continue;
+            case '-': break;
+            default:
+                #ifdef DEBUG
+                std::cerr << "Invalid argument: " << arg << std::endl;
+                throw std::runtime_error("");
+                #else
+                abort();
+                #endif
         }
         
         /* List flags */
@@ -960,7 +959,7 @@ int main(const int argc, char *argv[]){
         }
         --i;
         
-        if (second_character == 'm' || arg == "--msg"){
+        if (second_character == 'm'){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
             ++n_msg_fps;
             mode = MODE_EMBEDDING;
@@ -971,7 +970,12 @@ int main(const int argc, char *argv[]){
         #ifdef DEBUG
             printf("Invalid argument: %s", arg);
             throw std::runtime_error("Invalid argument");
+        #else
+            abort();
         #endif
+        
+        continue_argloop:
+        continue;
     } while (true);
     
     
