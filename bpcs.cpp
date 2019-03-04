@@ -698,7 +698,6 @@ int BPCSStreamBuf::set_next_grid(){
                 this->grid_ptr            += this->bitplane.cols;
             }
             // This specific this->grid_ptr is not used beyond this point, so no need to reset
-            this->conjugation_map_ptr = this->conjugation_map;
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
                     mylog.set_verbosity(5);
@@ -709,6 +708,7 @@ int BPCSStreamBuf::set_next_grid(){
                 mylog << "\n" << this->grid;
             #endif
         }
+        this->conjugation_map_ptr = this->conjugation_map;
         
         #ifdef DEBUG
             mylog << std::endl;
