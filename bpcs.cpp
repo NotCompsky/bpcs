@@ -49,6 +49,7 @@ static const uint_fast8_t MODE_EDIT = 3;
 
 
 #ifdef DEBUG
+    unsigned int whichbyte = 0;
     uint_fast64_t gridlimit;
     static CompskyLogger mylog(std::cout);
 #endif
@@ -106,7 +107,6 @@ void bitshift_up(cv::Mat &arr, uint_fast16_t n){
 }
 
 inline void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
-    dest = arr.clone();
     uint_fast8_t n;
     for (uint_fast64_t i=0; i<arr.rows*arr.cols; ++i){
         n = arr.data[i];
@@ -254,7 +254,7 @@ class BPCSStreamBuf { //: public std::streambuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, const std::vector<std::string> img_fps):
-    min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(0), grids_since_conjgrid(63), past_first_grid(false)
+    min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(64), grids_since_conjgrid(63), past_first_grid(false)
     {}
     
     
@@ -422,6 +422,8 @@ void BPCSStreamBuf::load_next_img(){
     cv::split(this->im_mat, this->channel_byteplanes);
     this->n_channels = channel_byteplanes.size();
     
+    this->XORed_byteplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1);
+    
     switch(this->im_mat.depth()){
         case CV_8UC1:
             this->n_bitplanes = 8;
@@ -527,6 +529,12 @@ void print_grid(cv::Mat& grid, uint_fast32_t x, uint_fast32_t y){
 #endif
 
 int BPCSStreamBuf::set_next_grid(){
+    #ifdef DEBUG
+    if (++whichbyte == gridlimit){
+        mylog << std::endl;
+        throw std::runtime_error("Reached gridlimit");
+    }
+    #endif
     if (++this->grids_since_conjgrid == 64){
         // First grid in every 64 is reserved for conjugation map
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
@@ -538,7 +546,7 @@ int BPCSStreamBuf::set_next_grid(){
         
         #ifdef DEBUG
             mylog.dbg();
-            mylog << "Found conjugation grid(" << +this->x << ", " << +this->y << ")";
+            mylog << "Found conjugation grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid;
         #endif
         
         if (this->embedding){
@@ -547,7 +555,6 @@ int BPCSStreamBuf::set_next_grid(){
             else
                 this->past_first_grid = true;
             this->conjugation_grid = this->grid;
-            // WARNING: not sure if this->conjugation_grid is deep copy of bitplane area - it should NOT be
         } else {
             if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
@@ -633,15 +640,7 @@ int BPCSStreamBuf::set_next_grid(){
     return this->set_next_grid();
 }
 
-unsigned int whichbyte = 0;
-
 char BPCSStreamBuf::sgetc(){
-    #ifdef DEBUG
-    if (++whichbyte == gridlimit){
-        mylog << std::endl;
-        throw std::runtime_error("Reached gridlimit");
-    }
-    #endif
     if (this->gridbitindx == 64 || !this->past_first_grid){
         if (set_next_grid())
             throw std::runtime_error("Unexpected end of BPCS stream");
@@ -685,12 +684,6 @@ char BPCSStreamBuf::sgetc(){
 }
 
 char BPCSStreamBuf::sputc(char C){
-    #ifdef DEBUG
-    if (++whichbyte == gridlimit){
-        mylog << std::endl;
-        throw std::runtime_error("Reached gridlimit");
-    }
-    #endif
     unsigned char c = (unsigned char)C;
     if (this->gridbitindx == 64){
       if (this->past_first_grid){
