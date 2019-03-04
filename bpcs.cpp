@@ -473,8 +473,7 @@ void decode_grid(
     if (grid.data[encoded_bits] == 1)
         conjugate_grid(grid);
     
-    for (uint_fast16_t i=0; i<encoded_bits; ++i)
-        msg.push_back(grid.data[i]);
+    std::copy_n(grid.data, encoded_bits, std::back_inserter(msg));
     
     msg_size += encoded_bits;
 }
