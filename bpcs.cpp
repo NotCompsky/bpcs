@@ -593,6 +593,9 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
     
     // NOTE: this->conjugation_map_ptr should at this stage always point at the 63rd element of this->conjugation_grid, as we have either written 63 complex grids, or it has been called by this->save_im() (where it should be set to the 63rd)
+    #ifdef TESTS
+        assert(*this->conjugation_map_ptr == this->conjugation_map[63]);
+    #endif
     this->conjugation_map_ptr = this->conjugation_map;
     for (uint_fast8_t k=0; k<8; ++k){
         memcpy(this->conjugation_grid_ptr, this->conjugation_map_ptr, 8);
