@@ -178,19 +178,19 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
     }
     
     mylog.info('B');
-    mylog << "Complexities Histogram" << std::endl;
+    mylog << "Complexities Histogram" << '\n';
     mylog.info();
     
     float min = *std::min_element(std::begin(complexities), std::end(complexities));
     float max = *std::max_element(std::begin(complexities), std::end(complexities));
-    mylog << "Total: " << +len_complexities << " between " << +min << ", " << +max << std::endl;
+    mylog << "Total: " << +len_complexities << " between " << +min << ", " << +max << '\n';
     if (min == max){
         mylog.warn();
         mylog << "No complexity range" << std::endl;
         return;
     }
     float step = (max - min) / (float)n_bins;
-    mylog << "Bins:  " << +n_bins << " with step " << step << std::endl;
+    mylog << "Bins:  " << +n_bins << " with step " << step << '\n';
     std::vector<uint_fast64_t> bin_totals;
     float bin_max = step;
     uint_fast64_t bin_total = 0;
@@ -240,7 +240,7 @@ class BPCSStreamBuf { //: public std::streambuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, const std::vector<std::string> img_fps):
-    min_complexity(min_complexity), img_fps(img_fps), img_n(0), byteindx(0), grids_since_conjgrid(63), conjugation_map_set(false)
+    min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(0), grids_since_conjgrid(63), conjugation_map_set(false)
     {}
     
     
@@ -280,7 +280,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     uint_fast64_t conjgrid_x;
     uint_fast64_t conjgrid_y;
     
-    uint_fast8_t byteindx; // Count of bytes already read/written, modulo 8 (i.e. which row in the grid we are writing/reading the byte to/from)
+    uint_fast8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     
     cv::Mat im_mat;
     std::vector<cv::Mat> channel_byteplanes;
@@ -546,21 +546,21 @@ int BPCSStreamBuf::set_next_grid(){
 
 
 char BPCSStreamBuf::sgetc(){
-    if (this->byteindx == 8){
+    if (this->gridbitindx == 64){
         if (set_next_grid())
             throw std::runtime_error("Unexpected end of BPCS stream");
             //return std::char_traits<char>::eof;
-        this->byteindx = 0;
+        this->gridbitindx = 0;
     }
     char c = 0;
     for (uint_fast8_t i=0; i<8; ++i)
-        c |= (this->grid.at<uint_fast8_t>(this->byteindx, i) << i);
-    ++this->byteindx;
+        c |= (this->grid.data[this->gridbitindx + i] << i);
+    this->gridbitindx += 8;
     return c;
 }
 
 char BPCSStreamBuf::sputc(char c){
-    if (this->byteindx == 8){
+    if (this->gridbitindx == 64){
         if (this->embedding){
             if (this->get_grid_complexity(this->grid) < this->min_complexity){
                 // Commit grid
@@ -580,11 +580,12 @@ char BPCSStreamBuf::sputc(char c){
                 conjugate_grid(this->grid);
         }
         
-        this->byteindx = 0;
+        this->gridbitindx = 0;
     }
+    
     for (uint_fast8_t i=0; i<8; ++i)
-        this->grid.at<uint_fast8_t>(this->byteindx, i) = c >> i;
-    ++this->byteindx;
+        this->grid.data[this->gridbitindx++] = (c >> i);
+    
     return 0;
 }
 
