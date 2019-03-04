@@ -432,14 +432,6 @@ inline void BPCSStreamBuf::load_next_bitplane(){
     this->bitplane = this->channel & 1;
     cv_div2(this->channel, this->channel);
     ++this->bitplane_n;
-    
-    #ifdef DEBUG
-        mylog.set_verbosity(10);
-        mylog.set_cl('g');
-        mylog << "\n";
-        mylog << this->bitplane;
-        mylog << "\n";
-    #endif
 }
 
 void BPCSStreamBuf::load_next_channel(){
@@ -527,13 +519,6 @@ void BPCSStreamBuf::load_next_img(){
                 this->bitplanes[k++] = this->channel_byteplanes[j] & 1;
                 cv_div2(this->channel_byteplanes[j], this->channel_byteplanes[j]);
                 ++i;
-                #ifdef DEBUG
-                    mylog.set_verbosity(10);
-                    mylog.set_cl('g');
-                    mylog << "\n";
-                    mylog << this->bitplanes[k-1];
-                    mylog << "\n";
-                #endif
             }
         }
         this->bitplane = this->bitplanes[0];
