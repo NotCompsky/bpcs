@@ -795,9 +795,12 @@ void BPCSStreamBuf::sputc(unsigned char c){
     }
     
     uchar* bit = this->grid.data + this->gridbitindx;
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "sputc " << +c << " bits ";
+    #endif
     for (uint_fast8_t i=0; i<8; ++i){
         #ifdef DEBUG
-            mylog.tedium();
             mylog << +((c >> i) & 1);
         #endif
         *bit = (c >> i) & 1;
@@ -805,6 +808,9 @@ void BPCSStreamBuf::sputc(unsigned char c){
         ++bit;
         //this->grid.data[this->gridbitindx++] = (c >> i) & 1;
     }
+    #ifdef DEBUG
+        mylog << std::endl;
+    #endif
 }
 
 void BPCSStreamBuf::save_im(){
@@ -1130,6 +1136,10 @@ int main(const int argc, char *argv[]){
             // TODO: bpcs_stream << encryption << msg_file
             
             n_msg_bytes = sizeof(fp) -1;
+            #ifdef DEBUG
+                mylog.tedium();
+                mylog << "n_msg_bytes (filepath): " << +n_msg_bytes << std::endl;
+            #endif
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
@@ -1147,6 +1157,10 @@ int main(const int argc, char *argv[]){
                 #endif
             }
             n_msg_bytes = stat_buf.st_size;
+            #ifdef DEBUG
+                mylog.tedium();
+                mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
+            #endif
             
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
@@ -1174,6 +1188,10 @@ int main(const int argc, char *argv[]){
             for (j=0; j<8; ++j){
                 uchar c = bpcs_stream.sgetc();
                 n_msg_bytes |= (c << (8*j));
+                #ifdef DEBUG
+                    mylog.tedium();
+                    mylog << "n_msg_bytes byte: " << +c << " (" << c << "), total: " << +n_msg_bytes << std::endl;
+                #endif
             }
             #ifdef DEBUG
                 mylog.info();
