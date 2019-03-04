@@ -811,6 +811,8 @@ uchar BPCSStreamBuf::sgetc(){
         mylog << "sgetc " << +c << " (";
         if (c == '\n')
             mylog << "\\n";
+        else if (c == '\r')
+            mylog << "\\r";
         else
             mylog << c;
         mylog << ")  (x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
