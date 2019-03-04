@@ -406,7 +406,6 @@ inline void BPCSStreamBuf::conjugate_grid(Matx88uc &grid){
 inline void BPCSStreamBuf::load_next_bitplane(){
     this->bitplane = this->channel & 1;
     cv_div2(this->channel, this->channel);
-    ++this->bitplane_n;
 }
 
 void BPCSStreamBuf::load_next_channel(){
@@ -481,7 +480,7 @@ void BPCSStreamBuf::load_next_img(){
         }
         this->bitplane = this->bitplanes[0];
         
-        this->bitplane_n = 1;
+        this->bitplane_n = 0;
     } else {
     #endif
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
@@ -673,10 +672,11 @@ void BPCSStreamBuf::set_next_grid(){
         this->print_state();
     #endif
     
+    ++this->bitplane_n;
     #ifdef EMBEDDOR
     if (this->embedding){
         if (this->bitplane_n < this->n_bitplanes * this->n_channels){
-            this->bitplane = this->bitplanes[this->bitplane_n++];
+            this->bitplane = this->bitplanes[this->bitplane_n];
             goto try_again;
         }
     } else
