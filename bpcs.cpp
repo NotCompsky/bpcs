@@ -721,9 +721,7 @@ void BPCSStreamBuf::set_next_grid(){
     #ifdef EMBEDDOR
     if (this->embedding){
         if (this->bitplane_n < this->n_bitplanes * this->n_channels){
-            this->bitplane = this->bitplanes[this->bitplane_n++]; // Equivalent to this->load_next_bitplane();
-            if (this->bitplane_n > this->n_bitplanes)
-                ++this->channel_n;
+            this->bitplane = this->bitplanes[this->bitplane_n++];
             goto try_again;
         }
     } else
