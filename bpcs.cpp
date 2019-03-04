@@ -596,7 +596,19 @@ void BPCSStreamBuf::write_conjugation_map(){
     
     // NOTE: this->conjugation_map_ptr should at this stage always point at the 63rd element of this->conjugation_grid, as we have either written 63 complex grids, or it has been called by this->save_im() (where it should be set to the 63rd)
     #ifdef TESTS
-        assert(*this->conjugation_map_ptr == this->conjugation_map[63]);
+        this->conjugation_map_ptr -= 63;
+        for (uint_fast8_t ptri=0; ptri<63; ++ptri){
+            if (*this->conjugation_map_ptr++ != this->conjugation_map[ptri]){
+                mylog.set_cl(0);
+                mylog.set_verbosity(3);
+                mylog << "n_complex_grids_found: " << +this->n_complex_grids_found << std::endl;
+                mylog.set_verbosity(0);
+                mylog.set_cl('r');
+                mylog << "*this->conjugation_map_ptr != this->conjugation_map[" << +ptri << "]" << std::endl;
+                throw std::runtime_error("");
+            }
+        }
+        this->conjugation_map_ptr += 63;
     #endif
     this->conjugation_map_ptr = this->conjugation_map;
     for (uint_fast8_t k=0; k<8; ++k){
