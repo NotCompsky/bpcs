@@ -363,16 +363,6 @@ void add_msgfiles_bits(std::vector<uint_fast8_t> &msg, std::vector<std::string> 
  * Bitwise operations on OpenCV Matrices
  */
 
-cv::Mat bitshifted_down(cv::Mat &arr, uint_fast16_t w, uint_fast16_t h){
-    cv::Mat dest = cv::Mat(h, w, CV_8UC1);
-    uint_fast16_t i;
-    uint_fast16_t j;
-    for (j=0; j<h; ++j)
-        for (i=0; i<w; ++i)
-            dest.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) >> 1;
-    return dest;
-}
-
 uint_fast16_t xor_adj(
     cv::Mat &arr, uint_fast16_t w, uint_fast16_t h,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
@@ -396,14 +386,12 @@ void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t w, uint_fast16_t h, 
             dest.at<uint_fast8_t>(j,i) = (arr.at<uint_fast8_t>(j,i) >> n) & 1;
 }
 
-void bitshift_up(cv::Mat &arr, uint_fast16_t w, uint_fast16_t h, uint_fast16_t n){
-    for (uint_fast16_t i=0; i<w; ++i)
-        for (uint_fast16_t j=0; j<h; ++j)
-            arr.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) << n;
+void bitshift_up(cv::Mat &arr, uint_fast16_t n){
+    cv::multiply(arr, 1 << n, arr);
 }
 
-void convert_to_cgc(cv::Mat &arr, uint_fast16_t w, uint_fast16_t h, cv::Mat &dest){
-    cv::bitwise_xor(arr, bitshifted_down(arr, w, h), dest);
+void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
+    cv::bitwise_xor(arr, arr/2, dest);
 }
 
 
@@ -708,7 +696,7 @@ int iterate_over_all_bitgrids(
     
     cv::Mat count_complex_grids = cv::Mat::zeros(n_vert_grids, n_hztl_grids, CV_8UC1);
     
-    cv::Mat bitplane = cv::Mat(h, w, CV_8UC1);
+    cv::Mat bitplane(h, w, CV_8UC1);
     // CV_8UC1 - aka CV_8UC(1) - means 1 channel of uint8
     
     complexities.reserve(n_hztl_grids * n_vert_grids);
@@ -726,12 +714,12 @@ int iterate_over_all_bitgrids(
     #endif
     
     bool msg_was_exhausted = false;
-    
+    cv::Mat byteplane(h, w, CV_8UC1);
     for (uint_fast8_t j=0; j<n_channels; ++j){
-        convert_to_cgc(channel_byteplanes[j], w, h, XORed_byteplane);
+        convert_to_cgc(channel_byteplanes[j], XORed_byteplane);
         // Bitshifting up ensures that the last bits of (arr >> 1) are 0 - so the last digit of this CGC'd (or XOR'd-ish) arr is retained
         
-        cv::Mat byteplane = cv::Mat::zeros(h, w, CV_8UC1);
+        byteplane = cv::Mat::zeros(h, w, CV_8UC1);
         
         for (uint_fast8_t k=0; k<n_bits; ++k){
             bitandshift(XORed_byteplane, bitplane, w, h, n_bits-k);
@@ -752,7 +740,7 @@ int iterate_over_all_bitgrids(
                 prev_bitplane = unXORed_bitplane.clone();
                 // WARNING: MUST BE DEEP COPY!
                 
-                bitshift_up(unXORed_bitplane, w, h, n_bits-k);
+                bitshift_up(unXORed_bitplane, n_bits-k);
                 
                 cv::bitwise_or(byteplane, unXORed_bitplane, byteplane);
             }
@@ -817,7 +805,6 @@ void vector2file(uint_fast8_t *extracted_msg_pointer, uint_fast64_t n_bytes, std
     outfile.write((char*)extracted_msg_pointer, n_bytes);
     outfile.close();
 }
-
 
 
 
