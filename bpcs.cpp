@@ -465,16 +465,8 @@ void decode_grid(
     if (grid.data[0] == 1)
         conjugate_grid(grid);
     
-    bool not_encountered_first_el = true;
-    for (uint_fast16_t j=0; j<grid_h; ++j)
-        for (uint_fast16_t i=0; i<grid_w; ++i){
-            if (not_encountered_first_el){
-                // Do not add conjugation status bit to msg
-                not_encountered_first_el = false;
-                continue;
-            }
-            msg.push_back(grid.at<uint_fast8_t>(j, i));
-        }
+    for (uint_fast16_t i=1; i!=encoded_bits+1; ++i)
+        msg.push_back(grid.data[i]);
     
     msg_size += encoded_bits;
 }
@@ -487,19 +479,8 @@ void encode_grid(
     
     uint_fast64_t encoded_bits = grid_w * grid_h -1;
     
-    bool not_encountered_first_el = true;
-    int index = -1;
-    
-    for (uint_fast16_t j=0; j<grid_h; ++j){
-        for (uint_fast16_t i=0; i<grid_w; ++i){
-            if (not_encountered_first_el){
-                not_encountered_first_el = false;
-                continue;
-                // First bit (at (0,0)) of grid is reserved for conjugation status
-            }
-            grid.at<uint_fast8_t>(j, i) = msg[++index];
-        }
-    }
+    for (uint_fast16_t i=1; i!=encoded_bits+1; ++i)
+        grid.data[i] = msg[i];
     
     msg.erase(msg.begin(), msg.begin() + encoded_bits + 1);
     msg_size -= encoded_bits;
