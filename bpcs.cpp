@@ -341,45 +341,38 @@ class BPCSStreamBuf {
     const bool embedding;
     uchar sgetc();
     
-    void sputc(uchar c);
-    
     char* out_fmt;
-    
-    void load_next_img(); // Init
-    void save_im(); // End
     
     #ifdef DEBUG
         std::vector<float> complexities;
     #endif
+    
+    
+    void sputc(uchar c);
+    
+    void load_next_img(); // Init
+    void save_im(); // End
   private:
-    int set_next_grid();
-    void load_next_bitplane();
-    void load_next_channel();
+    uint64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
+    uint64_t y;
     
-    void write_conjugation_map();
-    
-    inline float get_grid_complexity(cv::Mat&);
-    inline void conjugate_grid(cv::Mat&);
-
-    const float min_complexity;
-    uint_fast16_t img_n;
     #ifdef DEBUG
         uint_fast64_t n_grids;
         uint_fast64_t n_complex_grids_found;
     #endif
+
+    const float min_complexity;
     
-    uint_fast64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
-    uint_fast64_t y;
-    
-    uint_fast8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
-    uint_fast8_t grids_since_conjgrid;
+    uint16_t img_n;
+    uint8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
+    uint8_t grids_since_conjgrid;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
     
-    uint_fast8_t n_channels;
-    uint_fast8_t channel_n;
-    uint_fast8_t n_bitplanes;
-    uint_fast8_t bitplane_n;
+    uint8_t n_channels;
+    uint8_t channel_n;
+    uint8_t n_bitplanes;
+    uint8_t bitplane_n;
     
     uchar conjugation_map[64];
     
@@ -411,6 +404,16 @@ class BPCSStreamBuf {
     cv::Mat bitplane;
     
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
+    
+    
+    int set_next_grid();
+    void load_next_bitplane();
+    void load_next_channel();
+    
+    void write_conjugation_map();
+    
+    inline float get_grid_complexity(cv::Mat&);
+    inline void conjugate_grid(cv::Mat&);
 };
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
