@@ -433,7 +433,6 @@ void BPCSStreamBuf::load_next_channel(){
     convert_to_cgc(this->channel_byteplanes[this->channel_n]);
     this->bitplane_n = 0;
     this->load_next_bitplane();
-    ++this->channel_n;
 }
 
 void BPCSStreamBuf::load_next_img(){
@@ -486,7 +485,6 @@ void BPCSStreamBuf::load_next_img(){
         }
         this->bitplane = this->bitplanes[0];
     } else {
-        convert_to_cgc(this->channel_byteplanes[this->channel_n]);
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
         this->load_next_channel();
     }
@@ -704,7 +702,7 @@ int BPCSStreamBuf::set_next_grid(){
     } else if (this->bitplane_n < this->n_bitplanes){
         this->load_next_bitplane();
         goto try_again;
-    } else if (this->channel_n < this->n_channels){
+    } else if (++this->channel_n < this->n_channels){
         this->load_next_channel();
         goto try_again;
     }
@@ -719,7 +717,9 @@ int BPCSStreamBuf::set_next_grid(){
     return 1;
     
     try_again:
-    --this->grids_since_conjgrid;
+    if (this->grids_since_conjgrid != 0)
+        // Because we might have set it to 0 above
+        --this->grids_since_conjgrid;
     return this->set_next_grid();
 }
 
