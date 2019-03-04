@@ -15,23 +15,15 @@ namespace sodium {
 
 
 
-static char* NULLCHAR_DYN        = "[NULL]";
-static const char* NULLCHAR      = "[NULL]";
 static const std::string NULLSTR = "[NULL]";
 
 
-static const uint_fast8_t MODE_EMBEDDING = 1;
-static const uint_fast8_t MODE_CALC_MAX_CAP = 2;
-static const uint_fast8_t MODE_EXTRACT = 3;
-static const uint_fast8_t MODE_EDIT = 4;
-
-
 #ifdef DEBUG
-    unsigned int whichbyte = 0;
+    uint whichbyte = 0;
     uint_fast64_t gridlimit = 0;
     static CompskyLogger mylog("bpcs", std::cout);
-    unsigned int MAX_CONJ_GRIDS = 0;
-    unsigned int conj_grids_found = 0;
+    uint MAX_CONJ_GRIDS = 0;
+    uint conj_grids_found = 0;
 #endif
 
 
@@ -234,6 +226,7 @@ static const cv::Mat chequerboard_b = cv::Mat(8,8, CV_8UC1, chequered_arr_b);
 
 
 
+
 /*
  * Grid complexity
  */
@@ -349,7 +342,7 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
 
 
 
-class BPCSStreamBuf { //: public std::streambuf {
+class BPCSStreamBuf {
     // Based on excellent post by krzysztoftomaszewski
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
@@ -360,9 +353,9 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     
     const bool embedding;
-    unsigned char sgetc();
+    uchar sgetc();
     
-    void sputc(unsigned char c);
+    void sputc(uchar c);
     
     char* out_fmt;
     
@@ -400,7 +393,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     uint_fast8_t n_bitplanes;
     uint_fast8_t bitplane_n;
     
-    unsigned char conjugation_map[64];
+    uchar conjugation_map[64];
     
     uchar* conjugation_map_ptr;
     uchar* conjugation_grid_ptr;
@@ -611,7 +604,7 @@ void BPCSStreamBuf::write_conjugation_map(){
 
 #ifdef DEBUG
 void print_grid(cv::Mat& grid, uint_fast32_t x, uint_fast32_t y){
-    unsigned char c;
+    uchar c;
     uint_fast8_t n;
     mylog.set_verbosity(6);
     mylog.set_cl('B');
@@ -785,7 +778,7 @@ int BPCSStreamBuf::set_next_grid(){
     return this->set_next_grid();
 }
 
-unsigned char BPCSStreamBuf::sgetc(){
+uchar BPCSStreamBuf::sgetc(){
     if (this->gridbitindx == 64){
         if (this->set_next_grid())
             #ifdef DEBUG
@@ -804,7 +797,7 @@ unsigned char BPCSStreamBuf::sgetc(){
         
         this->gridbitindx = 0;
     }
-    unsigned char c = 0;
+    uchar c = 0;
     for (uint_fast8_t i=0; i<8; ++i){
         #ifdef DEBUG
             mylog.set_verbosity(8);
@@ -836,7 +829,7 @@ unsigned char BPCSStreamBuf::sgetc(){
     return c;
 }
 
-void BPCSStreamBuf::sputc(unsigned char c){
+void BPCSStreamBuf::sputc(uchar c){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
@@ -962,16 +955,18 @@ void BPCSStreamBuf::save_im(){
 int main(const int argc, char *argv[]){
     bool to_disk = false;
     bool to_display = false;
-    
-    char* out_fmt = "";
-    std::string out_fp;
+    bool embedding = false;
+    bool extracting = false;
+    // bool editing = false; // Use named_pipe_in[0] != 0
     
     uint_fast8_t n_msg_fps = 0;
+    
+    char* out_fmt = "";
+    char* named_pipe_in = "";
+    
+    std::string out_fp;
+    
     std::vector<char*> msg_fps;
-    
-    uint_fast8_t mode = 0;
-    
-    char* named_pipe_in = NULLCHAR_DYN;
     
     #ifdef DEBUG
         int verbosity = 3;
@@ -1076,7 +1071,7 @@ int main(const int argc, char *argv[]){
             case 'o': out_fmt = nextarg; goto continue_argloop;
             // --out-fmt
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
-            case 'p': named_pipe_in = nextarg; mode = MODE_EDIT; goto continue_argloop;
+            case 'p': named_pipe_in = nextarg; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
             case '-': break;
             case 'm': break;
@@ -1095,7 +1090,7 @@ int main(const int argc, char *argv[]){
         if (second_character == 'm'){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
             ++n_msg_fps;
-            mode = MODE_EMBEDDING;
+            embedding = true;
             msg_fps = nextlist;
             continue;
         }
@@ -1162,10 +1157,6 @@ int main(const int argc, char *argv[]){
         mylog << std::endl;
     #endif
     
-    if (mode == 0){
-        mode = MODE_EXTRACT;
-    }
-    
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl(0);
@@ -1206,7 +1197,7 @@ int main(const int argc, char *argv[]){
         return 1;
     }
     
-    BPCSStreamBuf bpcs_stream(min_complexity, img_fps, (mode == MODE_EMBEDDING), out_fmt);
+    BPCSStreamBuf bpcs_stream(min_complexity, img_fps, embedding, out_fmt);
     bpcs_stream.load_next_img(); // Init
     
     uint_fast64_t j;
@@ -1214,7 +1205,7 @@ int main(const int argc, char *argv[]){
     uint_fast64_t n_msg_bytes;
     struct stat stat_buf;
     
-    if (mode == MODE_EMBEDDING){
+    if (embedding){
         FILE* msg_file;
         for (i=0; i<n_msg_fps; ++i){
             fp = msg_fps[i];
@@ -1239,7 +1230,7 @@ int main(const int argc, char *argv[]){
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
             for (j=0; j<n_msg_bytes; ++j)
-                bpcs_stream.sputc((unsigned char)fp[j]); // WARNING: Accessing char* by indices - how behaves for non-byte characters?
+                bpcs_stream.sputc((uchar)fp[j]); // WARNING: Accessing char* by indices - how behaves for non-byte characters?
             //bpcs_stream.write(fp, n_msg_bytes);
             
             if (stat(fp, &stat_buf) == -1){
@@ -1324,8 +1315,8 @@ int main(const int argc, char *argv[]){
                         if (verbose)
                             std::cout << fp_str << std::endl;
                     #endif
-                } else if (mode == MODE_EXTRACT){
-                    unsigned char data[n_msg_bytes];
+                } else if (extracting){
+                    uchar data[n_msg_bytes];
                     for (j=0; j<n_msg_bytes; ++j)
                         data[j] = bpcs_stream.sgetc();
                     cv::Mat rawdata(1, n_msg_bytes, CV_8UC1, data);
