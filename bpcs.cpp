@@ -33,6 +33,7 @@
 
 #include <fcntl.h>    // For O_WRONLY
 #include <unistd.h>   // For open()
+#include <tuple> // for std::tie
 
 /*
 Example usage:
@@ -80,6 +81,99 @@ uint_fast64_t get_fsize(const char* fp){
     int rc = stat(fp, &stat_buf);
     return rc == 0 ? stat_buf.st_size : -1;
 }
+
+
+
+
+
+
+
+/*
+ * Crop image keeping required number of complex grids
+ */
+/* Required imports
+#include <opencv2/core/core.hpp>
+#include <iostream> // for std::cout
+*/
+void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t x, uint_fast16_t y, uint_fast16_t min_area, uint_fast16_t required_min_sum, uint_fast16_t &w, uint_fast16_t &h){
+    std::cout << "iterate_over_all_rects_from_corner_smaller_than\n" << arr << "\nx=" << +x << "\ty=" << +y << "\tmin_area=" << +min_area << "\tmin_sum=" << +required_min_sum << "\tw=" << +w << "\th=" << +h << "\n";
+    uint_fast16_t cum_sum;
+    
+    uint_fast16_t grid_w;
+    if (min_area > arr.cols)
+        grid_w = arr.cols;
+    else
+        grid_w = min_area;
+    
+    int diff = x + grid_w - arr.cols;
+    if (diff > 0)
+        grid_w -= diff;
+    
+    uint_fast16_t H;
+    uint_fast16_t grid_h;
+    
+    std::cout << "grid_w=" << +grid_w << "\n\n";
+    
+    do {
+        H = arr.rows - y;
+        while (grid_w*H >= min_area)
+            --H;
+        if (H == 0)
+            break;
+        
+        for (grid_h=1; grid_h<H; ++grid_h){
+            cv::Mat grid(grid_h, grid_w, CV_8UC1);
+            cv::Rect grid_shape(cv::Point(x, y), cv::Size(grid_w, grid_h));
+            arr(grid_shape).copyTo(grid);
+            cum_sum = cv::sum(grid)[0];
+            std::cout << grid << std::endl;
+            std::cout << +cum_sum;
+            if (cum_sum >= required_min_sum){
+                min_area = grid_w * grid_h;
+                w = grid_w;
+                h = grid_h;
+                std::cout << "min_area=" << +min_area << "\n\n";
+                break;
+            }
+            std::cout << "\n\n";
+        }
+    } while (--grid_w != 0);
+    std::cout << "\n\n";
+}
+
+void minimum_area_rectangle_of_sum_gt(cv::Mat &arr, uint_fast16_t &x, uint_fast16_t &y, uint_fast16_t &w, uint_fast16_t &h, uint_fast16_t min_sum){
+    std::cout << "minimum_area_rectangle_of_sum_gt\n" << arr << "\nx=" << +x << "\ty=" << +y << "\tw=" << +w << "\th=" << +h << "\tmin_sum=" << +min_sum << "\n\n";
+    /*
+    Input:
+        arr:            2D (w, h) array of uint8_t (values in [0, 8])
+                        This is (the array mapping the grids of an image to whether or not the complexity was => min_complexity) summed over each bits
+        min_sum:        Minimum sum resulting submatrix must have
+                        In reality this is the minimum number of grids of complexity => min_complexity required for encoding a file of a certain size
+    Process:
+        Calculate minimum submatrix of arr which has 
+    Return:
+        (corner_x, corner_y), (min_w, min_h)
+    */
+    
+    uint_fast16_t min_area = arr.cols * arr.rows;
+    uint_fast16_t min_area_tmp;
+    
+    for (uint_fast16_t j=0; j<arr.rows; ++j){
+        for (uint_fast16_t i=0; i<arr.cols; ++i){
+            iterate_over_all_rects_from_corner_smaller_than(arr, i, j, min_area, min_sum, w, h);
+            min_area_tmp = w * h;
+            if (min_area_tmp < min_area){
+                min_area = min_area_tmp;
+                x = i;
+                y = j;
+            }
+        }
+    }
+}
+
+
+
+
 
 
 
@@ -628,6 +722,7 @@ int main(const int argc, char *argv[]){
     args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
     
     // Encoding variables
+    args::Flag                          Amin            (parser, "min", "Minimise image (i.e. crop image to the minimum rectangle holding the required number of complex grids", {"min"});
     args::ValueFlag<uint_fast16_t>      Agrid_w         (parser, "grid_w", "Width of individual complexity grids", {'w', "gridw"});
     args::ValueFlag<uint_fast16_t>      Agrid_h         (parser, "grid_h", "Height of individual complexity grids", {'h', "gridh"});
     
@@ -786,6 +881,9 @@ int main(const int argc, char *argv[]){
         #ifdef DEBUG2
             std::cout << msg_size << "b to encode" << std::endl;
         #endif
+        
+        if (Amin){
+            minimum_area_rectangle_of_sum_gt(arr, uint_fast16_t &x, uint_fast16_t &y, uint_fast16_t &w, uint_fast16_t &h, uint_fast16_t min_sum){
     }
     
     bool msg_was_exhausted = false;
@@ -834,6 +932,11 @@ int main(const int argc, char *argv[]){
         std::vector<float> complexities;
         complexities.reserve(n_hztl_grids * n_vert_grids);
         // Speeds up assignments by reserving required memory beforehand
+        
+        if (Amin){
+            cv::Mat n_grids_w_min_complexity(n_vert_grids, n_hztl_grids, CV_8UC1);
+            for (j=0; j<n_channels; ++j)
+        }
         
         for (j=0; j<n_channels; ++j){
             convert_to_cgc(channel_byteplanes[j], w, h, XORed_byteplane);
