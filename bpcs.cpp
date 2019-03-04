@@ -238,28 +238,6 @@ inline float grid_complexity(
     return (float)xor_adj(grid, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4) / (2*8*7); // (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
 }
 
-void conjugate_grid(
-    cv::Mat &grid
-    #ifdef DEBUG
-        , uint_fast8_t n, uint_fast32_t x, uint_fast32_t y
-    #endif
-){
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-        mylog.set_cl('p');
-        mylog << "<*" << +n << "(" << +x << ", " << +y << ")>";
-    #endif
-    cv::Mat arr1;
-    cv::Mat arr2;
-    
-    cv::bitwise_and(grid, chequerboard_a, arr1);
-    
-    cv::bitwise_not(grid, grid);
-    cv::bitwise_and(grid, chequerboard_b, arr2);
-    
-    cv::bitwise_or(arr1, arr2, grid);
-}
-
 
 
 
@@ -373,6 +351,7 @@ class BPCSStreamBuf {
     void write_conjugation_map();
     
     inline float get_grid_complexity(cv::Mat&);
+    inline void conjugate_grid(cv::Mat&);
 
     const float min_complexity;
     uint_fast16_t img_n;
@@ -408,6 +387,9 @@ class BPCSStreamBuf {
     cv::Mat grid{8, 8, CV_8UC1};
     cv::Mat conjugation_grid{8, 8, CV_8UC1};
     
+    cv::Mat dummy_grid_a{8, 8, CV_8UC1};
+    cv::Mat dummy_grid_b{8, 8, CV_8UC1};
+    
     cv::Mat xor_adj_mat1{8, 7, CV_8UC1};
     cv::Mat xor_adj_mat2{7, 8, CV_8UC1};
     
@@ -424,6 +406,21 @@ class BPCSStreamBuf {
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
+}
+
+inline void BPCSStreamBuf::conjugate_grid(cv::Mat &grid){
+    #ifdef DEBUG
+        mylog.set_verbosity(5);
+        mylog.set_cl('p');
+        mylog << "<*" << +this->grids_since_conjgrid << "(" << +(this->x -8) << ", " << +this->y << ")>";
+    #endif
+    
+    cv::bitwise_and(grid, chequerboard_a, this->dummy_grid_a);
+    
+    cv::bitwise_not(grid, grid);
+    cv::bitwise_and(grid, chequerboard_b, this->dummy_grid_b);
+    
+    cv::bitwise_or(this->dummy_grid_a, this->dummy_grid_b, grid);
 }
 
 inline void BPCSStreamBuf::load_next_bitplane(){
@@ -573,11 +570,7 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
     
     if (complexity < this->min_complexity){
-        conjugate_grid(this->conjugation_grid
-                    #ifdef DEBUG
-                       , this->grids_since_conjgrid, this->x-64, this->y
-                    #endif
-                      );
+        this->conjugate_grid(this->conjugation_grid);
         *this->conjugation_map_ptr = 1;
         if (1 - complexity - 1/57 < this->min_complexity)
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
@@ -658,11 +651,7 @@ int BPCSStreamBuf::set_next_grid(){
             this->conjugation_grid_ptr = this->grid_ptr;
         } else {
             if (*(this->grid_ptr + 7*(this->bitplane.cols) + 7) != 0)
-                conjugate_grid(this->grid
-                            #ifdef DEBUG
-                               , this->grids_since_conjgrid, this->x, this->y
-                            #endif
-                              );
+                this->conjugate_grid(this->grid);
             
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
@@ -789,11 +778,7 @@ uchar BPCSStreamBuf::sgetc(){
             //return std::char_traits<char>::eof;
         
         if (*this->conjugation_map_ptr)
-            conjugate_grid(this->grid
-                        #ifdef DEBUG
-                           , this->grids_since_conjgrid, this->x, this->y
-                        #endif
-                          );
+            this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
     }
@@ -845,11 +830,7 @@ void BPCSStreamBuf::sputc(uchar c){
             mylog << this->grid << std::endl;
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
-            conjugate_grid(this->grid
-                        #ifdef DEBUG
-                           , this->grids_since_conjgrid, this->x, this->y
-                        #endif
-                          );
+            this->conjugate_grid(this->grid);
             *this->conjugation_map_ptr = 1;
         } else {
             *this->conjugation_map_ptr = 0;
