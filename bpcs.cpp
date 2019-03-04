@@ -356,7 +356,6 @@ class BPCSStreamBuf {
     
     cv::Mat im_mat;
     
-    
     void set_next_grid();
     void load_next_bitplane();
     void load_next_channel();
@@ -552,10 +551,14 @@ void BPCSStreamBuf::load_next_img(){
     // Get first data grid
     this->set_next_grid();
     
+    #ifdef TESTS
+    assert(this->conjmap_indx == 0);
+    #endif
+    
     #ifdef EMBEDDOR
     if (!this->embedding){
     #endif
-        if (this->conjgrid.val[this->conjmap_indx])
+        if (this->conjgrid.val[0])
             this->conjugate_grid(this->grid);
         this->conjmap_indx = 1;
     #ifdef EMBEDDOR
