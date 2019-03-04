@@ -325,7 +325,7 @@ class BPCSStreamBuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps, bool emb, char* outfmt):
-    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), gridbitindx(64), grids_since_conjgrid(63), img_fps(img_fps)
+    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), gridbitindx(7), grids_since_conjgrid(63), img_fps(img_fps)
     {}
     
     
@@ -790,7 +790,7 @@ int BPCSStreamBuf::set_next_grid(){
 }
 
 uchar BPCSStreamBuf::sgetc(){
-    if (this->gridbitindx == 64){
+    if (++this->gridbitindx == 8){
         if (this->set_next_grid())
             #ifdef DEBUG
             throw std::runtime_error("Unexpected end of BPCS stream");
@@ -822,7 +822,6 @@ uchar BPCSStreamBuf::sgetc(){
         c |= *(this->grid_ptr++) << i;
     }
     this->grid_ptr += this->bitplane.cols -8;
-    this->gridbitindx += 8;
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
@@ -843,7 +842,7 @@ void BPCSStreamBuf::sputc(uchar c){
         mylog << "sputc " << +c << " (" << c << ") at gridbitindx " << +this->gridbitindx << "  (x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
         mylog.set_cl(0);
     #endif
-    if (this->gridbitindx == 64){
+    if (++this->gridbitindx == 8){
         #ifdef DEBUG
             mylog.set_verbosity(8);
             mylog.set_cl('B');
@@ -885,7 +884,6 @@ void BPCSStreamBuf::sputc(uchar c){
         #endif
         *this->grid_ptr++ = (c >> i) & 1;
     }
-    this->gridbitindx += 8;
     this->grid_ptr += this->bitplane.cols -8;
     #ifdef DEBUG
         mylog << std::endl;
