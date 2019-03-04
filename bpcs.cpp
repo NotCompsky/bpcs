@@ -156,15 +156,6 @@ inline void cv_div2(cv::Mat& arr, cv::Mat& dest){
     dest -= m;
 }
 
-inline void bitshift_up(cv::Mat &arr, uint_fast16_t n){
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-        mylog.set_cl(0);
-        mylog << "bitshift_up " << +n << std::endl;
-    #endif
-    cv::multiply(arr, 1 << n, arr);
-}
-
 inline void convert_to_cgc(cv::Mat &arr){
     #ifdef DEBUG
         mylog.set_verbosity(5);
@@ -181,15 +172,10 @@ inline void convert_to_cgc(cv::Mat &arr){
 
 
 
-
-
-
 /*
  * Initialise chequerboard
  */
 static const Matx88uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
-
-
 
 
 
@@ -831,7 +817,7 @@ void BPCSStreamBuf::save_im(){
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[--k].clone();
         j = this->n_bitplanes -1;
-        bitshift_up(this->channel_byteplanes[i], j--);
+        this->channel_byteplanes[i] *= (2 << j--);
         do {
             --k;
             #ifdef TESTS
@@ -843,7 +829,7 @@ void BPCSStreamBuf::save_im(){
             cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
             
             this->bitplane = this->bitplanes[k].clone();
-            bitshift_up(this->bitplane, j);
+            this->bitplane *= (2 << j);
             cv::bitwise_or(this->channel_byteplanes[i], this->bitplane, this->channel_byteplanes[i]);
         } while (j-- != 0);
     } while (i-- != 0);
