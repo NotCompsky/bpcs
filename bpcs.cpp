@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sys/stat.h> // for stat
+#include <string> // for std::stoi (stof already defined elsewhere)
 
 namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
@@ -24,10 +25,10 @@ static const std::string NULLSTR = "[NULL]";
 
 std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless){
     // WARNING: Requires absolute paths?
-    std::string basename = "";
+    std::string basename;
     std::string dir = "";
-    std::string ext = "";
-    std::string fname = "";
+    std::string ext;
+    std::string fname;
     std::string result = "";
     
     // Intermediates
@@ -116,10 +117,10 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
 
 
 
-static const uint_fast8_t MODE_EMBEDDING = 0;
-static const uint_fast8_t MODE_CALC_MAX_CAP = 1;
-static const uint_fast8_t MODE_EXTRACT = 2;
-static const uint_fast8_t MODE_EDIT = 3;
+static const uint_fast8_t MODE_EMBEDDING = 1;
+static const uint_fast8_t MODE_CALC_MAX_CAP = 2;
+static const uint_fast8_t MODE_EXTRACT = 3;
+static const uint_fast8_t MODE_EDIT = 4;
 
 
 #ifdef DEBUG
@@ -342,6 +343,10 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     bool embedding;
     char* out_fmt;
+    
+    #ifdef DEBUG
+        std::vector<float> complexities;
+    #endif
   private:
     int set_next_grid();
     void load_next_bitplane();
@@ -375,10 +380,6 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     unsigned char conjugation_map[63];
     cv::Mat conjugation_grid{8, 8, CV_8UC1};
-    
-    #ifdef DEBUG
-        std::vector<float> complexities;
-    #endif
     
     cv::Mat grid{8, 8, CV_8UC1};
     cv::Mat xor_adj_mat1{8, 7, CV_8UC1};
@@ -748,7 +749,7 @@ unsigned char BPCSStreamBuf::sgetc(){
     }
     #ifdef DEBUG
         mylog.tedium();
-        mylog << "sgetc " << +c;
+        mylog << "sgetc " << +c << std::endl;
     #endif
     return c;
 }
@@ -756,7 +757,7 @@ unsigned char BPCSStreamBuf::sgetc(){
 void BPCSStreamBuf::sputc(unsigned char c){
     #ifdef DEBUG
         mylog.tedium();
-        mylog << "sputc " << +c << std::endl; // tmp
+        mylog << "sputc " << +c << std::endl;
     #endif
     if (this->gridbitindx == 64){
         if (this->past_first_grid){
@@ -867,7 +868,7 @@ int main(const int argc, char *argv[]){
     char* named_pipe_in = NULLCHAR_DYN;
     
     #ifdef DEBUG
-        char log_fmt = "[%T] ";
+        char* log_fmt = "[%T] ";
         
         uint_fast16_t n_bins = 10;
         uint_fast8_t n_binchars = 200;
@@ -881,6 +882,7 @@ int main(const int argc, char *argv[]){
         
         /* Bool flags */
         
+        #ifdef DEBUG
         if (arg == "-v"){
             ++verbosity;
             continue;
@@ -889,6 +891,7 @@ int main(const int argc, char *argv[]){
             --verbosity;
             continue;
         }
+        #endif
         
         /* Value flags */
         
@@ -904,24 +907,24 @@ int main(const int argc, char *argv[]){
         // Histogram args
         if (arg == "--bins"){
             // Number of histogram bins
-            n_bins = nextarg;
+            n_bins = std::stoi(nextarg);
             continue;
         }
         if (arg == "--binchars"){
             // Total number of `#` characters printed out in histogram totals
-            n_binchars = nextarg;
+            n_binchars = std::stoi(nextarg);
             continue;
         }
         
         // Debugging
         if (arg == "--gridlimit"){
             // Quit after having moved through `gridlimit` grids
-            gridlimit = nextarg;
+            gridlimit = std::stoi(nextarg);
             continue;
         }
         if (arg == "--conjlimit"){
             // Limit of conjugation grids
-            MAX_CONJ_GRIDS = nextarg;
+            MAX_CONJ_GRIDS = std::stoi(nextarg);
             continue;
         }
         #endif
@@ -956,6 +959,7 @@ int main(const int argc, char *argv[]){
             nextlist.push_back(nextarg);
             nextarg = argv[++i];
         }
+        --i;
         
         if (arg == "-m" || arg == "--msg"){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
@@ -981,7 +985,13 @@ int main(const int argc, char *argv[]){
     #endif
     
     
-    
+    #ifdef DEBUG
+        mylog.info();
+        if (n_msg_fps != 0)
+            mylog << "Embedding";
+        else
+            mylog << "Extracting to ";
+    #endif
     if (out_fmt[0] == 0){
         if (n_msg_fps != 0){
             #ifdef DEBUG
@@ -991,12 +1001,11 @@ int main(const int argc, char *argv[]){
             #endif
         }
         #ifdef DEBUG
-            mylog << " to display";
+            mylog << "display";
         #endif
     } else {
         #ifdef DEBUG
             if (n_msg_fps == 0){
-                mylog << " to ";
                 if (to_disk)
                     mylog << "file";
                 else
@@ -1012,8 +1021,11 @@ int main(const int argc, char *argv[]){
         mode = MODE_EXTRACT;
     }
     
-    
-    const float min_complexity = std::stof(argv[++i]);
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "min_complexity: " << +argv[i+1] << std::endl;
+    #endif
+    const float min_complexity = std::stof(argv[i++]);
     // Minimum bitplane complexity
     if (min_complexity > 0.5){
         #ifdef DEBUG
@@ -1025,8 +1037,14 @@ int main(const int argc, char *argv[]){
     
     std::vector<char*> img_fps;
     // File path(s) of input image file(s)
+    #ifdef DEBUG
+        mylog.tedium();
+    #endif
     do {
-        img_fps.push_back(argv[++i]);
+        img_fps.push_back(argv[i++]);
+        #ifdef DEBUG
+            mylog << argv[i -1] << std::endl;
+        #endif
     } while (i < argc);
     
     
@@ -1039,16 +1057,6 @@ int main(const int argc, char *argv[]){
         #endif
         return 1;
     }
-    
-    #ifdef DEBUG
-        mylog.info();
-        switch(mode){
-            case MODE_EMBEDDING:     mylog << "Embedding"; break;
-            case MODE_CALC_MAX_CAP:  mylog << "Calculating max cap"; break;
-            case MODE_EDIT:          mylog << "Editing"; break;
-            case MODE_EXTRACT:       mylog << "Extracting"; break;
-        }
-    #endif
     
     BPCSStreamBuf bpcs_stream(min_complexity, img_fps);
     bpcs_stream.embedding = (mode == MODE_EMBEDDING);
@@ -1108,7 +1116,7 @@ int main(const int argc, char *argv[]){
         for (j=0; j<8; ++j)
             bpcs_stream.sputc(0);
         #ifdef DEBUG
-            bpcs_stream.print_histogram(bpcs_stream.complexities, 10, 200);
+            print_histogram(bpcs_stream.complexities, 10, 200);
         #endif
         bpcs_stream.save_im();
     } else {
