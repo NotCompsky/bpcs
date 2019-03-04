@@ -23,10 +23,12 @@ static const std::string NULLSTR = "[NULL]";
     uint_fast64_t gridlimit = 0;
     
     
+    // Fancy loggers
     static CompskyLogger mylog("bpcs", std::cout);
     static CompskyLogger mylog1("bpcs1", std::cout);
-    static std::ostream* os = &std::cout;
-    static std::ostream* os1;
+    
+    // Plain loggers
+    static CompskyLogger os1("", std::cout);
     
     
     uint MAX_CONJ_GRIDS = 0;
@@ -717,7 +719,7 @@ int BPCSStreamBuf::set_next_grid(){
                 this->y = j;
                 this->grid_ptr = this->bitplane.ptr<uchar>(j) +(i -8);
                 #ifdef DEBUG
-                    *os1 << +this->x << "\t" << +this->y << std::endl;
+                    os1 << +this->x << "\t" << +this->y << std::endl;
                     
                     ++this->n_complex_grids_found;
                     mylog.set_verbosity(7);
@@ -949,6 +951,10 @@ int main(const int argc, char *argv[]){
         
         mylog1.set_level(0);
         
+        os1.set_level(0);
+        os1.set_verbosity(1);
+        os1.set_dt_fmt("");
+        
         char* log_fmt = "[%T] ";
         
         uint_fast16_t n_bins = 10;
@@ -989,7 +995,7 @@ int main(const int argc, char *argv[]){
                     case 'o':
                         // --os1
                         // outstream - not formatted CompskyLogger
-                        os1 = os; goto continue_argloop;
+                        os1.set_verbosity(0); goto continue_argloop;
                     default:
                         goto invalid_argument;
                 }
