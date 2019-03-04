@@ -49,6 +49,8 @@ static const uint_fast8_t MODE_EDIT = 3;
 
 
 
+uint_fast64_t gridlimit;
+
 
 
 #ifdef DEBUG
@@ -82,14 +84,20 @@ inline uint_fast16_t xor_adj(
 
 
 void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
-    #ifdef DEBUG
-        mylog.tedium();
-        mylog << "bitandshift " << +n << std::endl;
-    #endif
+    /*
+    IIRC, cv::divide does not divide by 2 via bitshifts - it rounds up
+    TODO: Maybe fix this by looking at the assembly generated
+    
+    for (uint_fast8_t i = 0; i<n; ++i)
+        cv::divide(arr,  2,  dest);
+    
+    cv::bitwise_and(dest, 1, dest);
+    */
     for (uint_fast16_t i=0; i!=arr.rows*arr.cols; ++i)
         dest.data[i] = (arr.data[i] >> n) & 1;
     #ifdef DEBUG
-        mylog << "bitandshift:  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
+        mylog.tedium();
+        mylog << "bitandshift " << +n << ":  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
     #endif
 }
 
@@ -101,12 +109,18 @@ void bitshift_up(cv::Mat &arr, uint_fast16_t n){
     cv::multiply(arr, 1 << n, arr);
 }
 
-void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
+inline void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
+    dest = arr.clone();
+    uint_fast8_t n;
+    for (uint_fast64_t i=0; i<arr.rows*arr.cols; ++i){
+        n = arr.data[i];
+        dest.data[i] = n ^ (n >> 1);
+    }
+    //cv::bitwise_xor(arr, arr/2, dest);
     #ifdef DEBUG
         mylog.tedium();
-        mylog << "convert_to_cgc " << std::endl;
+        mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
     #endif
-    cv::bitwise_xor(arr, arr/2, dest);
 }
 
 
@@ -144,6 +158,10 @@ inline float grid_complexity(
 }
 
 void conjugate_grid(cv::Mat &grid){
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "<*>";
+    #endif
     cv::Mat arr1;
     cv::Mat arr2;
     
@@ -240,7 +258,7 @@ class BPCSStreamBuf { //: public std::streambuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, const std::vector<std::string> img_fps):
-    min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(0), grids_since_conjgrid(63), conjugation_map_set(false)
+    min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(0), grids_since_conjgrid(63), past_first_grid(false)
     {}
     
     
@@ -277,9 +295,6 @@ class BPCSStreamBuf { //: public std::streambuf {
     uint_fast64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
     uint_fast64_t y;
     
-    uint_fast64_t conjgrid_x;
-    uint_fast64_t conjgrid_y;
-    
     uint_fast8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     
     cv::Mat im_mat;
@@ -288,9 +303,8 @@ class BPCSStreamBuf { //: public std::streambuf {
     uint_fast8_t channel_n;
     uint_fast8_t n_bitplanes;
     
-    unsigned char conjugation_map[64];
-    bool conjugation_map_set;
-    cv::Mat conjugation_grid;
+    unsigned char conjugation_map[63];
+    cv::Mat conjugation_grid{8, 8, CV_8UC1};
     
     #ifdef DEBUG
         std::vector<float> complexities;
@@ -314,6 +328,8 @@ class BPCSStreamBuf { //: public std::streambuf {
     cv::Mat XORed_byteplane;
     
     std::smatch path_regexp_match;
+    
+    bool past_first_grid;
 };
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
@@ -323,7 +339,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
 void BPCSStreamBuf::unxor_bitplane(){
     #ifdef DEBUG
         mylog.dbg();
-        mylog << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
+        mylog << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << " (highest first)" << std::endl;
     #endif
     if (this->bitplane_n == 1)
         // Remember - value of this->bitplane_n is the index of the NEXT bitplane
@@ -391,7 +407,8 @@ void BPCSStreamBuf::load_next_channel(){
         this->commit_channel();
         this->byteplane = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
     }
-    convert_to_cgc(this->channel_byteplanes[this->channel_n++], this->XORed_byteplane);
+    convert_to_cgc(this->channel_byteplanes[this->channel_n], this->XORed_byteplane);
+    ++this->channel_n;
     this->bitplane_n = 0;
     this->load_next_bitplane();
 }
@@ -436,35 +453,73 @@ void BPCSStreamBuf::load_next_img(){
 
 void BPCSStreamBuf::write_conjugation_map(){
     float complexity;
-    #ifdef DEBUG
-        mylog.tedium();
-        mylog << "write_conjugation_map" << std::endl;
-    #endif
-    if (this->conjugation_map_set){
-        for (uint_fast8_t k=1; k<64; ++k)
+    
+        for (uint_fast8_t k=0; k<63; ++k){
+            #ifdef TESTS
+                if (this->conjugation_map[k] != 0 && this->conjugation_map[k] != 1){
+                    mylog.crit();
+                    mylog << "Non-bit this->conjugation_map[" << +k << "]\n";
+                    for (uint_fast8_t i=0; i<63; ++i)
+                        mylog << +this->conjugation_map[i] << " ";
+                    mylog << std::endl;
+                    throw std::runtime_error("");
+                }
+            #endif
             this->conjugation_grid.data[k] = this->conjugation_map[k];
+        }
         
-        this->conjugation_grid.data[0] = 0;
+        this->conjugation_grid.data[63] = 0;
         
         complexity = this->get_grid_complexity(this->conjugation_grid);
         if (complexity < this->min_complexity){
             conjugate_grid(this->conjugation_grid);
-            this->conjugation_grid.data[0] = 1;
+            this->conjugation_grid.data[63] = 1;
             if (1 - complexity - 1/57 < this->min_complexity)
                 // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
                 // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
                 
-                if (this->conjugation_grid.data[1] != 0)
+                if (this->conjugation_grid.data[62] != 0)
                     // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
                     // Hence the grid complexity would have been at least its previous value
                     
-                    if (this->conjugation_grid.data[8] != 0)
+                    if (this->conjugation_grid.data[55] != 0)
                         throw std::runtime_error("Grid complexity fell below minimum value");
         }
-    } else {
-        this->conjugation_map_set = false;
-    }
+    #ifdef TESTS
+        for (uint_fast8_t i=0; i<64; ++i)
+            if (this->conjugation_grid.data[i] != 0 && this->conjugation_grid.data[i] != 1){
+                mylog.crit();
+                mylog << "Non-bit in conjugation map" << "\n" << this->conjugation_grid << std::endl;
+                throw std::runtime_error("");
+            }
+    #endif
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "Written conjugation map" << "\n" << this->conjugation_grid << std::endl;
+    #endif
 }
+
+#ifdef DEBUG
+void print_grid(cv::Mat& grid, uint_fast32_t x, uint_fast32_t y){
+    unsigned char c;
+    uint_fast8_t n;
+    mylog.dbg('B');
+    mylog << "print_grid (" << +x << ", " << +y << ")" << '\n';
+    for (uint_fast8_t j=0; j<8; ++j){
+        c = 0;
+        mylog.tedium();
+        for (uint_fast8_t i=0; i<8; ++i){
+            n =grid.at<uint_fast8_t>(j, i);
+            c |= (n << i);
+            mylog << +n;
+        }
+        mylog.dbg();
+        mylog << " ";
+        mylog << c << '\n';
+    }
+    mylog << std::endl;
+}
+#endif
 
 int BPCSStreamBuf::set_next_grid(){
     if (++this->grids_since_conjgrid == 64){
@@ -472,20 +527,38 @@ int BPCSStreamBuf::set_next_grid(){
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
         // The old such grid must have the conjugation map emptied into it
         
+        if (this->set_next_grid())
+            // Ran out of grids
+            return 0;
+        
+        #ifdef DEBUG
+            mylog.dbg();
+            mylog << "Found conjugation grid(" << +this->x << ", " << +this->y << ")";
+        #endif
+        
         if (this->embedding){
-            this->write_conjugation_map();
+            if (this->past_first_grid)
+                this->write_conjugation_map();
+            else
+                this->past_first_grid = true;
             this->conjugation_grid = this->grid;
+            // WARNING: not sure if this->conjugation_grid is deep copy of bitplane area - it should NOT be
         } else {
-            if (this->grid.data[0] == 1)
+            if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid);
             
-            for (uint_fast8_t k=1; k<64; ++k)
+            for (uint_fast8_t k=0; k<63; ++k)
                 this->conjugation_map[k] = this->grid.data[k];
+            
+            #ifdef DEBUG
+                mylog << "\n" << this->grid;
+            #endif
         }
         
-        this->set_next_grid();
-        this->conjgrid_x = this->x;
-        this->conjgrid_y = this->y;
+        #ifdef DEBUG
+            mylog << std::endl;
+        #endif
+        
         this->grids_since_conjgrid = 0;
     }
     float complexity;
@@ -511,6 +584,10 @@ int BPCSStreamBuf::set_next_grid(){
                 //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
+                #ifdef DEBUG
+                    if (!this->embedding)
+                        print_grid(this->grid, this->x, this->y);
+                #endif
                 return 0;
             }
         }
@@ -543,24 +620,56 @@ int BPCSStreamBuf::set_next_grid(){
     return this->set_next_grid();
 }
 
-
+unsigned int whichbyte = 0;
 
 char BPCSStreamBuf::sgetc(){
-    if (this->gridbitindx == 64){
+    if (++whichbyte == gridlimit){
+        mylog << std::endl;
+        throw std::runtime_error("Reached gridlimit");
+    }
+    if (this->gridbitindx == 64 || !this->past_first_grid){
         if (set_next_grid())
             throw std::runtime_error("Unexpected end of BPCS stream");
             //return std::char_traits<char>::eof;
+        
         this->gridbitindx = 0;
     }
-    char c = 0;
-    for (uint_fast8_t i=0; i<8; ++i)
-        c |= (this->grid.data[this->gridbitindx + i] << i);
-    this->gridbitindx += 8;
-    return c;
+    unsigned char c = 0;
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "sgetc: ";
+    #endif
+    for (uint_fast8_t i=0; i<8; ++i){
+        #ifdef DEBUG
+            mylog.tedium();
+            mylog << +this->grid.data[this->gridbitindx];
+        #endif
+        #ifdef TESTS
+            if (this->grid.data[this->gridbitindx] != 0 && this->grid.data[this->gridbitindx] != 1){
+                mylog.crit();
+                mylog << "Non-bit in grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid << std::endl;
+                throw std::runtime_error("");
+            }
+        #endif
+        c |= this->grid.data[this->gridbitindx++] << i;
+    }
+    
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << (char)c << std::endl;
+    #endif
+    
+    return (char)c;
 }
 
-char BPCSStreamBuf::sputc(char c){
+char BPCSStreamBuf::sputc(char C){
+    if (++whichbyte == gridlimit){
+        mylog << std::endl;
+        throw std::runtime_error("Reached gridlimit");
+    }
+    unsigned char c = (unsigned char)C;
     if (this->gridbitindx == 64){
+      if (this->past_first_grid){
         if (this->embedding){
             if (this->get_grid_complexity(this->grid) < this->min_complexity){
                 // Commit grid
@@ -571,20 +680,30 @@ char BPCSStreamBuf::sputc(char c){
             }
         }
         
+        #ifdef DEBUG
+            print_grid(this->grid, this->x, this->y);
+        #endif
+      } 
         if (this->set_next_grid())
             throw std::runtime_error("Too much data to encode");
-            //return std::char_traits<char>::eof;
-        
-        if (!this->embedding){
-            if (this->conjugation_map[this->grids_since_conjgrid])
-                conjugate_grid(this->grid);
-        }
         
         this->gridbitindx = 0;
     }
     
-    for (uint_fast8_t i=0; i<8; ++i)
-        this->grid.data[this->gridbitindx++] = (c >> i);
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "sputc " << +this->gridbitindx << ": " << C;
+    #endif
+    
+    for (uint_fast8_t i=0; i<8; ++i){
+        #ifdef DEBUG
+            mylog.tedium();
+            mylog << +((c >> i) & 1);
+        #endif
+        this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i) = (c >> i) & 1;
+        ++this->gridbitindx;
+        //this->grid.data[this->gridbitindx++] = (c >> i) & 1;
+    }
     
     return 0;
 }
@@ -619,6 +738,8 @@ void BPCSStreamBuf::save_im(){
 
 void BPCSStreamBuf::end(){
     #ifdef DEBUG
+        mylog.dbg();
+        mylog << "end() called" << std::endl;
         print_histogram(complexities, 10, 200);
     #endif
     assert(this->embedding);
@@ -668,6 +789,8 @@ int main(const int argc, char *argv[]){
     // Histogram args
     args::ValueFlag<uint_fast8_t>       An_bins         (dbg_parser, "n_bins", "Number of histogram bins", {'B', "bins"});
     args::ValueFlag<uint_fast8_t>       An_binchars     (dbg_parser, "n_binchars", "Total number of `#` characters printed out in histogram totals", {"binchars"});
+    
+    args::ValueFlag<uint_fast64_t>      Agridlimit      (dbg_parser, "gridlimit", "Quit after having moved through `gridlimit` grids", {"gridlimit"});
     #endif
     
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
@@ -750,6 +873,11 @@ int main(const int argc, char *argv[]){
             n_binchars = args::get(An_binchars);
         else
             n_binchars = 200;
+        
+        if (Agridlimit)
+            gridlimit = args::get(Agridlimit);
+        else
+            gridlimit = 0;
     #endif
     
     uint_fast8_t mode;
@@ -842,22 +970,22 @@ int main(const int argc, char *argv[]){
             
             // TODO: bpcs_stream << encryption << msg_file
             
-            n_msg_bytes = sizeof(fp);
+            n_msg_bytes = fp.length();
             for (j=0; j<8; ++j)
-                bpcs_stream.sputc(n_msg_bytes >> j);
+                bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
             for (j=0; j<n_msg_bytes; ++j)
-                bpcs_stream.sputc((char)fp[j] >> j);
+                bpcs_stream.sputc((char)fp[j]);
             //bpcs_stream.write(fp, n_msg_bytes);
             
             n_msg_bytes = get_fsize(fp.c_str());
             for (j=0; j<8; ++j)
-                bpcs_stream.sputc(n_msg_bytes >> j);
+                bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
             msg_file = fopen(fp.c_str(), "r");
             for (j=0; j<n_msg_bytes; ++j)
                 // WARNING: Assumes there are exactly n_msg_bytes
-                bpcs_stream.sputc(getc(msg_file) >> j);
+                bpcs_stream.sputc(getc(msg_file));
             //bpcs_stream.write(msg_file, n_msg_bytes);
             fclose(msg_file);
         }
@@ -871,7 +999,7 @@ int main(const int argc, char *argv[]){
         do {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
-                n_msg_bytes |= (bpcs_stream.sgetc() << j);
+                n_msg_bytes |= (bpcs_stream.sgetc() << (8*j));
             }
             #ifdef DEBUG
                 mylog.tedium();
@@ -879,9 +1007,12 @@ int main(const int argc, char *argv[]){
             #endif
             
             #ifdef TESTS
-                mylog.crit();
-                mylog << "n_msg_bytes = 0" << std::endl;
-                throw std::runtime_error("Failed to extract message");
+                if (n_msg_bytes == 0){
+                    mylog.crit();
+                    mylog << "n_msg_bytes = 0" << std::endl;
+                    //return 1;
+                    n_msg_bytes = 100;
+                }
             #endif
             
             if (i & 1){
@@ -900,7 +1031,7 @@ int main(const int argc, char *argv[]){
                     if (decoded_img.data == NULL){
                         #ifdef DEBUG
                             mylog.crit();
-                            mylog << "No image data loaded from " << n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
+                            mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
                         #endif
                         throw std::invalid_argument("");
                     }
