@@ -435,6 +435,7 @@ void BPCSStreamBuf::load_next_img(){
 }
 
 void BPCSStreamBuf::write_conjugation_map(){
+    float complexity;
     #ifdef DEBUG
         mylog.tedium();
         mylog << "write_conjugation_map" << std::endl;
@@ -445,12 +446,20 @@ void BPCSStreamBuf::write_conjugation_map(){
         
         this->conjugation_grid.data[0] = 0;
         
-        if (this->get_grid_complexity(this->conjugation_grid) < this->min_complexity){
+        complexity = this->get_grid_complexity(this->conjugation_grid);
+        if (complexity < this->min_complexity){
             conjugate_grid(this->conjugation_grid);
             this->conjugation_grid.data[0] = 1;
-            if (this->get_grid_complexity(this->conjugation_grid) < this->min_complexity){
-                throw std::runtime_error("Grid complexity fell below minimum value");
-            }
+            if (1 - complexity - 1/57 < this->min_complexity)
+                // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
+                // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
+                
+                if (this->conjugation_grid.data[1] != 0)
+                    // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
+                    // Hence the grid complexity would have been at least its previous value
+                    
+                    if (this->conjugation_grid.data[8] != 0)
+                        throw std::runtime_error("Grid complexity fell below minimum value");
         }
     } else {
         this->conjugation_map_set = false;
