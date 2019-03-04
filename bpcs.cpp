@@ -463,7 +463,11 @@ void BPCSStreamBuf::write_conjugation_map(){
                     // Hence the grid complexity would have been at least its previous value
                     
                     if (this->conjugation_grid.data[55] != 0)
+                        #ifdef DEBUG
                         throw std::runtime_error("Grid complexity fell below minimum value");
+                        #else
+                        abort();
+                        #endif
         }
     #ifdef TESTS
         for (uint_fast8_t i=0; i<64; ++i)
@@ -509,9 +513,9 @@ int BPCSStreamBuf::set_next_grid(){
         mylog << std::endl;
         throw std::runtime_error("Reached gridlimit");
     }
-    #endif
     mylog.tedium();
     mylog << "grids_since_conjgrid " << +this->grids_since_conjgrid << std::endl; // tmp
+    #endif
     if (++this->grids_since_conjgrid == 64){ 
         // First grid in every 64 is reserved for conjugation map
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
@@ -547,9 +551,6 @@ int BPCSStreamBuf::set_next_grid(){
             }
             #ifdef DEBUG
                 mylog << std::endl;
-            #endif
-            
-            #ifdef DEBUG
                 mylog << "\n" << this->grid;
             #endif
         }
@@ -638,7 +639,11 @@ int BPCSStreamBuf::set_next_grid(){
 unsigned char BPCSStreamBuf::sgetc(){
     if (this->gridbitindx == 64){
         if (this->set_next_grid())
+            #ifdef DEBUG
             throw std::runtime_error("Unexpected end of BPCS stream");
+            #else
+            abort();
+            #endif
             //return std::char_traits<char>::eof;
         
         if (this->conjugation_map[this->grids_since_conjgrid])
@@ -668,16 +673,18 @@ unsigned char BPCSStreamBuf::sgetc(){
         #endif
         c |= this->grid.data[this->gridbitindx++] << i;
     }
-    
-    mylog.tedium();
-    mylog << "sgetc " << +c;
-    
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "sgetc " << +c;
+    #endif
     return c;
 }
 
 unsigned char BPCSStreamBuf::sputc(unsigned char c){
-    mylog.tedium();
-    mylog << "sputc " << +c << std::endl; // tmp
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "sputc " << +c << std::endl; // tmp
+    #endif
     if (this->gridbitindx == 64){
         if (this->past_first_grid){
             #ifdef DEBUG
@@ -696,8 +703,10 @@ unsigned char BPCSStreamBuf::sputc(unsigned char c){
         if (this->set_next_grid()){
             #ifdef DEBUG
                 print_histogram(this->complexities, 10, 200);
+                throw std::runtime_error("Too much data to encode");
+            #else
+                abort();
             #endif
-            throw std::runtime_error("Too much data to encode");
         }
         
         this->gridbitindx = 0;
@@ -761,8 +770,10 @@ void BPCSStreamBuf::save_im(){
         #ifdef DEBUG
             mylog.crit();
             mylog << "Must be encoded with lossless format, not `" << path_regexp_match[5] << "`" << std::endl;
+            throw std::invalid_argument(path_regexp_match[5]);
+        #else
+            abort();
         #endif
-        throw std::invalid_argument(path_regexp_match[5]);
     }
     
     cv::imwrite(out_fp, this->im_mat);
@@ -790,8 +801,10 @@ uint_fast64_t get_fsize(const char* fp){
         #ifdef DEBUG
             mylog.crit();
             mylog << "No such file:  " << fp << std::endl;
+            throw std::runtime_error("No such file");
+        #else
+            abort();
         #endif
-        throw std::runtime_error("No such file");
     }
     return stat_buf.st_size;
 }
@@ -1068,8 +1081,10 @@ int main(const int argc, char *argv[]){
                         #ifdef DEBUG
                             mylog.crit();
                             mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
+                            throw std::invalid_argument("No image data loaded");
+                        #else
+                            abort();
                         #endif
-                        throw std::invalid_argument("No image data loaded");
                     }
                     #ifdef DEBUG
                         mylog.info();
