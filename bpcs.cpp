@@ -549,17 +549,17 @@ void BPCSStreamBuf::write_conjugation_map(){
                     #endif
     }
     
-    #ifdef TESTS
-        for (uint_fast8_t i=0; i<64; ++i)
-            if (this->conjugation_grid.data[i] != 0 && this->conjugation_grid.data[i] != 1){
-                #ifdef DEBUG
-                    mylog.crit();
-                    mylog << "Non-bit in conjugation map" << "\n" << this->conjugation_grid << std::endl;
-                #endif
-                throw std::runtime_error("Non-bit in conjugation map");
-            }
-    #endif
     #ifdef DEBUG
+        #ifdef TESTS
+            for (uint_fast8_t i=0; i<64; ++i)
+                if (this->conjugation_grid.data[i] != 0 && this->conjugation_grid.data[i] != 1){
+                    #ifdef DEBUG
+                        mylog.crit();
+                        mylog << "Non-bit in conjugation map" << "\n" << this->conjugation_grid << std::endl;
+                    #endif
+                    throw std::runtime_error("Non-bit in conjugation map");
+                }
+        #endif
         mylog.tedium();
         mylog << "Written conjugation map" << "\n" << this->conjugation_grid << std::endl;
     #endif
@@ -743,13 +743,13 @@ unsigned char BPCSStreamBuf::sgetc(){
         #ifdef DEBUG
             mylog.tedium();
             mylog << +this->grid.data[this->gridbitindx];
-        #endif
-        #ifdef TESTS
-            if (this->grid.data[this->gridbitindx] != 0 && this->grid.data[this->gridbitindx] != 1){
-                mylog.crit();
-                mylog << "Non-bit in grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid << std::endl;
-                throw std::runtime_error("Non-bit in grid");
-            }
+            #ifdef TESTS
+                if (this->grid.data[this->gridbitindx] != 0 && this->grid.data[this->gridbitindx] != 1){
+                    mylog.crit();
+                    mylog << "Non-bit in grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid << std::endl;
+                    throw std::runtime_error("Non-bit in grid");
+                }
+            #endif
         #endif
         c |= this->grid.data[this->gridbitindx++] << i;
     }
