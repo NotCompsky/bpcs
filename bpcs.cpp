@@ -281,6 +281,12 @@ uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
 
 void add_msgfiles_bits(std::vector<uint_fast8_t> &msg, std::vector<std::string> &msg_fps){
     uint_fast16_t n_fps = msg_fps.size();
+    if (n_fps == 0){
+        #ifdef DEBUG2
+            std::cout << "No vessel images specified" << std::endl;
+        #endif
+        return;
+    }
     uint_fast16_t i = 0;
     uint_fast8_t end_byte;
     do {
@@ -645,14 +651,14 @@ int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::
         #ifdef DEBUG3
             n_grids_so_far += n_vert_grids;
         #endif
-        #ifdef DEBUG4
+        #ifdef DEBUG6
             if (i % 10 == 0 || n_hztl_grids < 11 || msg_size < 20000){
                 msg_size = msg.size();
                 iterate_over_bitgrids__msg("debug", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg_size);
             }
         #endif
     }
-    #ifdef DEBUG3
+    #ifdef DEBUG4
         iterate_over_bitgrids__msg("bitplane exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg.size());
     #endif
     return 1;
@@ -750,11 +756,6 @@ void iterate_over_all_bitgrids(
         if (msg_was_exhausted)
             break;
     }
-    
-    goto_print_histogram:
-    #ifdef DEBUG1
-        print_histogram(complexities, n_bins, n_binchars);
-    #endif
     
     if (minimise_img){
         #ifdef DEBUG3
@@ -1226,5 +1227,8 @@ int main(const int argc, char *argv[]){
             }
         }
     }
+    #ifdef DEBUG1
+        print_histogram(complexities, n_bins, n_binchars);
+    #endif
     return 0;
 }
