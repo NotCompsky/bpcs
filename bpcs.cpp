@@ -12,8 +12,9 @@ namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
 }
 
-#include <compsky/logger.hpp> // for CompskyLogger
-
+#ifdef DEBUG
+    #include <compsky/logger.hpp> // for CompskyLogger
+#endif
 
 
 
@@ -81,7 +82,7 @@ inline uint_fast16_t xor_adj(
 }
 
 
-void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
+inline void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
     /*
     IIRC, cv::divide does not divide by 2 via bitshifts - it rounds up
     TODO: Maybe fix this by looking at the assembly generated
@@ -137,8 +138,8 @@ cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
     return arr;
 }
 
-cv::Mat chequerboard_a = chequerboard(0, 8, 8);
-cv::Mat chequerboard_b = chequerboard(1, 8, 8);
+static const cv::Mat chequerboard_a = chequerboard(0, 8, 8);
+static const cv::Mat chequerboard_b = chequerboard(1, 8, 8);
 
 
 
@@ -260,7 +261,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     
     unsigned char sgetc();
-    unsigned char sputc(unsigned char c);
+    void sputc(unsigned char c);
     
     void load_next_img(); // Init
     void end();
@@ -281,7 +282,9 @@ class BPCSStreamBuf { //: public std::streambuf {
     const float min_complexity;
     const std::vector<std::string> img_fps;
     uint_fast16_t img_n;
-    uint_fast64_t n_grids;
+    #ifdef DEBUG
+        uint_fast64_t n_grids;
+    #endif
     
     uint_fast8_t grids_since_conjgrid;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
@@ -334,7 +337,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
 }
 
-void BPCSStreamBuf::load_next_bitplane(){
+inline void BPCSStreamBuf::load_next_bitplane(){
     #ifdef TESTS
         if (this->embedding)
             throw std::runtime_error("load_next_bitplane should not be used for embedding");
@@ -680,7 +683,7 @@ unsigned char BPCSStreamBuf::sgetc(){
     return c;
 }
 
-unsigned char BPCSStreamBuf::sputc(unsigned char c){
+void BPCSStreamBuf::sputc(unsigned char c){
     #ifdef DEBUG
         mylog.tedium();
         mylog << "sputc " << +c << std::endl; // tmp
@@ -721,8 +724,6 @@ unsigned char BPCSStreamBuf::sputc(unsigned char c){
         ++this->gridbitindx;
         //this->grid.data[this->gridbitindx++] = (c >> i) & 1;
     }
-    
-    return 0;
 }
 
 void BPCSStreamBuf::save_im(){
@@ -779,7 +780,7 @@ void BPCSStreamBuf::save_im(){
     cv::imwrite(out_fp, this->im_mat);
 }
 
-void BPCSStreamBuf::end(){
+inline void BPCSStreamBuf::end(){
     #ifdef DEBUG
         mylog.dbg();
         mylog << "end() called" << std::endl;
@@ -902,9 +903,6 @@ int main(const int argc, char *argv[]){
         #endif
         return 1;
     }
-    
-    chequerboard_a = chequerboard(0, 8, 8);
-    chequerboard_b = chequerboard(1, 8, 8);
     
     #ifdef DEBUG
         uint_fast16_t n_bins;
