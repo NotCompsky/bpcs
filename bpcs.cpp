@@ -15,6 +15,11 @@ namespace sodium {
 
 
 
+typedef cv::Matx<uchar, 8, 8> Matx88uc;
+typedef cv::Matx<uchar, 8, 7> Matx87uc;
+typedef cv::Matx<uchar, 7, 8> Matx78uc;
+
+
 static const std::string NULLSTR = "[NULL]";
 
 
@@ -148,16 +153,16 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
  */
 
 inline uint_fast16_t xor_adj(
-    cv::Mat &arr,
-    cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
+    Matx88uc &arr,
+    Matx87uc &xor_adj_mat1, Matx78uc &xor_adj_mat2
 ){
     uint_fast16_t sum = 0;
     
-    cv::bitwise_xor(arr(xor_adj_rect2), arr(xor_adj_rect1), xor_adj_mat1);
-    sum += cv::sum(xor_adj_mat1)[0];
-    
-    cv::bitwise_xor(arr(xor_adj_rect4), arr(xor_adj_rect3), xor_adj_mat2);
+    cv::bitwise_xor(arr.get_minor<7,8>(1,0), arr.get_minor<7,8>(0,0), xor_adj_mat2);
     sum += cv::sum(xor_adj_mat2)[0];
+    
+    cv::bitwise_xor(arr.get_minor<8,7>(0,1), arr.get_minor<8,7>(0,0), xor_adj_mat1);
+    sum += cv::sum(xor_adj_mat1)[0];
     
     return sum;
 }
@@ -210,25 +215,10 @@ inline void convert_to_cgc(cv::Mat &arr){
 
 
 /*
- * Initialise chequerboards
+ * Initialise chequerboard
  */
-#ifdef DEBUG
-cv::Mat new_chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
-    // indx should be 0 or 1
-    cv::Mat arr = cv::Mat(h, w, CV_8UC1);
-    for (uint_fast16_t i=0; i<w; ++i)
-        for (uint_fast16_t j=0; j<h; ++j)
-            arr.at<uint_fast8_t>(j, i) = ((i ^ j) ^ indx) & 1;
-    return arr;
-}
+static const Matx88uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
 
-static const cv::Mat chequerboard = new_chequerboard(1, 8, 8);
-#else
-// Results in a larger binary size by 152B, but *surely* in slightly less overhead regardless...
-uchar chequered_arr[64] = {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
-// NOTE: These are constants, but there is no OpenCV class for const data
-static const cv::Mat chequerboard = cv::Mat(8,8, CV_8UC1, chequered_arr);
-#endif
 
 
 
@@ -238,10 +228,10 @@ static const cv::Mat chequerboard = cv::Mat(8,8, CV_8UC1, chequered_arr);
  */
 
 inline float grid_complexity(
-    cv::Mat &grid,
-    cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
+    Matx88uc &grid,
+    Matx87uc &xor_adj_mat1, Matx78uc &xor_adj_mat2
 ){
-    return (float)xor_adj(grid, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4) / (2*8*7); // (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
+    return (float)xor_adj(grid, xor_adj_mat1, xor_adj_mat2) / (2*8*7); // (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
 }
 
 
@@ -372,32 +362,24 @@ class BPCSStreamBuf {
     uint8_t n_bitplanes;
     uint8_t bitplane_n;
     
-    uchar conjugation_map[64];
-    
-    uchar* conjugation_grid_ptr;
-    
-    uchar* grid_ptr;
-    
     const std::vector<char*> img_fps;
     std::vector<cv::Mat> channel_byteplanes;
     
-    cv::Mat im_mat;
+    Matx88uc grid{8, 8, CV_8UC1};
+    Matx88uc conjgrid{8, 8, CV_8UC1};
     
-    cv::Mat grid{8, 8, CV_8UC1};
-    cv::Mat conjugation_grid{8, 8, CV_8UC1};
+    Matx87uc xor_adj_mat1{8, 7, CV_8UC1};
+    Matx78uc xor_adj_mat2{7, 8, CV_8UC1};
     
-    cv::Mat xor_adj_mat1{8, 7, CV_8UC1};
-    cv::Mat xor_adj_mat2{7, 8, CV_8UC1};
-    
-    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(7, 8)};
-    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(7, 8)};
-    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(8, 7)};
-    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(8, 7)};
-    // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height), but cv::Mat is row-major
+    cv::Mat grid_orig{8, 8, CV_8UC1};
+    cv::Mat conjgrid_orig{8, 8, CV_8UC1};
     
     cv::Mat bitplane;
     
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
+    
+    
+    cv::Mat im_mat;
     
     
     void set_next_grid();
@@ -406,8 +388,8 @@ class BPCSStreamBuf {
     
     void write_conjugation_map();
     
-    inline float get_grid_complexity(cv::Mat&);
-    inline void conjugate_grid(cv::Mat&);
+    inline float get_grid_complexity(Matx88uc&);
+    inline void conjugate_grid(Matx88uc&);
     #ifdef DEBUG
         void print_state();
     #endif
@@ -426,11 +408,11 @@ void BPCSStreamBuf::print_state(){
 }
 #endif
 
-inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
-    return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
+inline float BPCSStreamBuf::get_grid_complexity(Matx88uc &arr){
+    return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2);
 }
 
-inline void BPCSStreamBuf::conjugate_grid(cv::Mat &grid){
+inline void BPCSStreamBuf::conjugate_grid(Matx88uc &grid){
     cv::bitwise_xor(grid, chequerboard, grid);
     
     #ifdef DEBUG
@@ -563,27 +545,22 @@ void BPCSStreamBuf::load_next_img(){
     // Get conjugation grid
     this->set_next_grid();
     
-    if (!this->embedding){
-        if (*(this->grid_ptr + 7*(this->bitplane.cols) + 7) != 0)
+    if (this->embedding){
+        this->conjgrid_orig = this->grid_orig;
+    } else {
+        if (this->grid.val[63] != 0)
             // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
             // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
             this->conjugate_grid(this->grid);
-        
-        for (uint_fast8_t memi=0; memi<8; ++memi){
-            memcpy(this->conjugation_map + (memi*8), this->grid_ptr, 8);
-            this->grid_ptr            += this->bitplane.cols;
-        }
-        // No need to reset this->grid_ptr - we are not going to write conjugation data
     }
     
-    this->conjugation_grid = this->grid;
-    this->conjugation_grid_ptr = this->grid_ptr;
+    this->conjgrid = this->grid;
     
     // Get first data grid
     this->set_next_grid();
     
     if (!this->embedding){
-        if (this->conjugation_map[this->conjmap_indx++])
+        if (this->conjgrid.val[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
         this->conjmap_indx = 1;
     } else {
@@ -600,33 +577,25 @@ void BPCSStreamBuf::write_conjugation_map(){
         mylog << "Conjgrid orig" << "\n";
         mylog.set_verbosity(6);
         mylog.set_cl(0);
-        mylog << this->conjugation_grid << "\n";
+        mylog << this->conjgrid << "\n";
     #endif
     
-    // NOTE: this->conjugation_map_ptr should at this stage always point at the 63rd element of this->conjugation_grid, as we have either written 63 complex grids, or it has been called by this->save_im() (where it should be set to the 63rd)
-    for (uint_fast8_t k=0; k<8; ++k){
-        memcpy(this->conjugation_grid_ptr, this->conjugation_map + (k*8), 8);
-        this->conjugation_grid_ptr += this->bitplane.cols;
-    }
+    this->conjgrid.val[63] = 0;
     
-    // this->conjugation_grid_ptr is 8 rows below the 1st element, due to the memcpy-ing above
-    this->conjugation_grid_ptr += 7 - this->bitplane.cols;
-    *this->conjugation_grid_ptr = 0;
-    
-    complexity = this->get_grid_complexity(this->conjugation_grid);
+    complexity = this->get_grid_complexity(this->conjgrid);
     
     if (complexity < this->min_complexity){
-        this->conjugate_grid(this->conjugation_grid);
-        *this->conjugation_grid_ptr = 1;
+        this->conjugate_grid(this->conjgrid);
+        this->conjgrid.val[63] = 1;
         if (1 - complexity - 1/57 < this->min_complexity)
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
             // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
             
-            if (this->conjugation_map[63 -1] != 0)
+            if (this->conjgrid.val[63 -1] != 0)
                 // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
                 // Hence the grid complexity would have been at least its previous value
                 
-                if (this->conjugation_map[63 -8] != 0)
+                if (this->conjgrid.val[63 -8] != 0)
                     #ifdef DEBUG
                     throw std::runtime_error("Grid complexity fell below minimum value");
                     #else
@@ -634,10 +603,12 @@ void BPCSStreamBuf::write_conjugation_map(){
                     #endif
     }
     
+    cv::Mat(this->conjgrid).copyTo(this->conjgrid_orig);
+    
     #ifdef DEBUG
         mylog.set_verbosity(6);
         mylog.set_cl(0);
-        mylog << "Written conjugation map" << "\n" << this->conjugation_grid << std::endl;
+        mylog << "Written conjugation map" << "\n" << this->conjgrid << std::endl;
     #endif
 }
 
@@ -667,25 +638,19 @@ void BPCSStreamBuf::set_next_grid(){
         
         if (this->embedding){
             this->write_conjugation_map();
-            
-            this->conjugation_grid = this->grid;
-            this->conjugation_grid_ptr = this->grid_ptr;
+            cv::Rect grid_shape(cv::Point(this->x -8, this->y), cv::Size(8, 8));
+            this->conjgrid_orig = this->bitplane(grid_shape);
         } else {
-            if (*(this->grid_ptr + 7*(this->bitplane.cols) + 7) != 0)
+            if (this->grid.val[63] != 0)
                 // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
                 // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
                 this->conjugate_grid(this->grid);
             
-            for (uint_fast8_t memi=0; memi<8; ++memi){
-                memcpy(this->conjugation_map + (8*memi), this->grid_ptr, 8);
-                this->grid_ptr            += this->bitplane.cols;
-            }
-            // This specific this->grid_ptr is not used beyond this point, so no need to reset
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
                     mylog.set_verbosity(5);
                     mylog.set_cl(0);
-                    mylog << +this->conjugation_map[k];
+                    mylog << +this->conjgrid.val[k];
                 }
                 mylog << std::endl;
                 mylog << "\n" << this->grid;
@@ -704,7 +669,8 @@ void BPCSStreamBuf::set_next_grid(){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
-            this->grid = this->bitplane(grid_shape);
+            this->bitplane(grid_shape).copyTo(this->grid);
+            
             complexity = this->get_grid_complexity(this->grid);
             
             #ifdef DEBUG
@@ -714,10 +680,10 @@ void BPCSStreamBuf::set_next_grid(){
             i += 8;
             
             if (complexity >= this->min_complexity){
+                this->grid_orig = this->bitplane(grid_shape);
                 //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
-                this->grid_ptr = this->bitplane.ptr<uchar>(j) +(i -8);
                 #ifdef DEBUG
                     os1 << +this->x << "\t" << +this->y << std::endl;
                     
@@ -785,18 +751,16 @@ void BPCSStreamBuf::set_next_grid(){
 uchar BPCSStreamBuf::sgetc(){
     uchar c = 0;
     for (uint_fast8_t i=0; i<8; ++i){
-        c |= *(this->grid_ptr++) << i;
+        c |= this->grid.val[8*this->gridbitindx +i] << i;
     }
     
     if (++this->gridbitindx == 8){
         this->set_next_grid();
         
-        if (this->conjugation_map[this->conjmap_indx++])
+        if (this->conjgrid.val[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
-    } else {
-        this->grid_ptr += this->bitplane.cols -8;
     }
     
     #ifdef DEBUG
@@ -834,7 +798,7 @@ void BPCSStreamBuf::sputc(uchar c){
             mylog.set_cl('B');
             mylog << +(c & 1);
         #endif
-        *(this->grid_ptr++) = c & 1;
+        this->grid.val[8*this->gridbitindx +i] = c & 1;
         c = c >> 1;
     }
     
@@ -848,17 +812,16 @@ void BPCSStreamBuf::sputc(uchar c){
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
             this->conjugate_grid(this->grid);
-            this->conjugation_map[this->conjmap_indx] = 1;
+            this->conjgrid.val[this->conjmap_indx] = 1;
         } else {
-            this->conjugation_map[this->conjmap_indx] = 0;
+            this->conjgrid.val[this->conjmap_indx] = 0;
         }
         ++this->conjmap_indx;
         
+        cv::Mat(this->grid).copyTo(this->grid_orig);
         this->set_next_grid();
         
         this->gridbitindx = 0;
-    } else {
-        this->grid_ptr += this->bitplane.cols -8;
     }
     
     #ifdef DEBUG
