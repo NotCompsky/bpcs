@@ -844,7 +844,7 @@ void BPCSStreamBuf::save_im(){
 
 
 int main(const int argc, char *argv[]){
-    std::string arg;
+    char* arg;
     char* nextarg;
     std::vector<char*> nextlist;
     
@@ -897,34 +897,52 @@ int main(const int argc, char *argv[]){
         nextarg = argv[++i];
         
         #ifdef DEBUG
-        if (arg == "--log-fmt"){
-            // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
-            log_fmt = nextarg;
-            continue;
-        }
-        
-        // Histogram args
-        if (arg == "--bins"){
-            // Number of histogram bins
-            n_bins = std::stoi(nextarg);
-            continue;
-        }
-        if (arg == "--binchars"){
-            // Total number of `#` characters printed out in histogram totals
-            n_binchars = std::stoi(nextarg);
-            continue;
-        }
-        
-        // Debugging
-        if (arg == "--gridlimit"){
-            // Quit after having moved through `gridlimit` grids
-            gridlimit = std::stoi(nextarg);
-            continue;
-        }
-        if (arg == "--conjlimit"){
-            // Limit of conjugation grids
-            MAX_CONJ_GRIDS = std::stoi(nextarg);
-            continue;
+        if (second_character == '-'){
+            switch(arg[2]){
+                case 'b':
+                    switch(arg[3]){
+                        case 'i':
+                            switch(arg[4]){
+                                case 'n':
+                                    switch(arg[5]){
+                                        case 'c':
+                                            // --binchars
+                                            // Total number of `#` characters printed out in histogram totals
+                                            n_binchars = std::stoi(nextarg);
+                                            goto continue_argloop;
+                                        case 's':
+                                            // --bins
+                                            // Number of histogram bins
+                                            n_bins = std::stoi(nextarg);
+                                            goto continue_argloop;
+                                        default:
+                                            goto invalid_argument;
+                                    }
+                                default: goto invalid_argument;
+                            }
+                        default: goto invalid_argument;
+                    }
+                case 'c':
+                    switch(arg[3]){
+                        case 'o':
+                            // --conjlimit
+                            // Limit of conjugation grids
+                            MAX_CONJ_GRIDS = std::stoi(nextarg);
+                            goto continue_argloop;
+                        default: goto invalid_argument;
+                    }
+                case 'g':
+                    // --gridlimit
+                    // Quit after having moved through `gridlimit` grids
+                    gridlimit = std::stoi(nextarg);
+                    goto continue_argloop;
+                case 'l':
+                    // --log-fmt
+                    // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
+                    log_fmt = nextarg;
+                    goto continue_argloop;
+                default: goto invalid_argument;
+            }
         }
         #endif
         
@@ -941,13 +959,8 @@ int main(const int argc, char *argv[]){
             case 'p': named_pipe_in = nextarg; mode = MODE_EDIT; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
             case '-': break;
-            default:
-                #ifdef DEBUG
-                std::cerr << "Invalid argument: " << arg << std::endl;
-                throw std::runtime_error("");
-                #else
-                abort();
-                #endif
+            case 'm': break;
+            default: goto invalid_argument;
         }
         
         /* List flags */
@@ -967,6 +980,7 @@ int main(const int argc, char *argv[]){
             continue;
         }
         
+        invalid_argument:
         #ifdef DEBUG
             printf("Invalid argument: %s", arg);
             throw std::runtime_error("Invalid argument");
