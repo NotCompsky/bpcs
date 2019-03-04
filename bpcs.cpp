@@ -753,8 +753,8 @@ int BPCSStreamBuf::set_next_grid(){
                 this->x = i;
                 this->y = j;
                 this->grid_ptr = this->bitplane.ptr<uchar>(j) +(i -8);
-                *os1 << +this->x << "\t" << +this->y << std::endl;
                 #ifdef DEBUG
+                    *os1 << +this->x << "\t" << +this->y << std::endl;
                     ++this->n_complex_grids_found;
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
