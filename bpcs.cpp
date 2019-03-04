@@ -157,10 +157,10 @@ inline float grid_complexity(
     return (float)xor_adj(grid, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4) / (2*8*7); // (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
 }
 
-void conjugate_grid(cv::Mat &grid){
+void conjugate_grid(cv::Mat &grid, uint_fast8_t n, uint_fast32_t x, uint_fast32_t y){
     #ifdef DEBUG
-        mylog.tedium();
-        mylog << "<*>";
+        mylog.tedium('p');
+        mylog << "<*" << +n << "(" << +x << ", " << +y << ")>";
     #endif
     cv::Mat arr1;
     cv::Mat arr2;
@@ -472,7 +472,7 @@ void BPCSStreamBuf::write_conjugation_map(){
         
         complexity = this->get_grid_complexity(this->conjugation_grid);
         if (complexity < this->min_complexity){
-            conjugate_grid(this->conjugation_grid);
+            conjugate_grid(this->conjugation_grid, this->grids_since_conjgrid, this->x-64, this->y);
             this->conjugation_grid.data[63] = 1;
             if (1 - complexity - 1/57 < this->min_complexity)
                 // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
@@ -545,7 +545,7 @@ int BPCSStreamBuf::set_next_grid(){
             // WARNING: not sure if this->conjugation_grid is deep copy of bitplane area - it should NOT be
         } else {
             if (this->grid.data[63] != 0)
-                conjugate_grid(this->grid);
+                conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
             
             for (uint_fast8_t k=0; k<63; ++k)
                 this->conjugation_map[k] = this->grid.data[k];
@@ -623,14 +623,19 @@ int BPCSStreamBuf::set_next_grid(){
 unsigned int whichbyte = 0;
 
 char BPCSStreamBuf::sgetc(){
+    #ifdef DEBUG
     if (++whichbyte == gridlimit){
         mylog << std::endl;
         throw std::runtime_error("Reached gridlimit");
     }
+    #endif
     if (this->gridbitindx == 64 || !this->past_first_grid){
         if (set_next_grid())
             throw std::runtime_error("Unexpected end of BPCS stream");
             //return std::char_traits<char>::eof;
+        
+        if (this->conjugation_map[this->grids_since_conjgrid])
+            conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
         
         this->gridbitindx = 0;
     }
@@ -663,17 +668,18 @@ char BPCSStreamBuf::sgetc(){
 }
 
 char BPCSStreamBuf::sputc(char C){
+    #ifdef DEBUG
     if (++whichbyte == gridlimit){
         mylog << std::endl;
         throw std::runtime_error("Reached gridlimit");
     }
+    #endif
     unsigned char c = (unsigned char)C;
     if (this->gridbitindx == 64){
       if (this->past_first_grid){
         if (this->embedding){
             if (this->get_grid_complexity(this->grid) < this->min_complexity){
-                // Commit grid
-                conjugate_grid(this->grid);
+                conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
                 this->conjugation_map[this->grids_since_conjgrid] = 1;
             } else {
                 this->conjugation_map[this->grids_since_conjgrid] = 0;
