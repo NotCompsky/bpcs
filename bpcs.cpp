@@ -217,6 +217,7 @@ static const cv::Mat chequerboard_b = chequerboard(1, 8, 8);
 // Results in a larger binary size by 152B, but *surely* in slightly less overhead regardless...
 uchar chequered_arr_a[64] = {0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0};
 uchar chequered_arr_b[64] = {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
+// NOTE: These are constants, but there is no OpenCV class for const data
 static const cv::Mat chequerboard_a = cv::Mat(8,8, CV_8UC1, chequered_arr_a);
 static const cv::Mat chequerboard_b = cv::Mat(8,8, CV_8UC1, chequered_arr_b);
 #endif
@@ -421,7 +422,7 @@ inline void BPCSStreamBuf::load_next_bitplane(){
         mylog.set_verbosity(4);
         mylog.set_cl('b');
         mylog << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << " from channel " << +this->channel_n << std::endl;
-        mylog.set_verbosity(8);
+        mylog.set_verbosity(10);
         mylog.set_cl('g');
         mylog << "\n";
         mylog << this->bitplane;
@@ -483,7 +484,7 @@ void BPCSStreamBuf::load_next_img(){
                 this->bitplanes[k] = cv::Mat::zeros(this->im_mat.rows, this->im_mat.cols, CV_8UC1);
                 bitandshift(this->channel_byteplanes[j], this->bitplanes[k++], this->n_bitplanes - ++i);
                 #ifdef DEBUG
-                    mylog.set_verbosity(8);
+                    mylog.set_verbosity(10);
                     mylog.set_cl('g');
                     mylog << "\n";
                     mylog << this->bitplanes[k-1];
@@ -683,9 +684,9 @@ int BPCSStreamBuf::set_next_grid(){
             //complexity = this->get_grid_complexity(this->bitplane(grid_shape));
             
             #ifdef DEBUG
-                mylog.set_verbosity(8);
+                mylog.set_verbosity(9);
                 mylog.set_cl(0);
-                mylog << "complexity " << +complexity << std::endl; // tmp
+                mylog << "complexity(" << +i << "," << +j << "): " << +complexity << std::endl; // tmp
                 this->complexities.push_back(complexity);
             #endif
             
@@ -698,7 +699,7 @@ int BPCSStreamBuf::set_next_grid(){
                 #ifdef DEBUG
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
-                    mylog << "Found grid" << "\n";
+                    mylog << "Found grid(" << +i << "," << +j << "): " << +complexity << "\n";
                     mylog.set_cl('r');
                     mylog << this->grid << std::endl;
                 #endif
@@ -866,7 +867,7 @@ void BPCSStreamBuf::save_im(){
         mylog.set_cl('b');
         mylog << "UnXORing " << +this->n_channels << " channels of depth " << +this->n_bitplanes << std::endl;
         
-        mylog.set_verbosity(8);
+        mylog.set_verbosity(10);
         mylog.set_cl('g');
         mylog << "Bitplanes before unXORing" << std::endl;
         for (uint_fast16_t i=0; i<this->n_bitplanes*this->n_channels; ++i){
@@ -1072,8 +1073,8 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         if (verbosity < 0)
             verbosity = 0;
-        else if (verbosity > 8)
-            verbosity = 8;
+        else if (verbosity > 9)
+            verbosity = 9;
         mylog.set_level(verbosity);
         
         mylog.set_dt_fmt(log_fmt);
@@ -1124,7 +1125,7 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl(0);
-        mylog << "min_complexity: " << +argv[i+1] << std::endl;
+        mylog << "min_complexity: " << +argv[i] << std::endl;
     #endif
     const float min_complexity = std::stof(argv[i++]);
     // Minimum bitplane complexity
