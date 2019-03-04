@@ -605,15 +605,6 @@ void BPCSStreamBuf::write_conjugation_map(){
     
     complexity = this->get_grid_complexity(this->conjugation_grid);
     
-    #ifdef DEBUG
-        mylog.set_verbosity(6);
-        mylog.set_cl('p');
-        mylog << "Conjgrid before conjugation" << "\n";
-        mylog.set_verbosity(6);
-        mylog.set_cl(0);
-        mylog << this->conjugation_grid << "\n";
-    #endif
-    
     if (complexity < this->min_complexity){
         this->conjugate_grid(this->conjugation_grid);
         *this->conjugation_grid_ptr = 1;
@@ -715,9 +706,6 @@ int BPCSStreamBuf::set_next_grid(){
             //complexity = this->get_grid_complexity(this->bitplane(grid_shape));
             
             #ifdef DEBUG
-                mylog.set_verbosity(9);
-                mylog.set_cl(0);
-                mylog << "complexity(" << +i << "," << +j << "): " << +complexity << std::endl; // tmp
                 //this->complexities.push_back(complexity);
             #endif
             
@@ -798,19 +786,6 @@ int BPCSStreamBuf::set_next_grid(){
 uchar BPCSStreamBuf::sgetc(){
     uchar c = 0;
     for (uint_fast8_t i=0; i<8; ++i){
-        #ifdef DEBUG
-            mylog.set_verbosity(8);
-            mylog.set_cl(0);
-            mylog << +this->grid_ptr;
-            #ifdef TESTS
-                if (*this->grid_ptr != 0 && *this->grid_ptr != 1){
-                    mylog.set_verbosity(0);
-                    mylog.set_cl('r');
-                    mylog << "Non-bit in grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid << std::endl;
-                    throw std::runtime_error("Non-bit in grid");
-                }
-            #endif
-        #endif
         c |= *(this->grid_ptr++) << i;
     }
     
@@ -911,16 +886,6 @@ void BPCSStreamBuf::save_im(){
         mylog.set_verbosity(4);
         mylog.set_cl('b');
         mylog << "UnXORing " << +this->n_channels << " channels of depth " << +this->n_bitplanes << std::endl;
-        
-        mylog.set_verbosity(10);
-        mylog.set_cl('g');
-        mylog << "Bitplanes before unXORing" << std::endl;
-        for (uint_fast16_t i=0; i<this->n_bitplanes*this->n_channels; ++i){
-            mylog << "\n";
-            mylog << this->bitplanes[i];
-            mylog << "\n";
-        }
-        mylog.set_cl(0);
     #endif
     uint_fast8_t j;
     uint_fast8_t k = 0;
