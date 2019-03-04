@@ -33,6 +33,9 @@ static const std::string NULLSTR = "[NULL]";
     
     uint MAX_CONJ_GRIDS = 0;
     uint conj_grids_found = 0;
+    
+    uint_fast64_t SGETPUTC_MAX = 0;
+    uint_fast64_t sgetputc_count = 0;
 #endif
 
 
@@ -405,7 +408,23 @@ class BPCSStreamBuf {
     
     inline float get_grid_complexity(cv::Mat&);
     inline void conjugate_grid(cv::Mat&);
+    #ifdef DEBUG
+        void print_state();
+    #endif
 };
+
+#ifdef DEBUG
+void BPCSStreamBuf::print_state(){
+    mylog.set_cl(0);
+    mylog << "embedding: " << +this->embedding << std::endl;
+    mylog << "bitplane_n: " << +this->bitplane_n << std::endl;
+    mylog << "n_bitplanes: " << +this->n_bitplanes << std::endl;
+    mylog << "channel_n: " << +this->channel_n << std::endl;
+    mylog << "n_channels: " << +this->n_channels << std::endl;
+    mylog << "n_complex_grids_found: " << +n_complex_grids_found << std::endl;
+    mylog << "sgetputc_count: " << +sgetputc_count << std::endl;
+}
+#endif
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
@@ -727,13 +746,7 @@ int BPCSStreamBuf::set_next_grid(){
         mylog.set_cl('b');
         mylog << "Exhausted bitplane" << std::endl;
         mylog.set_verbosity(4);
-        mylog.set_cl(0);
-        mylog << "embedding: " << +this->embedding << std::endl;
-        mylog << "bitplane_n: " << +this->bitplane_n << std::endl;
-        mylog << "n_bitplanes: " << +this->n_bitplanes << std::endl;
-        mylog << "channel_n: " << +this->channel_n << std::endl;
-        mylog << "n_channels: " << +this->n_channels << std::endl;
-        mylog << "n_complex_grids_found: " << +n_complex_grids_found << std::endl;
+        this->print_state();
     #endif
     
     if (this->embedding){
@@ -789,7 +802,10 @@ uchar BPCSStreamBuf::sgetc(){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "sgetc " << +c << " (";
+        mylog << "sgetc #" << +(++sgetputc_count) << ": " << +c << " (";
+        if (sgetputc_count == SGETPUTC_MAX){
+            throw std::runtime_error("Reached SGETPUTC_MAX");
+        }
         if (c == '\n')
             mylog << "\\n";
         else if (c == '\r')
@@ -805,7 +821,10 @@ void BPCSStreamBuf::sputc(uchar c){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "sputc " << +c << " (" << c << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjmap_indx << "\t(x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
+        mylog << "sputc #" << +(++sgetputc_count) << ": " << +c << " (" << c << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjmap_indx << "\t(x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
+        if (sgetputc_count == SGETPUTC_MAX){
+            throw std::runtime_error("Reached SGETPUTC_MAX");
+        }
         mylog.set_verbosity(5);
         mylog.set_cl(0);
         mylog << "sputc " << +c << " bits ";
@@ -813,9 +832,7 @@ void BPCSStreamBuf::sputc(uchar c){
     for (uint_fast8_t i=0; i<8; ++i){
         #ifdef DEBUG
             mylog.set_cl('B');
-            mylog << +((c >> i) & 1);
-            mylog.set_cl(0);
-            mylog << +(*this->grid_ptr);
+            mylog << +(c & 1);
         #endif
         *(this->grid_ptr++) = c & 1;
         c = c >> 1;
@@ -1019,6 +1036,11 @@ int main(const int argc, char *argv[]){
                                         }
                                     default: goto invalid_argument;
                                 }
+                            case 'y':
+                                // --bytelimit
+                                // Exit after encountering SGETPUTC_MAX bytes
+                                SGETPUTC_MAX = std::stoi(nextarg);
+                                goto continue_argloop;
                             default: goto invalid_argument;
                         }
                     case 'c':
