@@ -862,18 +862,16 @@ void BPCSStreamBuf::save_im(){
     do {
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[--k].clone();
-        bitshift_up(this->channel_byteplanes[i], this->n_bitplanes -1);
-        
         j = this->n_bitplanes -1;
+        bitshift_up(this->channel_byteplanes[i], j--);
         do {
-            --j;
             --k;
             cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
             
             this->bitplane = this->bitplanes[k].clone();
             bitshift_up(this->bitplane, j);
             cv::bitwise_or(this->channel_byteplanes[i], this->bitplane, this->channel_byteplanes[i]);
-        } while (j != 0);
+        } while (j-- != 0);
     } while (i-- != 0);
     
     std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], true);
