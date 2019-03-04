@@ -338,7 +338,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const float min_complexity, std::vector<char*> img_fps):
+    BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps):
     min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(64), grids_since_conjgrid(63)
     {}
     
