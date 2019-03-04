@@ -245,7 +245,12 @@ inline float grid_complexity(
     return (float)xor_adj(grid, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4) / (2*8*7); // (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
 }
 
-void conjugate_grid(cv::Mat &grid, uint_fast8_t n, uint_fast32_t x, uint_fast32_t y){
+void conjugate_grid(
+    cv::Mat &grid
+    #ifdef DEBUG
+        , uint_fast8_t n, uint_fast32_t x, uint_fast32_t y
+    #endif
+){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
@@ -575,7 +580,11 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
     
     if (complexity < this->min_complexity){
-        conjugate_grid(this->conjugation_grid, this->grids_since_conjgrid, this->x-64, this->y);
+        conjugate_grid(this->conjugation_grid
+                    #ifdef DEBUG
+                       , this->grids_since_conjgrid, this->x-64, this->y
+                    #endif
+                      );
         *this->conjugation_map_ptr = 1;
         if (1 - complexity - 1/57 < this->min_complexity)
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
@@ -656,7 +665,11 @@ int BPCSStreamBuf::set_next_grid(){
             this->conjugation_grid_ptr = this->grid_ptr;
         } else {
             if (*(this->grid_ptr + 7*(this->bitplane.cols) + 7) != 0)
-                conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
+                conjugate_grid(this->grid
+                            #ifdef DEBUG
+                               , this->grids_since_conjgrid, this->x, this->y
+                            #endif
+                              );
             
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
@@ -783,7 +796,11 @@ unsigned char BPCSStreamBuf::sgetc(){
             //return std::char_traits<char>::eof;
         
         if (*this->conjugation_map_ptr)
-            conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
+            conjugate_grid(this->grid
+                        #ifdef DEBUG
+                           , this->grids_since_conjgrid, this->x, this->y
+                        #endif
+                          );
         
         this->gridbitindx = 0;
     }
@@ -835,7 +852,11 @@ void BPCSStreamBuf::sputc(unsigned char c){
             mylog << this->grid << std::endl;
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
-            conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
+            conjugate_grid(this->grid
+                        #ifdef DEBUG
+                           , this->grids_since_conjgrid, this->x, this->y
+                        #endif
+                          );
             *this->conjugation_map_ptr = 1;
         } else {
             *this->conjugation_map_ptr = 0;
@@ -1327,8 +1348,19 @@ int main(const int argc, char *argv[]){
                     cv::imshow(fp_str, decoded_img);
                     cv::waitKey(0);
                 } else {
+                    #ifdef DEBUG
+                        mylog.set_verbosity(5);
+                        mylog.set_cl(0);
+                    #endif
                     for (j=0; j<n_msg_bytes; ++j){
+                        #ifdef DEBUG
+                            mylog <<
+                        #endif
+                        bpcs_stream.sgetc();
                     }
+                    #ifdef DEBUG
+                        mylog << std::endl;
+                    #endif
                 }
             } else {
                 fp_str = "";
@@ -1349,6 +1381,6 @@ int main(const int argc, char *argv[]){
             }
             
             ++i;
-        } while (n_msg_bytes != 0);
+        } while (true);
     }
 }
