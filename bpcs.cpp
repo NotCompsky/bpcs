@@ -1,7 +1,9 @@
 #include <args.hxx>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp> // for calcHist
+#ifdef DEBUG1
+    #include <opencv2/imgproc/imgproc.hpp> // for calcHist
+#endif
 #ifdef DEBUG7
     #define DEBUG6 DEBUG7
 #endif
@@ -433,7 +435,7 @@ void iterate_over_bitgrids__msg(const char* msg, uint_fast32_t n_grids_so_far, u
 int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, uint_fast16_t n_hztl_grids, uint_fast16_t n_vert_grids, uint_fast16_t bitplane_w, uint_fast16_t bitplane_h, uint_fast16_t grid_w, uint_fast16_t grid_h, std::function<int(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg){
     // Pass reference to complexities, else a copy is passed (and changes are not kept)
     // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results. Hence we use float not double
-    cv::Mat grid;
+    cv::Mat grid(grid_h, grid_w, CV_8UC1);
     uint_fast32_t n_grids_used = 0;
     float complexity;
     int grid_fnct_status;
