@@ -456,13 +456,13 @@ void conjugate_grid(cv::Mat &grid){
  * Act on complex grids
  */
 
-void preserve_grid(
+void grid_dummy(
     cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t &msg_size,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
 }
 
-void decode_grid(
+void grid_extract(
     cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t &msg_size,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
@@ -478,7 +478,7 @@ void decode_grid(
     msg_size += encoded_bits;
 }
 
-void encode_grid(
+void grid_embed(
     cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t &msg_size,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
@@ -940,23 +940,23 @@ int main(const int argc, char *argv[]){
         #ifdef DEBUG1
             mode = "Encoding";
         #endif
-        grid_fnct = encode_grid;
+        grid_fnct = grid_embed;
     } else if (Amax_cap){
         #ifdef DEBUG1
             mode = "Calculating max capacity";
         #endif
-        grid_fnct = preserve_grid;
+        grid_fnct = grid_dummy;
     } else if (Apipe_in){
         #ifdef DEBUG1
             mode = "Editing";
         #endif
         named_pipe_in = args::get(Apipe_in).c_str();
-        grid_fnct = decode_grid;
+        grid_fnct = grid_extract;
     } else {
         #ifdef DEBUG1
             mode = "Decoding";
         #endif
-        grid_fnct = decode_grid;
+        grid_fnct = grid_extract;
     }
     
     std::string out_fmt;
@@ -1060,7 +1060,7 @@ int main(const int argc, char *argv[]){
             #endif
             std::vector<float> complexities_tmp;
             iterate_over_all_bitgrids(
-                im_mat, msg, complexities_tmp, true, false, preserve_grid, grid_w, grid_h, min_complexity,
+                im_mat, msg, complexities_tmp, true, false, grid_dummy, grid_w, grid_h, min_complexity,
                 #ifdef DEBUG1
                     n_bins, n_binchars,
                 #endif
