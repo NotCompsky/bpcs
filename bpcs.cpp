@@ -482,6 +482,10 @@ void BPCSStreamBuf::load_next_img(){
         }
         this->bitplane = this->bitplanes[0];
         
+        this->bitplane_n = 0;
+        this->x = 0;
+        this->y = 0;
+        
         // Get conjugation grid
         this->grids_since_conjgrid = 0;
         this->set_next_grid();
@@ -489,14 +493,14 @@ void BPCSStreamBuf::load_next_img(){
         
         this->set_next_grid();
         this->grids_since_conjgrid = 0;
-        this->gridbitindx = 0;
+        this->gridbitindx = 64;
         // NOTE: We do not need to call set_next_grid() again to set this->grid to the first grid we wish to write to, as the bitindex is initialised to 64, forcing sputc to call it. // Edit: This is false, due to this->gridbitindx
     } else {
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
         this->load_next_channel();
+        this->x = 0;
+        this->y = 0;
     }
-    this->x = 0;
-    this->y = 0;
 }
 
 void BPCSStreamBuf::write_conjugation_map(){
@@ -766,7 +770,7 @@ unsigned char BPCSStreamBuf::sgetc(){
 void BPCSStreamBuf::sputc(unsigned char c){
     #ifdef DEBUG
         mylog.tedium('p');
-        mylog << "sputc " << +c << " (" << c << ")" << std::endl;
+        mylog << "sputc " << +c << " (" << c << ") at gridbitindx " << +this->gridbitindx << std::endl;
     #endif
     if (this->gridbitindx == 64){
         #ifdef DEBUG
@@ -1197,14 +1201,13 @@ int main(const int argc, char *argv[]){
                 mylog.info();
                 mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
                 
-                #ifdef TESTS
-                    if (n_msg_bytes == 0){
-                        mylog.crit();
-                        mylog << "n_msg_bytes = 0" << std::endl;
-                        //return 1;
-                        n_msg_bytes = 100;
-                    }
-                #endif
+                
+                if (n_msg_bytes == 0){
+                    // Reached end of embedded datas
+                    mylog.crit();
+                    mylog << "n_msg_bytes = 0" << std::endl;
+                    return 1;
+                }
             #endif
             
             if (i & 1){
@@ -1240,14 +1243,15 @@ int main(const int argc, char *argv[]){
                     }
                 }
             } else {
+                fp_str = "";
                 for (j=0; j<n_msg_bytes; ++j){
-                    fp += bpcs_stream.sgetc();
+                    fp_str += bpcs_stream.sgetc();
                 }
                 #ifdef DEBUG
                     mylog.info();
-                    mylog << "Original fp: " << fp << std::endl;
+                    mylog << "Original fp: " << fp_str << std::endl;
                 #endif
-                fp = (char*)format_out_fp(out_fmt, fp, false).c_str();
+                fp = (char*)format_out_fp(out_fmt, (char*)fp_str.c_str(), false).c_str();
                 #ifdef DEBUG
                     mylog.info();
                     mylog << "Formatted fp: " << fp << std::endl;
