@@ -609,8 +609,9 @@ void BPCSStreamBuf::write_conjugation_map(){
         this->conjugation_grid_ptr += this->bitplane.cols;
     }
     
-    // this->conjugation_grid_ptr should obviously be at the 65th element, due to the memcpy-ing above
-    *(--this->conjugation_grid_ptr) = 0;
+    // this->conjugation_grid_ptr is 8 rows below the 1st element, due to the memcpy-ing above
+    this->conjugation_grid_ptr += 7 - this->bitplane.cols;
+    *this->conjugation_grid_ptr = 0;
     
     complexity = this->get_grid_complexity(this->conjugation_grid);
     
@@ -878,6 +879,12 @@ void BPCSStreamBuf::save_im(){
     #ifdef TESTS
         assert(this->embedding);
     #endif
+    
+    // Ensure last grid is saved
+    // TODO: Value of char inserted by sputc would ideally be randomised
+    while (this->gridbitindx != 0)
+        this->sputc(0);
+
     this->conjmap_indx += 63 -this->conjmap_indx;
     this->write_conjugation_map();
     
@@ -1101,7 +1108,7 @@ int main(const int argc, char *argv[]){
         
         if (second_character == 'm'){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
-            ++n_msg_fps;
+            n_msg_fps = nextlist.size();
             embedding = true;
             msg_fps = nextlist;
             continue;
@@ -1235,7 +1242,7 @@ int main(const int argc, char *argv[]){
             #ifdef DEBUG
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
-                mylog << "Reading msg `" << fp << "`" << std::endl;
+                mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ")" << std::endl;
                 
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
