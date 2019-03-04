@@ -36,6 +36,16 @@ static const uint_fast8_t MODE_EDIT = 4;
 
 
 
+inline uint_fast64_t get_charp_len(char* chrp){
+    uint_fast64_t i = 0;
+    while (*chrp != 0){
+        ++i;
+        ++chrp;
+    }
+    return i;
+}
+
+
 
 std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless){
     // WARNING: Requires absolute paths?
@@ -494,7 +504,7 @@ void BPCSStreamBuf::load_next_img(){
         }
         this->bitplane = this->bitplanes[0];
         
-        this->bitplane_n = 0;
+        this->bitplane_n = 1;
         this->x = 0;
         this->y = 0;
         
@@ -505,7 +515,7 @@ void BPCSStreamBuf::load_next_img(){
         
         this->set_next_grid();
         this->grids_since_conjgrid = 0;
-        this->gridbitindx = 64;
+        this->gridbitindx = 0;
         // NOTE: We do not need to call set_next_grid() again to set this->grid to the first grid we wish to write to, as the bitindex is initialised to 64, forcing sputc to call it. // Edit: This is false, due to this->gridbitindx
     } else {
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
@@ -728,10 +738,12 @@ int BPCSStreamBuf::set_next_grid(){
         mylog << "n_channels: " << +this->n_channels << std::endl;
     #endif
     
-    if (this->embedding && this->bitplane_n < this->n_bitplanes * this->n_channels){
-        this->bitplane = this->bitplanes[this->bitplane_n++]; // Equivalent to this->load_next_bitplane();
-        ++this->channel_n;
-        goto try_again;
+    if (this->embedding){
+        if (this->bitplane_n < this->n_bitplanes * this->n_channels){
+            this->bitplane = this->bitplanes[this->bitplane_n++]; // Equivalent to this->load_next_bitplane();
+            ++this->channel_n;
+            goto try_again;
+        }
     } else if (this->bitplane_n < this->n_bitplanes){
         this->load_next_bitplane();
         goto try_again;
@@ -835,7 +847,6 @@ void BPCSStreamBuf::sputc(unsigned char c){
         this->gridbitindx = 0;
     }
     
-    uchar* bit = this->grid.data + this->gridbitindx;
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl(0);
@@ -845,10 +856,10 @@ void BPCSStreamBuf::sputc(unsigned char c){
         #ifdef DEBUG
             mylog << +((c >> i) & 1);
         #endif
-        *bit = (c >> i) & 1;
-        ++this->gridbitindx;
-        ++bit;
-        //this->grid.data[this->gridbitindx++] = (c >> i) & 1;
+        this->grid.data[this->gridbitindx++] = (c >> i) & 1;
+        #ifdef TESTS
+            assert(this->grid.data[this->gridbitindx-1] == (c >> i) & 1);
+        #endif
     }
     #ifdef DEBUG
         mylog << std::endl;
@@ -1187,7 +1198,7 @@ int main(const int argc, char *argv[]){
             
             // TODO: bpcs_stream << encryption << msg_file
             
-            n_msg_bytes = sizeof(fp) -1;
+            n_msg_bytes = get_charp_len(fp);
             #ifdef DEBUG
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
