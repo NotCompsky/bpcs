@@ -339,7 +339,7 @@ class BPCSStreamBuf { //: public std::streambuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps):
-    min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(64), grids_since_conjgrid(63)
+    min_complexity(min_complexity), img_n(0), gridbitindx(64), grids_since_conjgrid(63), img_fps(img_fps)
     {}
     
     
@@ -365,45 +365,44 @@ class BPCSStreamBuf { //: public std::streambuf {
     inline float get_grid_complexity(cv::Mat&);
 
     const float min_complexity;
-    const std::vector<char*> img_fps;
     uint_fast16_t img_n;
     #ifdef DEBUG
         uint_fast64_t n_grids;
     #endif
+    
+    uint_fast64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
+    uint_fast64_t y;
     
     uint_fast8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     uint_fast8_t grids_since_conjgrid;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
     
-    uint_fast64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
-    uint_fast64_t y;
-    
-    cv::Mat im_mat;
-    std::vector<cv::Mat> channel_byteplanes;
     uint_fast8_t n_channels;
     uint_fast8_t channel_n;
     uint_fast8_t n_bitplanes;
+    uint_fast8_t bitplane_n;
     
     unsigned char conjugation_map[63];
-    cv::Mat conjugation_grid{8, 8, CV_8UC1};
+    
+    const std::vector<char*> img_fps;
+    std::vector<cv::Mat> channel_byteplanes;
+    
+    cv::Mat im_mat;
     
     cv::Mat grid{8, 8, CV_8UC1};
+    cv::Mat conjugation_grid{8, 8, CV_8UC1};
+    
     cv::Mat xor_adj_mat1{8, 7, CV_8UC1};
     cv::Mat xor_adj_mat2{7, 8, CV_8UC1};
+    
     cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(7, 8)};
     cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(7, 8)};
     cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(8, 7)};
     cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(8, 7)};
     // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height), but cv::Mat is row-major
     
-    uint_fast8_t bitplane_n;
-    uint_fast8_t conjgrid_bitplane_n;
     cv::Mat bitplane;
-    cv::Mat prev_bitplane;
-    cv::Mat unXORed_bitplane;
-    
-    cv::Mat byteplane;
     
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
 };
@@ -646,7 +645,6 @@ int BPCSStreamBuf::set_next_grid(){
             this->write_conjugation_map();
             
             this->conjugation_grid = this->grid;
-            this->conjgrid_bitplane_n = this->bitplane_n;
         } else {
             if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
