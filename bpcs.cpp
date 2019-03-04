@@ -620,8 +620,7 @@ void BPCSStreamBuf::set_next_grid(){
     
     float complexity;
     uint_fast32_t i = this->x;
-    uint_fast32_t j = this->y;
-    while (j <= this->im_mat.rows -8){
+    for (uint32_t j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
@@ -653,8 +652,6 @@ void BPCSStreamBuf::set_next_grid(){
                 return;
             }
         }
-        i = 0;
-        j += 8;
     }
     
     // If we are here, we have exhausted the bitplane
@@ -1116,12 +1113,12 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         mylog.set_verbosity(5);
     #endif
-    do {
+    while (i < argc) {
         img_fps.push_back(argv[i++]);
         #ifdef DEBUG
             mylog << argv[i -1] << std::endl;
         #endif
-    } while (i < argc);
+    };
     
     
     
