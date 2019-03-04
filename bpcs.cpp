@@ -2,9 +2,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#ifdef DEBUG1
-    #include <opencv2/imgproc/imgproc.hpp> // for calcHist
-#endif
 #ifdef DEBUG7
     #define DEBUG6 DEBUG7
 #endif
@@ -26,21 +23,14 @@
 
 #include <iostream>
 #include <fstream>
-#include <functional> // for std::function
 #include <sys/stat.h> // for stat
-#include <map> // for std::map
 #include <regex> // for std::basic_regex
 
-#include <fcntl.h>    // For O_WRONLY
-#include <unistd.h>   // For open()
-#include <tuple> // for std::tie
 #include <cstdio> // for std::remove
 
 namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
 }
-
-#include <string> // for std::char_traits::eof
 
 
 
