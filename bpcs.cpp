@@ -463,6 +463,10 @@ void BPCSStreamBuf::load_next_img(){
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
     this->im_mat = cv::imread(this->img_fps[this->img_n++], CV_LOAD_IMAGE_COLOR);
+    #ifdef TESTS
+        assert(this->im_mat.isContinuous());
+        // Apparently guaranteed to be the case for imread, as it calls create()
+    #endif
     cv::split(this->im_mat, this->channel_byteplanes);
     this->n_channels = this->im_mat.channels();
     
@@ -617,7 +621,7 @@ void print_grid(cv::Mat& grid, uint_fast32_t x, uint_fast32_t y){
         mylog.set_verbosity(6);
         mylog.set_cl(0);
         for (uint_fast8_t i=0; i<8; ++i){
-            n =grid.at<uint_fast8_t>(j, i);
+            n = grid.at<uint_fast8_t>(j, i);
             c |= (n << i);
             mylog << +n;
         }
@@ -860,20 +864,41 @@ void BPCSStreamBuf::sputc(unsigned char c){
         #ifdef DEBUG
             mylog.set_cl('B');
             mylog << +((c >> i) & 1);
+            mylog.set_cl(0);
+            mylog << +this->grid.data[this->gridbitindx+i];
         #endif
         *this->grid_ptr++ = (c >> i) & 1;
         #ifdef TESTS
+            if (this->grid.at<uchar>(this->gridbitindx >> 3, i) != this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i)){
+                mylog.set_verbosity(0);
+                mylog.set_cl('r');
+                mylog << +this->grid.data[this->gridbitindx+i] << " != " << +this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i) << std::endl;
+                throw std::runtime_error("brazil");
+            }
+            if (*(this->grid_ptr-1) != this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i)){
+                mylog.set_verbosity(0);
+                mylog.set_cl('r');
+                mylog << +this->grid.data[this->gridbitindx+i] << " != " << +this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i) << std::endl;
+                throw std::runtime_error("chile");
+            }
+            if (this->grid.data[this->gridbitindx+i] != this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i)){
+                mylog.set_verbosity(0);
+                mylog.set_cl('r');
+                mylog << +this->grid.data[this->gridbitindx+i] << " != " << +this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i) << std::endl;
+                throw std::runtime_error("damascus");
+            }
             if (this->grid.data[this->gridbitindx+i] != ((c >> i) & 1)){
                 mylog.set_verbosity(0);
                 mylog.set_cl('r');
                 mylog << +this->grid.data[this->gridbitindx+i] << " != " << +((c >> i) & 1) << std::endl;
-                throw std::runtime_error("");
+                throw std::runtime_error("felix");
             }
         #endif
     }
     this->gridbitindx += 8;
     #ifdef DEBUG
         mylog << std::endl;
+        print_grid(this->grid, 0, 0);
     #endif
 }
 
