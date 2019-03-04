@@ -36,6 +36,8 @@
 #include <tuple> // for std::tie
 #include <cstdio> // for std::remove
 
+#include <cryptopp/cryptlib.h> // for (en|de)cryption
+
 /*
 Example usage (here $a = 0.45)
     A:
@@ -458,28 +460,25 @@ void conjugate_grid(cv::Mat &grid){
  */
 
 void grid_dummy(
-    cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t &msg_size,
+    cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t msg_size, uint_fast16_t encodable_bits_per_grid,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
 }
 
 void grid_extract(
-    cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t &msg_size,
+    cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t msg_size, uint_fast16_t encodable_bits_per_grid,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
-    uint_fast16_t encoded_bits = grid_w * grid_h -1;
-    msg.reserve(encoded_bits);
+    msg.reserve(encodable_bits_per_grid);
     
-    if (grid.data[encoded_bits] == 1)
+    if (grid.data[encodable_bits_per_grid] == 1)
         conjugate_grid(grid);
     
-    std::copy_n(grid.data, encoded_bits, std::back_inserter(msg));
-    
-    msg_size += encoded_bits;
+    std::copy_n(grid.data, encodable_bits_per_grid, std::back_inserter(msg));
 }
 
 void grid_embed(
-    cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t &msg_size,
+    cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg, uint_fast64_t msg_size, uint_fast16_t encodable_bits_per_grid,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
     // `msg_size` here is used as the offset - i.e. the size of the msg that has already been embedded
@@ -612,7 +611,7 @@ void iterate_over_bitgrids__msg(const char* msg, uint_fast32_t n_grids_so_far, u
 }
 #endif
 
-int iterate_over_bitgrids(uint_fast64_t &msg_size, bool minimise_img, cv::Mat &count_complex_grids, std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, uint_fast16_t n_hztl_grids, uint_fast16_t n_vert_grids, uint_fast16_t bitplane_w, uint_fast16_t bitplane_h, uint_fast16_t grid_w, uint_fast16_t grid_h, std::function<void(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&, uint_fast64_t&, cv::Mat&, cv::Mat&, cv::Rect&, cv::Rect&, cv::Rect&, cv::Rect&)> grid_fnct, std::vector<uint_fast8_t> &msg){
+int iterate_over_bitgrids(uint_fast64_t &msg_size, bool minimise_img, cv::Mat &count_complex_grids, std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, uint_fast16_t n_hztl_grids, uint_fast16_t n_vert_grids, uint_fast16_t bitplane_w, uint_fast16_t bitplane_h, uint_fast16_t grid_w, uint_fast16_t grid_h, std::function<void(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&, uint_fast64_t, uint_fast64_t, cv::Mat&, cv::Mat&, cv::Rect&, cv::Rect&, cv::Rect&, cv::Rect&)> grid_fnct, std::vector<uint_fast8_t> &msg){
     // Pass reference to complexities, else a copy is passed (and changes are not kept)
     // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results. Hence we use float not double
     cv::Mat grid(grid_h, grid_w, CV_8UC1);
@@ -623,14 +622,14 @@ int iterate_over_bitgrids(uint_fast64_t &msg_size, bool minimise_img, cv::Mat &c
     cv::Rect xor_adj_rect2(cv::Point(1, 0), cv::Size(grid_w-1, grid_h));
     cv::Rect xor_adj_rect3(cv::Point(0, 0), cv::Size(grid_w,   grid_h-1));
     cv::Rect xor_adj_rect4(cv::Point(0, 1), cv::Size(grid_w,   grid_h-1));
-    uint_fast32_t n_grids_used = 0;
     float complexity;
     uint_fast64_t msg_size_orig = msg.size();
-    bool embedding = (msg_size_orig > msg_size);
-    #ifdef DEBUG3
+    uint_fast16_t encodable_bits_per_grid = grid_w * grid_h -1;
+    #ifdef DEBUG4
+        uint_fast32_t n_grids_used = 0;
         uint_fast32_t n_grids_so_far = 0;
         uint_fast32_t n_grids_total  = n_hztl_grids * n_vert_grids;
-        std::cout << "msg_size before embedding:  " << +msg_size << std::endl;
+        std::cout << "msg_size before embedding:  " << +msg_size << " ~ " << +msg_size_orig << std::endl;
     #endif
     for (uint_fast16_t i=0; i<n_hztl_grids; ++i){
         for (uint_fast16_t j=0; j<n_vert_grids; ++j){
@@ -649,23 +648,15 @@ int iterate_over_bitgrids(uint_fast64_t &msg_size, bool minimise_img, cv::Mat &c
                 ++count_complex_grids.at<uint_fast8_t>(j, i);
             
             grid_fnct(
-                bitplane, grid_shape, min_complexity, grid, grid_w, grid_h, msg, msg_size,
+                bitplane, grid_shape, min_complexity, grid, grid_w, grid_h, msg, msg_size, encodable_bits_per_grid,
                 xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4
             );
             
-            if (embedding && msg_size == msg_size_orig){
-                // If we have processed (embedded) entirety of msg
-                // We've successfully embedded the entirety of the message bits into the image grids
-                // Note that we can only guarantee that the msg will either entirely fit or have 0 length if we ensure its length is divisible by grid_w*grid_h earlier, after initialising it.
-                #ifdef DEBUG3
-                    iterate_over_bitgrids__msg("msg exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, 0);
-                #endif
-                return 0;
-            }
+            msg_size += encodable_bits_per_grid;
             
             ++n_grids_used;
         }
-        #ifdef DEBUG3
+        #ifdef DEBUG4
             n_grids_so_far += n_vert_grids;
         #endif
         #ifdef DEBUG6
@@ -680,8 +671,8 @@ int iterate_over_bitgrids(uint_fast64_t &msg_size, bool minimise_img, cv::Mat &c
     return 1;
 }
 
-uint_fast64_t iterate_over_all_bitgrids(
-    uint_fast64_t msg_size,
+int iterate_over_all_bitgrids(
+    uint_fast64_t &msg_size,
     
     cv::Mat &im_mat,
     std::vector<uint_fast8_t> &msg,
@@ -690,7 +681,7 @@ uint_fast64_t iterate_over_all_bitgrids(
     
     bool minimise_img,
     bool encoding,
-    std::function<void(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&, uint_fast64_t&, cv::Mat&, cv::Mat&, cv::Rect&, cv::Rect&, cv::Rect&, cv::Rect&)> grid_fnct,
+    std::function<void(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&, uint_fast64_t, uint_fast64_t, cv::Mat&, cv::Mat&, cv::Rect&, cv::Rect&, cv::Rect&, cv::Rect&)> grid_fnct,
     
     uint_fast8_t grid_w,
     uint_fast8_t grid_h,
@@ -771,11 +762,7 @@ uint_fast64_t iterate_over_all_bitgrids(
         if (encoding)
             // i.e. if (mode == "Encoding")
             channel_byteplanes[j] = byteplane;
-        if (msg_was_exhausted)
-            goto outofloop;
     }
-    
-    outofloop:
     
     if (minimise_img){
         #ifdef DEBUG3
@@ -933,7 +920,7 @@ int main(const int argc, char *argv[]){
         std::string mode;
     #endif
     std::vector<std::string> msg_fps;
-    std::function<void(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&, uint_fast64_t&, cv::Mat&, cv::Mat&, cv::Rect&, cv::Rect&, cv::Rect&, cv::Rect&)> grid_fnct;
+    std::function<void(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&, uint_fast64_t, uint_fast64_t, cv::Mat&, cv::Mat&, cv::Rect&, cv::Rect&, cv::Rect&, cv::Rect&)> grid_fnct;
     
     const char* named_pipe_in;
     if (Amsg_fps){
@@ -1009,13 +996,15 @@ int main(const int argc, char *argv[]){
     uint_fast8_t esc_byte;
     uint_fast8_t end_byte;
     
+    uint_fast64_t msg_size;
+    
     if (Amsg_fps){
         add_msgfiles_bits(msg, msg_fps);
         
-        const uint_fast16_t bits_encoded_per_grid = grid_w * grid_h -1;
-        uint_fast64_t msg_size = msg.size();
+        const int bits_encoded_per_grid = grid_w * grid_h -1;
+        msg_size = msg.size();
         
-        uint_fast16_t diff = (int)msg_size % bits_encoded_per_grid;
+        int diff = (int)msg_size % bits_encoded_per_grid;
         if (diff != 0){
             diff = bits_encoded_per_grid - diff;
             
@@ -1057,20 +1046,37 @@ int main(const int argc, char *argv[]){
         std::vector<cv::Mat> channel_byteplanes;
         cv::split(im_mat, channel_byteplanes);
         
+        if (Amsg_fps){
         if (Amin){
             #ifdef DEBUG2
                 std::cout << "Minimising img" << std::endl;
             #endif
+        }
             std::vector<float> complexities_tmp;
+            uint_fast64_t n_bits_preprocessed = 0;
             iterate_over_all_bitgrids(
-                0, im_mat, msg, complexities_tmp, true, false, grid_dummy, grid_w, grid_h, min_complexity,
+                n_bits_preprocessed, im_mat, msg, complexities_tmp, (Amin), false, grid_dummy, grid_w, grid_h, min_complexity,
                 #ifdef DEBUG1
                     n_bins, n_binchars,
                 #endif
                 channel_byteplanes
             );
+            int64_t diff = (int64_t)n_bits_preprocessed - (int64_t)msg_size;
+            #ifdef DEBUG2
+                std::cout << "#b that can be embedded in img - #b to be embedded  ==  " << +diff << std::endl;
+            #endif
+            // We only need to run this once - if we are already running it to minimise the vessel image, do not repeat for crypt.
+            
+            // We must encrypt all bits in complex grids, as encryption depends on the size of the message, and we will not know the exact size of the embedded message when decrypting
+            if (diff > 0){
+                // Fill with junk bits
+                for (int64_t l=0; l<diff; ++l)
+                    msg.push_back(l & 1);
+                msg_size = n_bits_preprocessed;
+            }
         }
-        n_bits_processed = iterate_over_all_bitgrids(
+        
+        iterate_over_all_bitgrids(
             n_bits_processed, im_mat, msg, complexities, false, (Amsg_fps), grid_fnct, grid_w, grid_h, min_complexity,
             #ifdef DEBUG1
                 n_bins, n_binchars,
