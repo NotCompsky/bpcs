@@ -20,6 +20,20 @@ static const char* NULLCHAR      = "[NULL]";
 static const std::string NULLSTR = "[NULL]";
 
 
+static const uint_fast8_t MODE_EMBEDDING = 1;
+static const uint_fast8_t MODE_CALC_MAX_CAP = 2;
+static const uint_fast8_t MODE_EXTRACT = 3;
+static const uint_fast8_t MODE_EDIT = 4;
+
+
+#ifdef DEBUG
+    unsigned int whichbyte = 0;
+    uint_fast64_t gridlimit = 0;
+    static CompskyLogger mylog("bpcs", std::cout);
+    unsigned int MAX_CONJ_GRIDS = 0;
+    unsigned int conj_grids_found = 0;
+#endif
+
 
 
 
@@ -65,17 +79,6 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
     ext = dotblock;
     fname = slashblock + "." + dotblock;
     
-    if (check_if_lossless){
-        if (ext == "png"){
-        } else {
-            #ifdef DEBUG
-                throw std::runtime_error("Must write to a file in lossless format");
-            #else
-                abort();
-            #endif
-        }
-    }
-    
     for (char* it=out_fmt; *it; ++it){
         if (*it == '{'){
             ++it;
@@ -106,26 +109,22 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
         }
     }
     
+    if (check_if_lossless){
+        std::string result_ext = result.substr(result.find_last_of(".") + 1);
+        if (result_ext == "png"){
+        } else {
+            #ifdef DEBUG
+                mylog.crit();
+                mylog << "Must write to a file in lossless format, not `" << result_ext << "`" << std::endl;
+                throw std::runtime_error("Must write to a file in lossless format");
+            #else
+                abort();
+            #endif
+        }
+    }
+    
     return result;
 }
-
-
-
-
-static const uint_fast8_t MODE_EMBEDDING = 1;
-static const uint_fast8_t MODE_CALC_MAX_CAP = 2;
-static const uint_fast8_t MODE_EXTRACT = 3;
-static const uint_fast8_t MODE_EDIT = 4;
-
-
-#ifdef DEBUG
-    unsigned int whichbyte = 0;
-    uint_fast64_t gridlimit = 0;
-    static CompskyLogger mylog("bpcs", std::cout);
-    unsigned int MAX_CONJ_GRIDS = 0;
-    unsigned int conj_grids_found = 0;
-#endif
-
 
 
 
