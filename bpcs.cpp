@@ -400,7 +400,7 @@ class BPCSStreamBuf {
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
     
     
-    int set_next_grid();
+    void set_next_grid();
     void load_next_bitplane();
     void load_next_channel();
     
@@ -641,7 +641,7 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
 }
 
-int BPCSStreamBuf::set_next_grid(){
+void BPCSStreamBuf::set_next_grid(){
     #ifdef DEBUG
     if (++whichbyte == gridlimit){
         mylog << std::endl;
@@ -663,9 +663,7 @@ int BPCSStreamBuf::set_next_grid(){
         
         this->conjmap_indx = 0;
         
-        if (this->set_next_grid())
-            // Ran out of grids
-            return 1;
+        this->set_next_grid();
         
         if (this->embedding){
             this->write_conjugation_map();
@@ -730,7 +728,7 @@ int BPCSStreamBuf::set_next_grid(){
                     mylog.set_cl('r');
                     mylog << this->grid << std::endl;
                 #endif
-                return 0;
+                return;
             }
         }
         i = 0;
@@ -772,10 +770,16 @@ int BPCSStreamBuf::set_next_grid(){
     }
     
     // If we are here, we have exhausted all images!
-    return 1;
+    #ifdef DEBUG
+        print_histogram(this->complexities, 10, 200);
+        this->print_state();
+        throw std::runtime_error("Ran out of complex grids (either too much data to embed, or missing files when extracting");
+    #else
+        abort();
+    #endif
     
     try_again:
-    return this->set_next_grid();
+    this->set_next_grid();
 }
 
 uchar BPCSStreamBuf::sgetc(){
@@ -785,12 +789,7 @@ uchar BPCSStreamBuf::sgetc(){
     }
     
     if (++this->gridbitindx == 8){
-        if (this->set_next_grid())
-            #ifdef DEBUG
-            throw std::runtime_error("Unexpected end of BPCS stream");
-            #else
-            abort();
-            #endif
+        this->set_next_grid();
         
         if (this->conjugation_map[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
@@ -855,14 +854,7 @@ void BPCSStreamBuf::sputc(uchar c){
         }
         ++this->conjmap_indx;
         
-        if (this->set_next_grid()){
-            #ifdef DEBUG
-                print_histogram(this->complexities, 10, 200);
-                throw std::runtime_error("Too much data to encode");
-            #else
-                abort();
-            #endif
-        }
+        this->set_next_grid();
         
         this->gridbitindx = 0;
     } else {
