@@ -21,7 +21,14 @@ static const std::string NULLSTR = "[NULL]";
 #ifdef DEBUG
     uint whichbyte = 0;
     uint_fast64_t gridlimit = 0;
+    
+    
     static CompskyLogger mylog("bpcs", std::cout);
+    static CompskyLogger mylog1("bpcs1", std::cout);
+    static std::ostream* os = &std::cout;
+    static std::ostream* os1;
+    
+    
     uint MAX_CONJ_GRIDS = 0;
     uint conj_grids_found = 0;
 #endif
@@ -746,6 +753,7 @@ int BPCSStreamBuf::set_next_grid(){
                 this->x = i;
                 this->y = j;
                 this->grid_ptr = this->bitplane.ptr<uchar>(j) +(i -8);
+                *os1 << +this->x << "\t" << +this->y << std::endl;
                 #ifdef DEBUG
                     ++this->n_complex_grids_found;
                     mylog.set_verbosity(7);
@@ -997,6 +1005,8 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         int verbosity = 3;
         
+        mylog1.set_level(0);
+        
         char* log_fmt = "[%T] ";
         
         uint_fast16_t n_bins = 10;
@@ -1032,6 +1042,15 @@ int main(const int argc, char *argv[]){
             #ifdef DEBUG
             case 'v': ++verbosity; goto continue_argloop;
             case 'q': --verbosity; goto continue_argloop;
+            case '-':
+                switch(arg[2]){
+                    case 'o':
+                        // --os1
+                        // outstream - not formatted CompskyLogger
+                        os1 = os; goto continue_argloop;
+                    default:
+                        goto invalid_argument;
+                }
             #else
             case 'v': verbose = true; goto continue_argloop;
             // --verbose
@@ -1084,10 +1103,27 @@ int main(const int argc, char *argv[]){
                     gridlimit = std::stoi(nextarg);
                     goto continue_argloop;
                 case 'l':
-                    // --log-fmt
-                    // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
-                    log_fmt = nextarg;
-                    goto continue_argloop;
+                    switch(arg[3]){
+                        case 'o':
+                            switch(arg[4]){
+                                case 'g':
+                                    switch(arg[5]){
+                                        case '-':
+                                            // --log-fmt
+                                            // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
+                                            log_fmt = nextarg;
+                                            goto continue_argloop;
+                                        case '1':
+                                            mylog1.set_level(std::stoi(nextarg)); goto continue_argloop;
+                                        default:
+                                            goto invalid_argument;
+                                    }
+                                default:
+                                    goto invalid_argument;
+                            }
+                        default:
+                            goto invalid_argument;
+                    }
                 default: goto invalid_argument;
             }
         }
@@ -1142,7 +1178,10 @@ int main(const int argc, char *argv[]){
             verbosity = 9;
         mylog.set_level(verbosity);
         
+        mylog1.set_level(verbosity);
+        
         mylog.set_dt_fmt(log_fmt);
+        mylog1.set_dt_fmt(log_fmt);
         
         mylog.set_verbosity(4);
         mylog.set_cl('b');
