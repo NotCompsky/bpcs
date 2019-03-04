@@ -264,13 +264,13 @@ class BPCSStreamBuf {
     #ifdef EMBEDDOR
         embedding(emb), out_fmt(outfmt),
     #endif
-    min_complexity(min_complexity), img_n(0), x(0), y(0), img_fps(img_fps)
+    x(0), y(0), min_complexity(min_complexity), img_n(0), img_fps(img_fps)
     {}
     
     
     #ifdef EMBEDDOR
     const bool embedding;
-    char* out_fmt;
+    char* out_fmt = NULL;
     #endif
     
     uchar sgetc();
@@ -619,8 +619,8 @@ void BPCSStreamBuf::set_next_grid(){
     }
     
     float complexity;
-    uint_fast32_t i = this->x;
-    for (uint32_t j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
+    int32_t i = this->x;
+    for (int32_t j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
@@ -859,8 +859,8 @@ int main(const int argc, char *argv[]){
     
     uint_fast8_t n_msg_fps = 0;
     
-    char* out_fmt = "";
-    char* named_pipe_in = "";
+    char* out_fmt;
+    char* named_pipe_in;
     
     std::string out_fp;
     
@@ -880,7 +880,7 @@ int main(const int argc, char *argv[]){
     #else
         bool verbose = false;
     #endif
-    uint_fast64_t i = 0;
+    int i = 0;
     
     
     /* Argument parser */
@@ -1149,10 +1149,10 @@ int main(const int argc, char *argv[]){
     bpcs_stream.load_next_img(); // Init
     
     uint_fast64_t j;
-    char* fp;
     uint_fast64_t n_msg_bytes;
     
     #ifdef EMBEDDOR
+    char* fp;
     struct stat stat_buf;
     
     if (embedding){
