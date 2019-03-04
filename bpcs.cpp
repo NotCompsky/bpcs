@@ -977,7 +977,7 @@ int main(const int argc, char *argv[]){
     bool to_disk = false;
     bool to_display = false;
     
-    char* out_fmt = NULLCHAR_DYN;
+    char* out_fmt = "";
     std::string out_fp;
     
     uint_fast8_t n_msg_fps = 0;
@@ -1013,16 +1013,18 @@ int main(const int argc, char *argv[]){
         
         /* Bool flags */
         
-        #ifdef DEBUG
-        if (second_character == 'v'){
-            ++verbosity;
-            continue;
+        switch(second_character){
+            case 'd': to_disk = true; goto continue_argloop;
+            // --to-disk
+            // Write to disk (as opposed to psuedofile)
+            case 'D': to_display = true; goto continue_argloop;
+            // --to-display
+            // Display embedded images through OpenCV::imshow (rather than pipe)
+            #ifdef DEBUG
+            case 'v': ++verbosity; goto continue_argloop;
+            case 'q': --verbosity; goto continue_argloop;
+            #endif
         }
-        if (second_character == 'q'){
-            --verbosity;
-            continue;
-        }
-        #endif
         
         /* Value flags */
         
@@ -1082,12 +1084,6 @@ int main(const int argc, char *argv[]){
             case 'o': out_fmt = nextarg; goto continue_argloop;
             // --out-fmt
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
-            case 'd': to_disk = true; goto continue_argloop;
-            // --to-disk
-            // Write to disk (as opposed to psuedofile)
-            case 'D': to_display = true; goto continue_argloop;
-            // --to-display
-            // Display embedded images through OpenCV::imshow (rather than pipe)
             case 'p': named_pipe_in = nextarg; mode = MODE_EDIT; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
             case '-': break;
@@ -1323,8 +1319,15 @@ int main(const int argc, char *argv[]){
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
-                if (mode == MODE_EXTRACT && out_fmt[0] != 0){
-                    std::ofstream of(fp);
+                if (to_disk){
+                    #ifdef DEBUG
+                        mylog.set_verbosity(3);
+                        mylog << "Writing extracted file to `" << fp_str << "`" << std::endl;
+                    #endif
+                    #ifdef TESTS
+                        assert(fp_str != "");
+                    #endif
+                    std::ofstream of(fp_str);
                     for (j=0; j<n_msg_bytes; ++j)
                         of.put(bpcs_stream.sgetc());
                     of.close();
@@ -1338,7 +1341,7 @@ int main(const int argc, char *argv[]){
                         #ifdef DEBUG
                             mylog.set_verbosity(0);
                             mylog.set_cl('r');
-                            mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
+                            mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp_str << "`" << std::endl;
                             throw std::invalid_argument("No image data loaded");
                         #else
                             return 1;
@@ -1349,7 +1352,7 @@ int main(const int argc, char *argv[]){
                         mylog.set_cl('g');
                         mylog << "Displaying image" << std::endl;
                     #endif
-                    cv::imshow(fp, decoded_img);
+                    cv::imshow(fp_str, decoded_img);
                     cv::waitKey(0);
                 } else {
                     for (j=0; j<n_msg_bytes; ++j){
@@ -1365,11 +1368,11 @@ int main(const int argc, char *argv[]){
                     mylog.set_cl('g');
                     mylog << "Original fp: " << fp_str << std::endl;
                 #endif
-                fp = (char*)format_out_fp(out_fmt, (char*)fp_str.c_str(), false).c_str();
+                fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str(), false);
                 #ifdef DEBUG
                     mylog.set_verbosity(3);
                     mylog.set_cl('g');
-                    mylog << "Formatted fp: " << fp << std::endl;
+                    mylog << "Formatted fp: " << fp_str << std::endl;
                 #endif
             }
             
