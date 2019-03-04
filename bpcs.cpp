@@ -151,23 +151,6 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
 /*
  * Bitwise operations on OpenCV Matrices
  */
-
-inline uint_fast16_t xor_adj(
-    Matx88uc &arr,
-    Matx87uc &xor_adj_mat1, Matx78uc &xor_adj_mat2
-){
-    uint_fast16_t sum = 0;
-    
-    cv::bitwise_xor(arr.get_minor<7,8>(1,0), arr.get_minor<7,8>(0,0), xor_adj_mat2);
-    sum += cv::sum(xor_adj_mat2)[0];
-    
-    cv::bitwise_xor(arr.get_minor<8,7>(0,1), arr.get_minor<8,7>(0,0), xor_adj_mat1);
-    sum += cv::sum(xor_adj_mat1)[0];
-    
-    return sum;
-}
-
-
 inline void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
     /*
     IIRC, cv::divide does not divide by 2 via bitshifts - it rounds up
@@ -218,24 +201,6 @@ inline void convert_to_cgc(cv::Mat &arr){
  * Initialise chequerboard
  */
 static const Matx88uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
-
-
-
-
-
-/*
- * Grid complexity
- */
-
-inline float grid_complexity(
-    Matx88uc &grid,
-    Matx87uc &xor_adj_mat1, Matx78uc &xor_adj_mat2
-){
-    return (float)xor_adj(grid, xor_adj_mat1, xor_adj_mat2) / (2*8*7); // (float)(grid_w * (grid_h -1) + grid_h * (grid_w -1));
-}
-
-
-
 
 
 
@@ -415,7 +380,14 @@ void BPCSStreamBuf::print_state(){
 #endif
 
 inline float BPCSStreamBuf::get_grid_complexity(Matx88uc &arr){
-    return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2);
+    float sum = 0;
+    cv::bitwise_xor(arr.get_minor<7,8>(1,0), arr.get_minor<7,8>(0,0), this->xor_adj_mat2);
+    sum += cv::sum(this->xor_adj_mat2)[0];
+    
+    cv::bitwise_xor(arr.get_minor<8,7>(0,1), arr.get_minor<8,7>(0,0), this->xor_adj_mat1);
+    sum += cv::sum(this->xor_adj_mat1)[0];
+    
+    return sum / (2*8*7);
 }
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     float sum = 0;
