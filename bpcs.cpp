@@ -844,7 +844,6 @@ void BPCSStreamBuf::save_im(){
 
 
 int main(const int argc, char *argv[]){
-    uint_fast8_t verbosity = 3;
     std::string arg;
     char* nextarg;
     std::vector<char*> nextlist;
@@ -863,6 +862,8 @@ int main(const int argc, char *argv[]){
     char* named_pipe_in = NULLCHAR_DYN;
     
     #ifdef DEBUG
+        int verbosity = 3;
+        
         char* log_fmt = "[%T] ";
         
         uint_fast16_t n_bins = 10;
