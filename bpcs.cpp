@@ -799,7 +799,7 @@ void BPCSStreamBuf::sputc(uchar c){
         if (sgetputc_count == SGETPUTC_MAX){
             mylog.set_verbosity(0);
             mylog << "Reached SGETPUTC_MAX " << +SGETPUTC_MAX << std::endl;
-            abort()
+            abort();
         } else if (sgetputc_count == SGETPUTC_MAX -120){
             mylog.set_level(10);
         }
