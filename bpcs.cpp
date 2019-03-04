@@ -40,11 +40,11 @@ namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
 }
 
-
 /*
-WARNING: uint_fast8_t is specified for bitarrays. On 64-bit systems, uint_fast8_t might be 64-bits, meaning that our vectors take up 64 times the memory as the file it represents.
+ * TODO *
+Embedding:  Stream char from input files in series (not loaded into buffer), directly applying crypto to each (4?) char(s?) and then writing the resulting bits to the grid datas. This will significantly reduce memory usage and increase speed.
 
-TODO: Test performance gain/hit of this. For large enough bitearrays, the extra memory usage will potentially hit performance more than whatever operations are required to split 64-bits to 2 32-bits or 8 8-bits or 64 bits.
+Extracting: Read bytes directly from grids and immediately apply decryption. Same benefits.
 
 Example usage (here $a = 0.45)
     A:
@@ -363,7 +363,7 @@ void add_msgfiles_bits(std::vector<uint_fast8_t> &msg, std::vector<std::string> 
  * Bitwise operations on OpenCV Matrices
  */
 
-uint_fast16_t xor_adj(
+inline uint_fast16_t xor_adj(
     cv::Mat &arr, uint_fast16_t w, uint_fast16_t h,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
@@ -421,7 +421,7 @@ cv::Mat chequerboard_b;
  * Grid complexity
  */
 
-float grid_complexity(
+inline float grid_complexity(
     cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h,
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
