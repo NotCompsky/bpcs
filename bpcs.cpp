@@ -3,9 +3,6 @@
 #include <iostream>
 #include <fstream>
 #include <sys/stat.h> // for stat
-#include <regex> // for std::basic_regex
-
-#include <cstdio> // for std::remove
 
 namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
@@ -22,21 +19,98 @@ static const char* NULLCHAR      = "[NULL]";
 static const std::string NULLSTR = "[NULL]";
 
 
-static const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
-// Groups are full_match, optional, parent_dir, filename, basename, ext
-static const std::regex fmt_fp("[{]fp[}]");
-static const std::regex fmt_dir("[{]dir[}]");
-static const std::regex fmt_fname("[{]fname[}]");
-static const std::regex fmt_basename("[{]basename[}]");
-static const std::regex fmt_ext("[{]ext[}]");
-// WARNING: Better would be to ignore `{{fp}}` (escape it to a literal `{fp}`) with (^|[^{]), but no personal use doing so.
 
 
 
-
-
-std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
-    return std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(std::regex_replace(out_fmt, fmt_fp, (std::string)path_regexp_match[0]), fmt_dir, (std::string)path_regexp_match[2]), fmt_fname, (std::string)path_regexp_match[3]), fmt_basename, (std::string)path_regexp_match[4]), fmt_ext, (std::string)path_regexp_match[4]);
+std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless){
+    // WARNING: Requires absolute paths?
+    std::string basename = "";
+    std::string dir = "";
+    std::string ext = "";
+    std::string fname = "";
+    std::string result = "";
+    
+    // Intermediates
+    std::string slashblock;
+    std::string dotblock;
+    bool dot_present = false;
+    
+    for (char* it=fp; *it; ++it){
+        if (*it == '/'){
+            dir += slashblock;
+            slashblock = "";
+            if (dot_present){
+                dir += '.' + dotblock;
+                dotblock = "";
+                dot_present = false;
+            }
+            continue;
+        }
+        if (*it == '.'){
+            if (dot_present){
+                slashblock += '.' + dotblock;
+                dotblock = "";
+            }
+            dot_present = true;
+            continue;
+        }
+        if (dot_present){
+            dotblock += *it;
+        } else {
+            slashblock += *it;
+        }
+    }
+    basename = slashblock;
+    ext = dotblock;
+    fname = slashblock + "." + dotblock;
+    
+    if (check_if_lossless){
+        if (ext == "png"){
+        } else {
+            #ifdef DEBUG
+                throw std::runtime_error("Must write to a file in lossless format");
+            #else
+                abort();
+            #endif
+        }
+    }
+    
+    for (char* it=out_fmt; *it; ++it){
+        if (*it == '{'){
+            ++it;
+            if (*it == '{'){
+                result += '{';
+                continue;
+            } else if (*it == 'b'){
+                it += 8; // WARNING: Skipping avoids error checking.
+                result += basename;
+                continue;
+            } else if (*it == 'd'){
+                it += 3;
+                result += dir;
+                continue;
+            } else if (*it == 'e'){
+                it += 3;
+                result += ext;
+                continue;
+            } else if (*it == 'f'){
+                ++it;
+                if (*it == 'p'){
+                    it += 1;
+                    result += fp;
+                    continue;
+                } else {
+                    it += 4;
+                    result += fname;
+                    continue;
+                }
+            }
+        } else {
+            result += *it;
+        }
+    }
+    
+    return result;
 }
 
 
@@ -255,7 +329,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const float min_complexity, const std::vector<std::string> img_fps):
+    BPCSStreamBuf(const float min_complexity, std::vector<char*> img_fps):
     min_complexity(min_complexity), img_fps(img_fps), img_n(0), gridbitindx(64), grids_since_conjgrid(63)
     {}
     
@@ -264,23 +338,21 @@ class BPCSStreamBuf { //: public std::streambuf {
     void sputc(unsigned char c);
     
     void load_next_img(); // Init
-    void end();
+    void save_im(); // End
     
     bool embedding;
-    std::string out_fmt;
+    char* out_fmt;
   private:
     int set_next_grid();
     void load_next_bitplane();
     void load_next_channel();
-    
-    void save_im();
     
     void write_conjugation_map();
     
     inline float get_grid_complexity(cv::Mat&);
 
     const float min_complexity;
-    const std::vector<std::string> img_fps;
+    const std::vector<char*> img_fps;
     uint_fast16_t img_n;
     #ifdef DEBUG
         uint_fast64_t n_grids;
@@ -327,8 +399,6 @@ class BPCSStreamBuf { //: public std::streambuf {
     cv::Mat XORed_byteplane;
     
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
-    
-    std::smatch path_regexp_match;
     
     bool past_first_grid;
 };
@@ -727,7 +797,7 @@ void BPCSStreamBuf::sputc(unsigned char c){
 }
 
 void BPCSStreamBuf::save_im(){
-    // Called either when we've exhausted this->im_mat's last channel, or by this->end()
+    // Called either when we've exhausted this->im_mat's last channel and at end of embedding
     #ifdef TESTS
         assert(this->embedding);
     #endif
@@ -757,57 +827,14 @@ void BPCSStreamBuf::save_im(){
         }
     }
     
-    std::regex_search(this->img_fps[this->img_n -1], this->path_regexp_match, path_regexp);
-    std::string out_fp = format_out_fp(this->out_fmt, this->path_regexp_match);
+    std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], true);
     cv::merge(this->channel_byteplanes, this->im_mat);
     #ifdef DEBUG
         mylog.info();
         mylog << "Saving to  `" << out_fp << "`" << std::endl;
     #endif
     
-    std::regex_search(out_fp, this->path_regexp_match, path_regexp);
-    
-    if (path_regexp_match[5] != "png"){
-        #ifdef DEBUG
-            mylog.crit();
-            mylog << "Must be encoded with lossless format, not `" << path_regexp_match[5] << "`" << std::endl;
-            throw std::invalid_argument(path_regexp_match[5]);
-        #else
-            abort();
-        #endif
-    }
-    
     cv::imwrite(out_fp, this->im_mat);
-}
-
-inline void BPCSStreamBuf::end(){
-    #ifdef DEBUG
-        mylog.dbg();
-        mylog << "end() called" << std::endl;
-        print_histogram(this->complexities, 10, 200);
-    #endif
-    assert(this->embedding);
-    this->save_im();
-}
-
-
-
-
-
-
-
-uint_fast64_t get_fsize(char* fp){
-    struct stat stat_buf;
-    if (stat(fp, &stat_buf) == -1){
-        #ifdef DEBUG
-            mylog.crit();
-            mylog << "No such file:  " << fp << std::endl;
-            throw std::runtime_error("No such file");
-        #else
-            abort();
-        #endif
-    }
-    return stat_buf.st_size;
 }
 
 
@@ -829,7 +856,7 @@ int main(const int argc, char *argv[]){
     bool to_disk = false;
     bool to_display = false;
     
-    std::string out_fmt = NULLSTR;
+    char* out_fmt = NULLCHAR_DYN;
     std::string out_fp;
     
     uint_fast8_t n_msg_fps = 0;
@@ -955,7 +982,7 @@ int main(const int argc, char *argv[]){
     
     
     
-    if (out_fmt == NULLSTR){
+    if (out_fmt[0] == 0){
         if (n_msg_fps != 0){
             #ifdef DEBUG
                 throw std::runtime_error("Must specify --out-fmt if embedding --msg files");
@@ -996,7 +1023,7 @@ int main(const int argc, char *argv[]){
         return 1;
     }
     
-    std::vector<std::string> img_fps;
+    std::vector<char*> img_fps;
     // File path(s) of input image file(s)
     do {
         img_fps.push_back(argv[++i]);
@@ -1023,8 +1050,6 @@ int main(const int argc, char *argv[]){
         }
     #endif
     
-    std::smatch path_regexp_match;
-    
     BPCSStreamBuf bpcs_stream(min_complexity, img_fps);
     bpcs_stream.embedding = (mode == MODE_EMBEDDING);
     bpcs_stream.out_fmt = out_fmt;
@@ -1033,6 +1058,8 @@ int main(const int argc, char *argv[]){
     uint_fast64_t j;
     char* fp;
     uint_fast64_t n_msg_bytes;
+    struct stat stat_buf;
+    
     if (mode == MODE_EMBEDDING){
         FILE* msg_file;
         for (i=0; i<n_msg_fps; ++i){
@@ -1055,7 +1082,17 @@ int main(const int argc, char *argv[]){
                 bpcs_stream.sputc((unsigned char)fp[j]); // WARNING: Accessing char* by indices - how behaves for non-byte characters?
             //bpcs_stream.write(fp, n_msg_bytes);
             
-            n_msg_bytes = get_fsize(fp);
+            if (stat(fp, &stat_buf) == -1){
+                #ifdef DEBUG
+                    mylog.crit();
+                    mylog << "No such file:  " << fp << std::endl;
+                    throw std::runtime_error("No such file");
+                #else
+                    return 1;
+                #endif
+            }
+            n_msg_bytes = stat_buf.st_size;
+            
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
@@ -1070,7 +1107,10 @@ int main(const int argc, char *argv[]){
         // TODO: XOR, as above
         for (j=0; j<8; ++j)
             bpcs_stream.sputc(0);
-        bpcs_stream.end();
+        #ifdef DEBUG
+            bpcs_stream.print_histogram(bpcs_stream.complexities, 10, 200);
+        #endif
+        bpcs_stream.save_im();
     } else {
         std::string fp_str;
         i = 0;
@@ -1097,7 +1137,7 @@ int main(const int argc, char *argv[]){
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
-                if (mode == MODE_EXTRACT && out_fmt != NULLSTR){
+                if (mode == MODE_EXTRACT && out_fmt[0] != 0){
                     std::ofstream of(fp);
                     for (j=0; j<n_msg_bytes; ++j)
                         of.put(bpcs_stream.sgetc());
@@ -1114,7 +1154,7 @@ int main(const int argc, char *argv[]){
                             mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
                             throw std::invalid_argument("No image data loaded");
                         #else
-                            abort();
+                            return 1;
                         #endif
                     }
                     #ifdef DEBUG
@@ -1135,9 +1175,7 @@ int main(const int argc, char *argv[]){
                     mylog.info();
                     mylog << "Original fp: " << fp << std::endl;
                 #endif
-                fp_str = fp;
-                std::regex_search(fp_str, path_regexp_match, path_regexp);
-                fp = (char*)format_out_fp(out_fmt, path_regexp_match).c_str();
+                fp = (char*)format_out_fp(out_fmt, fp, false).c_str();
                 #ifdef DEBUG
                     mylog.info();
                     mylog << "Formatted fp: " << fp << std::endl;
