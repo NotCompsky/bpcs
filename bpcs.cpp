@@ -845,9 +845,9 @@ void BPCSStreamBuf::save_im(){
     
     // Ensure last grid is saved
     // TODO: Value of char inserted by sputc would ideally be randomised
-    while (this->gridbitindx != 0)
+    while ((this->gridbitindx != 8) && (this->gridbitindx != 0))
         this->sputc(0);
-
+    
     this->conjmap_indx += 63 -this->conjmap_indx;
     this->write_conjugation_map();
     
@@ -859,6 +859,7 @@ void BPCSStreamBuf::save_im(){
     uint_fast8_t j;
     uint_fast8_t k = this->n_channels * this->n_bitplanes;
     uint_fast8_t i = this->n_channels -1;
+    
     do {
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[--k].clone();
