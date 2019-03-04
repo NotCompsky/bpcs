@@ -114,7 +114,8 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
         if (result_ext == "png"){
         } else {
             #ifdef DEBUG
-                mylog.crit();
+                mylog.set_verbosity(0);
+                mylog.set_cl('r');
                 mylog << "Must write to a file in lossless format, not `" << result_ext << "`" << std::endl;
                 throw std::runtime_error("Must write to a file in lossless format");
             #else
@@ -164,14 +165,16 @@ inline void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
     for (uint_fast16_t i=0; i<arr.rows*arr.cols; ++i)
         dest.data[i] = (arr.data[i] >> n) & 1;
     #ifdef DEBUG
-        mylog.tedium();
+        mylog.set_verbosity(5);
+        mylog.set_cl(0);
         mylog << "bitandshift " << +n << ":  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
     #endif
 }
 
 inline void bitshift_up(cv::Mat &arr, uint_fast16_t n){
     #ifdef DEBUG
-        mylog.tedium();
+        mylog.set_verbosity(5);
+        mylog.set_cl(0);
         mylog << "bitshift_up " << +n << std::endl;
     #endif
     cv::multiply(arr, 1 << n, arr);
@@ -179,7 +182,8 @@ inline void bitshift_up(cv::Mat &arr, uint_fast16_t n){
 
 inline void convert_to_cgc(cv::Mat &arr){
     #ifdef DEBUG
-        mylog.tedium();
+        mylog.set_verbosity(5);
+        mylog.set_cl(0);
         mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==";
     #endif
     for (uchar* bit = arr.data;  bit != arr.data + (arr.rows*arr.cols);  ++bit)
@@ -232,7 +236,8 @@ inline float grid_complexity(
 
 void conjugate_grid(cv::Mat &grid, uint_fast8_t n, uint_fast32_t x, uint_fast32_t y){
     #ifdef DEBUG
-        mylog.tedium('p');
+        mylog.set_verbosity(5);
+        mylog.set_cl('p');
         mylog << "<*" << +n << "(" << +x << ", " << +y << ")>";
     #endif
     cv::Mat arr1;
@@ -263,20 +268,23 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
     uint_fast64_t len_complexities = complexities.size();
     
     if (len_complexities == 0){
-        mylog.warn();
+        mylog.set_verbosity(2);
+        mylog.set_cl('r');
         mylog << "No complexities to display" << std::endl;
         return;
     }
     
-    mylog.info('B');
+    mylog.set_verbosity(3);
+    mylog.set_cl('B');
     mylog << "Complexities Histogram" << '\n';
-    mylog.info();
+    mylog.set_cl(0);
     
     float min = *std::min_element(std::begin(complexities), std::end(complexities));
     float max = *std::max_element(std::begin(complexities), std::end(complexities));
     mylog << "Total: " << +len_complexities << " between " << +min << ", " << +max << '\n';
     if (min == max){
-        mylog.warn();
+        mylog.set_verbosity(2);
+        mylog.set_cl('r');
         mylog << "No complexity range" << std::endl;
         return;
     }
@@ -412,9 +420,11 @@ inline void BPCSStreamBuf::load_next_bitplane(){
     bitandshift(this->channel_byteplanes[this->channel_n], this->bitplane, this->n_bitplanes - ++this->bitplane_n);
     
     #ifdef DEBUG
-        mylog.dbg();
+        mylog.set_verbosity(4);
+        mylog.set_cl('b');
         mylog << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << " from channel " << +this->channel_n << std::endl;
-        mylog.tedium('g');
+        mylog.set_verbosity(8);
+        mylog.set_cl('g');
         mylog << "\n";
         mylog << this->bitplane;
         mylog << "\n";
@@ -423,7 +433,8 @@ inline void BPCSStreamBuf::load_next_bitplane(){
 
 void BPCSStreamBuf::load_next_channel(){
     #ifdef DEBUG
-        mylog.dbg();
+        mylog.set_verbosity(4);
+        mylog.set_cl(0);
         mylog << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
     convert_to_cgc(this->channel_byteplanes[this->channel_n]);
@@ -436,7 +447,8 @@ void BPCSStreamBuf::load_next_img(){
         this->save_im();
     }
     #ifdef DEBUG
-        mylog.info();
+        mylog.set_verbosity(3);
+        mylog.set_cl('g');
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
     this->im_mat = cv::imread(this->img_fps[this->img_n++], CV_LOAD_IMAGE_COLOR);
@@ -450,7 +462,8 @@ void BPCSStreamBuf::load_next_img(){
     }
     
     #ifdef DEBUG
-        mylog.info();
+        mylog.set_verbosity(3);
+        mylog.set_cl('g');
         mylog << +this->im_mat.cols << "x" << +this->im_mat.rows << '\n';
         mylog << +this->n_channels << " channels" << '\n';
         mylog << "Bit-depth of " << +this->n_bitplanes << '\n';
@@ -472,7 +485,8 @@ void BPCSStreamBuf::load_next_img(){
                 this->bitplanes[k] = cv::Mat::zeros(this->im_mat.rows, this->im_mat.cols, CV_8UC1);
                 bitandshift(this->channel_byteplanes[j], this->bitplanes[k++], this->n_bitplanes - ++i);
                 #ifdef DEBUG
-                    mylog.tedium('g');
+                    mylog.set_verbosity(8);
+                    mylog.set_cl('g');
                     mylog << "\n";
                     mylog << this->bitplanes[k-1];
                     mylog << "\n";
@@ -506,14 +520,16 @@ void BPCSStreamBuf::write_conjugation_map(){
     float complexity;
     
     #ifdef DEBUG
-        mylog.tedium('p');
+        mylog.set_verbosity(6);
+        mylog.set_cl('p');
         mylog << "Conjgrid orig" << "\n";
-        mylog.tedium();
+        mylog.set_verbosity(6);
+        mylog.set_cl(0);
         mylog << this->conjugation_grid << "\n";
         for (uint_fast8_t k=0; k<63; ++k){
             
                 if (this->conjugation_map[k] != 0 && this->conjugation_map[k] != 1){
-                    mylog.crit();
+                    mylog.set_verbosity(0);
                     mylog << "Non-bit this->conjugation_map[" << +k << "]\n";
                     for (uint_fast8_t i=0; i<63; ++i)
                         mylog << +this->conjugation_map[i] << " ";
@@ -533,9 +549,11 @@ void BPCSStreamBuf::write_conjugation_map(){
     complexity = this->get_grid_complexity(this->conjugation_grid);
     
     #ifdef DEBUG
-        mylog.tedium('p');
+        mylog.set_verbosity(6);
+        mylog.set_cl('p');
         mylog << "Conjgrid before conjugation" << "\n";
-        mylog.tedium();
+        mylog.set_verbosity(6);
+        mylog.set_cl(0);
         mylog << this->conjugation_grid << "\n";
     #endif
     
@@ -563,13 +581,15 @@ void BPCSStreamBuf::write_conjugation_map(){
             for (uint_fast8_t i=0; i<64; ++i)
                 if (this->conjugation_grid.data[i] != 0 && this->conjugation_grid.data[i] != 1){
                     #ifdef DEBUG
-                        mylog.crit();
+                        mylog.set_verbosity(0);
+                        mylog.set_cl('r');
                         mylog << "Non-bit in conjugation map" << "\n" << this->conjugation_grid << std::endl;
                     #endif
                     throw std::runtime_error("Non-bit in conjugation map");
                 }
         #endif
-        mylog.tedium();
+        mylog.set_verbosity(6);
+        mylog.set_cl(0);
         mylog << "Written conjugation map" << "\n" << this->conjugation_grid << std::endl;
     #endif
 }
@@ -578,17 +598,20 @@ void BPCSStreamBuf::write_conjugation_map(){
 void print_grid(cv::Mat& grid, uint_fast32_t x, uint_fast32_t y){
     unsigned char c;
     uint_fast8_t n;
-    mylog.dbg('B');
+    mylog.set_verbosity(4);
+    mylog.set_cl('B');
     mylog << "print_grid (" << +x << ", " << +y << ")" << '\n';
     for (uint_fast8_t j=0; j<8; ++j){
         c = 0;
-        mylog.tedium();
+        mylog.set_verbosity(6);
+        mylog.set_cl(0);
         for (uint_fast8_t i=0; i<8; ++i){
             n =grid.at<uint_fast8_t>(j, i);
             c |= (n << i);
             mylog << +n;
         }
-        mylog.dbg();
+        mylog.set_verbosity(4);
+        mylog.set_cl('b');
         mylog << " ";
         mylog << c << '\n';
     }
@@ -602,7 +625,8 @@ int BPCSStreamBuf::set_next_grid(){
         mylog << std::endl;
         throw std::runtime_error("Reached gridlimit");
     }
-    mylog.tedium();
+    mylog.set_verbosity(5);
+    mylog.set_cl(0);
     mylog << "grids_since_conjgrid " << +this->grids_since_conjgrid << std::endl; // tmp
     #endif
     if (++this->grids_since_conjgrid == 64){ 
@@ -631,7 +655,8 @@ int BPCSStreamBuf::set_next_grid(){
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
                     this->conjugation_map[k] = this->grid.data[k];
-                    mylog.tedium();
+                    mylog.set_verbosity(5);
+                    mylog.set_cl(0);
                     mylog << +this->conjugation_map[k];
                 }
                 mylog << std::endl;
@@ -661,7 +686,8 @@ int BPCSStreamBuf::set_next_grid(){
             //complexity = this->get_grid_complexity(this->bitplane(grid_shape));
             
             #ifdef DEBUG
-                mylog.tedium();
+                mylog.set_verbosity(8);
+                mylog.set_cl(0);
                 mylog << "complexity " << +complexity << std::endl; // tmp
                 this->complexities.push_back(complexity);
             #endif
@@ -673,9 +699,10 @@ int BPCSStreamBuf::set_next_grid(){
                 this->x = i;
                 this->y = j;
                 #ifdef DEBUG
-                    mylog.tedium('B');
+                    mylog.set_verbosity(7);
+                    mylog.set_cl('B');
                     mylog << "Found grid" << "\n";
-                    mylog.tedium('r');
+                    mylog.set_cl('r');
                     mylog << this->grid << std::endl;
                 #endif
                 return 0;
@@ -691,9 +718,11 @@ int BPCSStreamBuf::set_next_grid(){
     this->y = 0;
     
     #ifdef DEBUG
-        mylog.dbg();
+        mylog.set_verbosity(4);
+        mylog.set_cl('b');
         mylog << "Exhausted bitplane" << std::endl;
-        mylog.tedium();
+        mylog.set_verbosity(5);
+        mylog.set_cl(0);
         mylog << "embedding: " << +this->embedding << std::endl;
         mylog << "bitplane_n: " << +this->bitplane_n << std::endl;
         mylog << "n_bitplanes: " << +this->n_bitplanes << std::endl;
@@ -747,11 +776,13 @@ unsigned char BPCSStreamBuf::sgetc(){
     unsigned char c = 0;
     for (uint_fast8_t i=0; i<8; ++i){
         #ifdef DEBUG
-            mylog.tedium();
+            mylog.set_verbosity(8);
+            mylog.set_cl(0);
             mylog << +this->grid.data[this->gridbitindx];
             #ifdef TESTS
                 if (this->grid.data[this->gridbitindx] != 0 && this->grid.data[this->gridbitindx] != 1){
-                    mylog.crit();
+                    mylog.set_verbosity(0);
+                    mylog.set_cl('r');
                     mylog << "Non-bit in grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid << std::endl;
                     throw std::runtime_error("Non-bit in grid");
                 }
@@ -760,22 +791,27 @@ unsigned char BPCSStreamBuf::sgetc(){
         c |= this->grid.data[this->gridbitindx++] << i;
     }
     #ifdef DEBUG
-        mylog.tedium('p');
+        mylog.set_verbosity(5);
+        mylog.set_cl('p');
         mylog << "sgetc " << +c << " (" << c << ")" << std::endl;
+        mylog.set_cl(0);
     #endif
     return c;
 }
 
 void BPCSStreamBuf::sputc(unsigned char c){
     #ifdef DEBUG
-        mylog.tedium('p');
+        mylog.set_verbosity(5);
+        mylog.set_cl('p');
         mylog << "sputc " << +c << " (" << c << ") at gridbitindx " << +this->gridbitindx << std::endl;
+        mylog.set_cl(0);
     #endif
     if (this->gridbitindx == 64){
         #ifdef DEBUG
-            mylog.tedium('B');
+            mylog.set_verbosity(8);
+            mylog.set_cl('B');
             mylog << "Last grid (pre-conj)" << "\n";
-            mylog.tedium();
+            mylog.set_cl(0);
             mylog << this->grid << std::endl;
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
@@ -799,7 +835,8 @@ void BPCSStreamBuf::sputc(unsigned char c){
     
     uchar* bit = this->grid.data + this->gridbitindx;
     #ifdef DEBUG
-        mylog.tedium();
+        mylog.set_verbosity(5);
+        mylog.set_cl(0);
         mylog << "sputc " << +c << " bits ";
     #endif
     for (uint_fast8_t i=0; i<8; ++i){
@@ -824,16 +861,19 @@ void BPCSStreamBuf::save_im(){
     this->write_conjugation_map();
     
     #ifdef DEBUG
-        mylog.dbg();
+        mylog.set_verbosity(4);
+        mylog.set_cl('b');
         mylog << "UnXORing " << +this->n_channels << " channels of depth " << +this->n_bitplanes << std::endl;
         
-        mylog.tedium('g');
+        mylog.set_verbosity(8);
+        mylog.set_cl('g');
         mylog << "Bitplanes before unXORing" << std::endl;
         for (uint_fast16_t i=0; i<this->n_bitplanes*this->n_channels; ++i){
             mylog << "\n";
             mylog << this->bitplanes[i];
             mylog << "\n";
         }
+        mylog.set_cl(0);
     #endif
     uint_fast8_t j;
     uint_fast8_t k = 0;
@@ -857,7 +897,8 @@ void BPCSStreamBuf::save_im(){
     std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], true);
     cv::merge(this->channel_byteplanes, this->im_mat);
     #ifdef DEBUG
-        mylog.info();
+        mylog.set_verbosity(3);
+        mylog.set_cl('g');
         mylog << "Saving to  `" << out_fp << "`" << std::endl;
     #endif
     
@@ -1030,19 +1071,21 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         if (verbosity < 0)
             verbosity = 0;
-        else if (verbosity > 5)
-            verbosity = 5;
-        mylog.setLevel(verbosity);
+        else if (verbosity > 8)
+            verbosity = 8;
+        mylog.set_level(verbosity);
         
         mylog.set_dt_fmt(log_fmt);
         
-        mylog.dbg();
+        mylog.set_verbosity(4);
+        mylog.set_cl('b');
         mylog << "Verbosity " << +verbosity << std::endl;
     #endif
     
     
     #ifdef DEBUG
-        mylog.info();
+        mylog.set_verbosity(3);
+        mylog.set_cl('g');
         if (n_msg_fps != 0)
             mylog << "Embedding";
         else
@@ -1078,14 +1121,16 @@ int main(const int argc, char *argv[]){
     }
     
     #ifdef DEBUG
-        mylog.tedium();
+        mylog.set_verbosity(5);
+        mylog.set_cl(0);
         mylog << "min_complexity: " << +argv[i+1] << std::endl;
     #endif
     const float min_complexity = std::stof(argv[i++]);
     // Minimum bitplane complexity
     if (min_complexity > 0.5){
         #ifdef DEBUG
-            mylog.crit();
+            mylog.set_verbosity(0);
+            mylog.set_cl('r');
             mylog << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
         #endif
         return 1;
@@ -1094,7 +1139,7 @@ int main(const int argc, char *argv[]){
     std::vector<char*> img_fps;
     // File path(s) of input image file(s)
     #ifdef DEBUG
-        mylog.tedium();
+        mylog.set_verbosity(5);
     #endif
     do {
         img_fps.push_back(argv[i++]);
@@ -1108,7 +1153,8 @@ int main(const int argc, char *argv[]){
     
     if (sodium::sodium_init() == -1) {
         #ifdef DEBUG
-            mylog.crit();
+            mylog.set_verbosity(0);
+            mylog.set_cl('r');
             mylog << "libsodium init fail" << std::endl;
         #endif
         return 1;
@@ -1129,7 +1175,8 @@ int main(const int argc, char *argv[]){
         for (i=0; i<n_msg_fps; ++i){
             fp = msg_fps[i];
             #ifdef DEBUG
-                mylog.info();
+                mylog.set_verbosity(3);
+                mylog.set_cl('g');
                 mylog << "Reading msg `" << fp << "`" << std::endl;
             #endif
             
@@ -1140,7 +1187,8 @@ int main(const int argc, char *argv[]){
             
             n_msg_bytes = sizeof(fp) -1;
             #ifdef DEBUG
-                mylog.tedium();
+                mylog.set_verbosity(5);
+                mylog.set_cl(0);
                 mylog << "n_msg_bytes (filepath): " << +n_msg_bytes << std::endl;
             #endif
             for (j=0; j<8; ++j)
@@ -1152,7 +1200,8 @@ int main(const int argc, char *argv[]){
             
             if (stat(fp, &stat_buf) == -1){
                 #ifdef DEBUG
-                    mylog.crit();
+                    mylog.set_verbosity(0);
+                    mylog.set_cl('r');
                     mylog << "No such file:  " << fp << std::endl;
                     throw std::runtime_error("No such file");
                 #else
@@ -1161,7 +1210,8 @@ int main(const int argc, char *argv[]){
             }
             n_msg_bytes = stat_buf.st_size;
             #ifdef DEBUG
-                mylog.tedium();
+                mylog.set_verbosity(5);
+                mylog.set_cl(0);
                 mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
             #endif
             
@@ -1192,18 +1242,21 @@ int main(const int argc, char *argv[]){
                 uchar c = bpcs_stream.sgetc();
                 n_msg_bytes |= (c << (8*j));
                 #ifdef DEBUG
-                    mylog.tedium();
+                    mylog.set_verbosity(5);
+                    mylog.set_cl(0);
                     mylog << "n_msg_bytes byte: " << +c << " (" << c << "), total: " << +n_msg_bytes << std::endl;
                 #endif
             }
             #ifdef DEBUG
-                mylog.info();
+                mylog.set_verbosity(3);
+                mylog.set_cl('g');
                 mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
                 
                 
                 if (n_msg_bytes == 0){
                     // Reached end of embedded datas
-                    mylog.crit();
+                    mylog.set_verbosity(0);
+                    mylog.set_cl('r');
                     mylog << "n_msg_bytes = 0" << std::endl;
                     return 1;
                 }
@@ -1224,7 +1277,8 @@ int main(const int argc, char *argv[]){
                     cv::Mat decoded_img = cv::imdecode(rawdata, CV_LOAD_IMAGE_UNCHANGED);
                     if (decoded_img.data == NULL){
                         #ifdef DEBUG
-                            mylog.crit();
+                            mylog.set_verbosity(0);
+                            mylog.set_cl('r');
                             mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
                             throw std::invalid_argument("No image data loaded");
                         #else
@@ -1232,7 +1286,8 @@ int main(const int argc, char *argv[]){
                         #endif
                     }
                     #ifdef DEBUG
-                        mylog.info();
+                        mylog.set_verbosity(3);
+                        mylog.set_cl('g');
                         mylog << "Displaying image" << std::endl;
                     #endif
                     cv::imshow(fp, decoded_img);
@@ -1247,12 +1302,14 @@ int main(const int argc, char *argv[]){
                     fp_str += bpcs_stream.sgetc();
                 }
                 #ifdef DEBUG
-                    mylog.info();
+                    mylog.set_verbosity(3);
+                    mylog.set_cl('g');
                     mylog << "Original fp: " << fp_str << std::endl;
                 #endif
                 fp = (char*)format_out_fp(out_fmt, (char*)fp_str.c_str(), false).c_str();
                 #ifdef DEBUG
-                    mylog.info();
+                    mylog.set_verbosity(3);
+                    mylog.set_cl('g');
                     mylog << "Formatted fp: " << fp << std::endl;
                 #endif
             }
