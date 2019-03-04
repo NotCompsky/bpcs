@@ -1,4 +1,3 @@
-#include <args.hxx> // https://github.com/Taywee/args
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
@@ -18,6 +17,7 @@ namespace sodium {
 
 
 
+static char* NULLCHAR_DYN        = "[NULL]";
 static const char* NULLCHAR      = "[NULL]";
 static const std::string NULLSTR = "[NULL]";
 
@@ -796,7 +796,7 @@ inline void BPCSStreamBuf::end(){
 
 
 
-uint_fast64_t get_fsize(const char* fp){
+uint_fast64_t get_fsize(char* fp){
     struct stat stat_buf;
     if (stat(fp, &stat_buf) == -1){
         #ifdef DEBUG
@@ -821,80 +821,189 @@ uint_fast64_t get_fsize(const char* fp){
 
 
 int main(const int argc, char *argv[]){
-    args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
-    args::HelpFlag                      Ahelp           (parser, "help", "Display help", {'h', "help"});
+    uint_fast8_t verbosity = 3;
+    std::string arg;
+    char* nextarg;
+    std::vector<char*> nextlist;
+    
+    bool to_disk = false;
+    bool to_display = false;
+    
+    std::string out_fmt = NULLSTR;
+    std::string out_fp;
+    
+    uint_fast8_t n_msg_fps = 0;
+    std::vector<char*> msg_fps;
+    
+    uint_fast8_t mode;
+    
+    char* named_pipe_in = NULLCHAR_DYN;
     
     #ifdef DEBUG
-    args::Group dbg_parser(parser, "Debug args", args::Group::Validators::DontCare, args::Options::Global);
-    
-    args::CounterFlag                   Averbose        (dbg_parser, "verbose", "verbose (count) - verbosity is 3 + verbose - quiet, between 0 and 5 inclusive", {'v', "verbose"});
-    args::CounterFlag                   Aquiet          (dbg_parser, "quiet", "quiet (count)", {'q', "quiet"});
-    
-    args::ValueFlag<std::string>        Alog_fmt        (parser, "log_fmt", "Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `", {"log-fmt"});
-    
-    // Histogram args
-    args::ValueFlag<uint_fast8_t>       An_bins         (dbg_parser, "n_bins", "Number of histogram bins", {'B', "bins"});
-    args::ValueFlag<uint_fast8_t>       An_binchars     (dbg_parser, "n_binchars", "Total number of `#` characters printed out in histogram totals", {"binchars"});
-    
-    args::ValueFlag<uint_fast64_t>      Agridlimit      (dbg_parser, "gridlimit", "Quit after having moved through `gridlimit` grids", {"gridlimit"});
-    args::ValueFlag<uint_fast64_t>      Aconjlimit      (dbg_parser, "conjlimit", "Limit of conjugation grids", {"conjlimit"});
+        char log_fmt = "[%T] ";
+        
+        uint_fast16_t n_bins = 10;
+        uint_fast8_t n_binchars = 200;
     #endif
-    
-    args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
-    args::Flag                          Ato_disk        (parser, "to_disk", "Write to disk (as opposed to psuedofile)", {'d', "to-disk"});
-    args::Flag                          Adisplay_img    (parser, "display", "Display embedded images through OpenCV::imshow (rather than pipe)", {'D', "display"});
-    
-    args::ValueFlag<std::string>        Apipe_in        (parser, "pipe_in", "Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`", {'i', "pipe-in"});
-    
-    args::ValueFlagList<std::string>    Amsg_fps        (parser, "msg_fps", "File path(s) of message file(s) to embed. Sets mode to `embedding`", {'m', "msg"});
-    
-    // Encoding variables
-    args::Flag                          Amin            (parser, "min", "Minimise image (i.e. crop image to the minimum rectangle holding the required number of complex grids", {"min"});
-    
-    args::Positional<float>             Amin_complexity (parser, "min_complexity", "Minimum bitplane complexity");
-    args::PositionalList<std::string>   Aimg_fps        (parser, "img_fps", "File path(s) of input image file(s)");
-    
-    #ifdef DEBUG
-    try {
-    #endif
-        parser.ParseCLI(argc, argv);
-    #ifdef DEBUG
-    } catch (const args::Completion& e) {
-        std::cerr << e.what();
-        return 0;
-    } catch (const args::Help&) {
-        std::cerr << parser;
-        return 0;
-    } catch (const args::ParseError& e) {
-        std::cerr << e.what() << std::endl;
-        std::cerr << parser;
-        return 1;
-    }
-    #endif
-    
-    if (Amin && !Amsg_fps){
+    uint_fast64_t i = 0;
+    do {
+        // Find opts, until reach arg that does not begin with '-'
+        arg = argv[++i];
+        if (arg[0] != '-')
+            break;
+        
+        /* Bool flags */
+        
+        if (arg == "-v"){
+            ++verbosity;
+            continue;
+        }
+        if (arg == "-q"){
+            --verbosity;
+            continue;
+        }
+        
+        /* Value flags */
+        
+        nextarg = argv[++i];
+        
         #ifdef DEBUG
-            std::cerr << parser;
+        if (arg == "--log-fmt"){
+            // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
+            log_fmt = nextarg;
+            continue;
+        }
+        
+        // Histogram args
+        if (arg == "--bins"){
+            // Number of histogram bins
+            n_bins = nextarg;
+            continue;
+        }
+        if (arg == "--binchars"){
+            // Total number of `#` characters printed out in histogram totals
+            n_binchars = nextarg;
+            continue;
+        }
+        
+        // Debugging
+        if (arg == "--gridlimit"){
+            // Quit after having moved through `gridlimit` grids
+            gridlimit = nextarg;
+            continue;
+        }
+        if (arg == "--conjlimit"){
+            // Limit of conjugation grids
+            MAX_CONJ_GRIDS = nextarg;
+            continue;
+        }
         #endif
-        return 1;
-    }
+        
+        if (arg == "-o" || arg == "--out"){
+            // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
+            out_fmt = nextarg;
+            continue;
+        }
+        
+        if (arg == "-d" || arg == "--disk"){
+            // Write to disk (as opposed to psuedofile)
+            to_disk = true;
+        }
+        
+        if (arg == "-D" || arg == "--display"){
+            // Display embedded images through OpenCV::imshow (rather than pipe)
+            to_display = true;
+        }
+        
+        if (arg == "-p" || arg == "--pipe"){
+            // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
+            named_pipe_in = nextarg;
+            mode = MODE_EDIT;
+            continue;
+        }
+        
+        /* List flags */
+        
+        nextlist.clear();
+        while (nextarg[0] != '-'){
+            nextlist.push_back(nextarg);
+            nextarg = argv[++i];
+        }
+        
+        if (arg == "-m" || arg == "--msg"){
+            // File path(s) of message file(s) to embed. Sets mode to `embedding`
+            ++n_msg_fps;
+            mode = MODE_EMBEDDING;
+            msg_fps = nextlist;
+        }
+    } while (true);
+    
+    
     
     #ifdef DEBUG
-        uint_fast8_t verbosity = 3 + args::get(Averbose) - args::get(Aquiet);
         if (verbosity < 0)
             verbosity = 0;
         else if (verbosity > 5)
             verbosity = 5;
         mylog.setLevel(verbosity);
         
+        mylog.set_dt_fmt(log_fmt);
+        
         mylog.dbg();
         mylog << "Verbosity " << +verbosity << std::endl;
-        
-        if (Alog_fmt)
-            mylog.set_dt_fmt(args::get(Alog_fmt).c_str());
-        else
-            mylog.set_dt_fmt("[%T] ");
     #endif
+    
+    
+    
+    if (out_fmt == NULLSTR){
+        if (n_msg_fps != 0){
+            #ifdef DEBUG
+                throw std::runtime_error("Must specify --out-fmt if embedding --msg files");
+            #else
+                return 1;
+            #endif
+        }
+        #ifdef DEBUG
+            mylog << " to display";
+        #endif
+    } else {
+        #ifdef DEBUG
+            if (n_msg_fps == 0){
+                mylog << " to ";
+                if (to_disk)
+                    mylog << "file";
+                else
+                    mylog << "display";
+            }
+        #endif
+    }
+    #ifdef DEBUG
+        mylog << std::endl;
+    #endif
+    
+    if (mode == 0){
+        mode = MODE_EXTRACT;
+    }
+    
+    
+    const float min_complexity = std::stof(argv[++i]);
+    // Minimum bitplane complexity
+    if (min_complexity > 0.5){
+        #ifdef DEBUG
+            mylog.crit();
+            mylog << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
+        #endif
+        return 1;
+    }
+    
+    std::vector<std::string> img_fps;
+    // File path(s) of input image file(s)
+    do {
+        img_fps.push_back(argv[++i]);
+    } while (i < argc);
+    
+    
+    
     
     if (sodium::sodium_init() == -1) {
         #ifdef DEBUG
@@ -902,43 +1011,6 @@ int main(const int argc, char *argv[]){
             mylog << "libsodium init fail" << std::endl;
         #endif
         return 1;
-    }
-    
-    #ifdef DEBUG
-        uint_fast16_t n_bins;
-        uint_fast8_t n_binchars;
-        
-        if (An_bins)
-            n_bins = args::get(An_bins);
-        else
-            n_bins = 10;
-        
-        if (An_binchars)
-            n_binchars = args::get(An_binchars);
-        else
-            n_binchars = 200;
-        
-        if (Agridlimit)
-            gridlimit = args::get(Agridlimit);
-        
-        if (Aconjlimit)
-            MAX_CONJ_GRIDS = args::get(Aconjlimit);
-    #endif
-    
-    uint_fast8_t mode;
-
-    std::vector<std::string> msg_fps;
-    const char* named_pipe_in;
-    if (Amsg_fps){
-        msg_fps = args::get(Amsg_fps);
-        mode = MODE_EMBEDDING;
-    //} else if (Amax_cap){
-    //    mode = MODE_CALC_MAX_CAP;
-    } else if (Apipe_in){
-        mode = MODE_EDIT;
-        named_pipe_in = args::get(Apipe_in).c_str();
-    } else {
-        mode = MODE_EXTRACT;
     }
     
     #ifdef DEBUG
@@ -951,59 +1023,19 @@ int main(const int argc, char *argv[]){
         }
     #endif
     
-    std::string out_fmt;
-    std::string out_fp;
-    if (Aout_fmt){
-        out_fmt = args::get(Aout_fmt);
-        #ifdef DEBUG
-            if (!Amsg_fps){
-                mylog << " to ";
-                if (Ato_disk)
-                    mylog << "file";
-                else
-                    mylog << "display";
-            }
-        #endif
-    } else {
-        if (Amsg_fps){
-            #ifdef DEBUG
-                mylog.crit();
-                mylog << "Must specify out_fmt when embedding" << std::endl;
-            #endif
-            return 1;
-        }
-        #ifdef DEBUG1
-            else
-                mylog << " to display";
-        #endif
-        out_fmt = NULLCHAR;
-    }
-    #ifdef DEBUG
-        mylog << std::endl;
-    #endif
-    
     std::smatch path_regexp_match;
     
-    const float min_complexity = args::get(Amin_complexity);
-    if (min_complexity > 0.5){
-        #ifdef DEBUG
-            mylog.crit();
-            mylog << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
-        #endif
-        return 1;
-    }
-    
-    BPCSStreamBuf bpcs_stream(min_complexity, args::get(Aimg_fps));
+    BPCSStreamBuf bpcs_stream(min_complexity, img_fps);
     bpcs_stream.embedding = (mode == MODE_EMBEDDING);
     bpcs_stream.out_fmt = out_fmt;
     bpcs_stream.load_next_img(); // Init
     
-    uint_fast64_t i, j;
-    std::string fp;
+    uint_fast64_t j;
+    char* fp;
     uint_fast64_t n_msg_bytes;
     if (mode == MODE_EMBEDDING){
         FILE* msg_file;
-        for (i=0; i<msg_fps.size(); ++i){
+        for (i=0; i<n_msg_fps; ++i){
             fp = msg_fps[i];
             #ifdef DEBUG
                 mylog.info();
@@ -1015,19 +1047,19 @@ int main(const int argc, char *argv[]){
             
             // TODO: bpcs_stream << encryption << msg_file
             
-            n_msg_bytes = fp.length();
+            n_msg_bytes = sizeof(fp) -1;
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
             for (j=0; j<n_msg_bytes; ++j)
-                bpcs_stream.sputc((unsigned char)fp[j]);
+                bpcs_stream.sputc((unsigned char)fp[j]); // WARNING: Accessing char* by indices - how behaves for non-byte characters?
             //bpcs_stream.write(fp, n_msg_bytes);
             
-            n_msg_bytes = get_fsize(fp.c_str());
+            n_msg_bytes = get_fsize(fp);
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             //bpcs_stream.write(n_msg_bytes, 8);
-            msg_file = fopen(fp.c_str(), "r");
+            msg_file = fopen(fp, "r");
             for (j=0; j<n_msg_bytes; ++j)
                 // WARNING: Assumes there are exactly n_msg_bytes
                 bpcs_stream.sputc(getc(msg_file));
@@ -1040,6 +1072,7 @@ int main(const int argc, char *argv[]){
             bpcs_stream.sputc(0);
         bpcs_stream.end();
     } else {
+        std::string fp_str;
         i = 0;
         unsigned char INTTOREMOVE = 0;
         do {
@@ -1064,8 +1097,8 @@ int main(const int argc, char *argv[]){
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
-                if (mode == MODE_EXTRACT && Aout_fmt){
-                    std::ofstream of(fp.c_str());
+                if (mode == MODE_EXTRACT && out_fmt != NULLSTR){
+                    std::ofstream of(fp);
                     for (j=0; j<n_msg_bytes; ++j)
                         of.put(bpcs_stream.sgetc());
                     of.close();
@@ -1102,8 +1135,9 @@ int main(const int argc, char *argv[]){
                     mylog.info();
                     mylog << "Original fp: " << fp << std::endl;
                 #endif
-                std::regex_search(fp, path_regexp_match, path_regexp);
-                fp = format_out_fp(out_fmt, path_regexp_match);
+                fp_str = fp;
+                std::regex_search(fp_str, path_regexp_match, path_regexp);
+                fp = (char*)format_out_fp(out_fmt, path_regexp_match).c_str();
                 #ifdef DEBUG
                     mylog.info();
                     mylog << "Formatted fp: " << fp << std::endl;
