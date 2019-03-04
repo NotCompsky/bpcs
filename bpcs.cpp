@@ -737,7 +737,8 @@ void BPCSStreamBuf::set_next_grid(){
     // If we are here, we have exhausted the image
     if (img_n < img_fps.size()){
         this->load_next_img();
-        goto try_again;
+        this->conjmap_indx = 0; // i.e. decrement
+        return;
     }
     
     // If we are here, we have exhausted all images!
