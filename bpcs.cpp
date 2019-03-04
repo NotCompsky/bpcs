@@ -349,19 +349,20 @@ class BPCSStreamBuf { //: public std::streambuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps):
-    min_complexity(min_complexity), img_n(0), gridbitindx(64), grids_since_conjgrid(63), conjugation_map_ptr(conjugation_map), img_fps(img_fps)
+    BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps, bool emb, char* outfmt):
+    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), gridbitindx(64), grids_since_conjgrid(63), conjugation_map_ptr(conjugation_map), img_fps(img_fps)
     {}
     
     
+    const bool embedding;
     unsigned char sgetc();
+    
     void sputc(unsigned char c);
+    
+    char* out_fmt;
     
     void load_next_img(); // Init
     void save_im(); // End
-    
-    bool embedding;
-    char* out_fmt;
     
     #ifdef DEBUG
         std::vector<float> complexities;
@@ -1178,9 +1179,7 @@ int main(const int argc, char *argv[]){
         return 1;
     }
     
-    BPCSStreamBuf bpcs_stream(min_complexity, img_fps);
-    bpcs_stream.embedding = (mode == MODE_EMBEDDING);
-    bpcs_stream.out_fmt = out_fmt;
+    BPCSStreamBuf bpcs_stream(min_complexity, img_fps, (mode == MODE_EMBEDDING), out_fmt);
     bpcs_stream.load_next_img(); // Init
     
     uint_fast64_t j;
