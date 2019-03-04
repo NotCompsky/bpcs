@@ -356,6 +356,7 @@ class BPCSStreamBuf {
     uint_fast16_t img_n;
     #ifdef DEBUG
         uint_fast64_t n_grids;
+        uint_fast64_t n_complex_grids_found;
     #endif
     
     uint_fast64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
@@ -508,6 +509,7 @@ void BPCSStreamBuf::load_next_img(){
     
     #ifdef DEBUG
         this->complexities.clear();
+        this->n_complex_grids_found = 0;
     #endif
     
     this->channel_n = 0;
@@ -745,6 +747,7 @@ int BPCSStreamBuf::set_next_grid(){
                 this->y = j;
                 this->grid_ptr = this->bitplane.ptr<uchar>(j) +(i -8);
                 #ifdef DEBUG
+                    ++this->n_complex_grids_found;
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
                     mylog << "Found grid(" << +i << "," << +j << "): " << +complexity << "\n";
@@ -774,6 +777,7 @@ int BPCSStreamBuf::set_next_grid(){
         mylog << "n_bitplanes: " << +this->n_bitplanes << std::endl;
         mylog << "channel_n: " << +this->channel_n << std::endl;
         mylog << "n_channels: " << +this->n_channels << std::endl;
+        mylog << "n_complex_grids_found: " << +n_complex_grids_found << std::endl;
     #endif
     
     if (this->embedding){
