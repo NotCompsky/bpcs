@@ -48,12 +48,8 @@ static const uint_fast8_t MODE_EXTRACT = 2;
 static const uint_fast8_t MODE_EDIT = 3;
 
 
-
-uint_fast64_t gridlimit;
-
-
-
 #ifdef DEBUG
+    uint_fast64_t gridlimit;
     static CompskyLogger mylog(std::cout);
 #endif
 
@@ -454,6 +450,12 @@ void BPCSStreamBuf::load_next_img(){
 void BPCSStreamBuf::write_conjugation_map(){
     float complexity;
     
+    #ifdef DEBUG
+        mylog.tedium('p');
+        mylog << "Conj ";
+        mylog.tedium();
+    #endif
+    
         for (uint_fast8_t k=0; k<63; ++k){
             #ifdef TESTS
                 if (this->conjugation_map[k] != 0 && this->conjugation_map[k] != 1){
@@ -464,6 +466,9 @@ void BPCSStreamBuf::write_conjugation_map(){
                     mylog << std::endl;
                     throw std::runtime_error("");
                 }
+            #endif
+            #ifdef DEBUG
+                mylog << +this->conjugation_map[k];
             #endif
             this->conjugation_grid.data[k] = this->conjugation_map[k];
         }
@@ -529,7 +534,7 @@ int BPCSStreamBuf::set_next_grid(){
         
         if (this->set_next_grid())
             // Ran out of grids
-            return 0;
+            return 1;
         
         #ifdef DEBUG
             mylog.dbg();
@@ -547,8 +552,16 @@ int BPCSStreamBuf::set_next_grid(){
             if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
             
-            for (uint_fast8_t k=0; k<63; ++k)
+            for (uint_fast8_t k=0; k<63; ++k){
                 this->conjugation_map[k] = this->grid.data[k];
+                #ifdef DEBUG
+                    mylog.tedium();
+                    mylog << +this->conjugation_map[k];
+                #endif
+            }
+            #ifdef DEBUG
+                mylog << std::endl;
+            #endif
             
             #ifdef DEBUG
                 mylog << "\n" << this->grid;
@@ -636,6 +649,10 @@ char BPCSStreamBuf::sgetc(){
         
         if (this->conjugation_map[this->grids_since_conjgrid])
             conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
+        
+        #ifdef DEBUG
+            print_grid(this->grid, this->x, this->y);
+        #endif
         
         this->gridbitindx = 0;
     }
