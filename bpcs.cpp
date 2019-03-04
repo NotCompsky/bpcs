@@ -403,9 +403,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     cv::Mat im_mat;
     
-    cv::Mat grid_orig{8, 8, CV_8UC1};
     cv::Mat grid{8, 8, CV_8UC1};
-    cv::Mat conjugation_grid_orig{8, 8, CV_8UC1};
     cv::Mat conjugation_grid{8, 8, CV_8UC1};
     
     cv::Mat xor_adj_mat1{8, 7, CV_8UC1};
@@ -519,8 +517,7 @@ void BPCSStreamBuf::load_next_img(){
         // Get conjugation grid
         this->grids_since_conjgrid = 0;
         this->set_next_grid();
-        this->conjugation_grid_orig = this->grid_orig;
-        this->conjugation_grid = this->grid.clone();
+        this->conjugation_grid = this->grid;
         
         this->set_next_grid();
         this->grids_since_conjgrid = 0;
@@ -594,8 +591,6 @@ void BPCSStreamBuf::write_conjugation_map(){
                     #endif
     }
     
-    this->conjugation_grid.copyTo(this->conjugation_grid_orig);
-    
     #ifdef DEBUG
         #ifdef TESTS
             for (uint_fast8_t i=0; i<64; ++i)
@@ -666,8 +661,7 @@ int BPCSStreamBuf::set_next_grid(){
         if (this->embedding){
             this->write_conjugation_map();
             
-            this->conjugation_grid_orig = this->grid_orig;
-            this->conjugation_grid = this->grid_orig.clone();
+            this->conjugation_grid = this->grid;
         } else {
             if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
@@ -699,8 +693,8 @@ int BPCSStreamBuf::set_next_grid(){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
-            this->grid_orig = this->bitplane(grid_shape);
-            complexity = this->get_grid_complexity(this->grid_orig);
+            this->grid = this->bitplane(grid_shape);
+            complexity = this->get_grid_complexity(this->grid);
             
             // TODO: Look into removing this unnecessary copy
             //complexity = this->get_grid_complexity(this->bitplane(grid_shape));
@@ -718,7 +712,6 @@ int BPCSStreamBuf::set_next_grid(){
                 //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
-                this->grid = this->grid_orig.clone();
                 this->grid_ptr = this->grid.data;
                 #ifdef DEBUG
                     mylog.set_verbosity(7);
@@ -802,7 +795,7 @@ unsigned char BPCSStreamBuf::sgetc(){
         #ifdef DEBUG
             mylog.set_verbosity(8);
             mylog.set_cl(0);
-            mylog << +this->grid_ptr;
+            mylog << +(*this->grid_ptr);
             #ifdef TESTS
                 if (*this->grid_ptr != 0 && *this->grid_ptr != 1){
                     mylog.set_verbosity(0);
@@ -849,8 +842,6 @@ void BPCSStreamBuf::sputc(unsigned char c){
         } else {
             this->conjugation_map[this->grids_since_conjgrid] = 0;
         }
-        
-        this->grid.copyTo(this->grid_orig);
         
         if (this->set_next_grid()){
             #ifdef DEBUG
@@ -1281,8 +1272,7 @@ int main(const int argc, char *argv[]){
         }
         // After all messages, signal end with signalled size of 0
         // TODO: XOR, as above
-        for (j=0; j<17; ++j)
-            // Using 17 to ensure that at least one full grid is covered. Should only need 8!
+        for (j=0; j<8; ++j)
             bpcs_stream.sputc(0);
         #ifdef DEBUG
             print_histogram(bpcs_stream.complexities, 10, 200);
