@@ -54,6 +54,8 @@ Example usage:
         a=0.45
         ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.jpg -o '/tmp/bpcs.png'
         ./bpcs "$a" /tmp/bpcs.png
+
+NOTE: Certain codecs (such as mp4) store metadata at the end of the file. This will cause ffplay to fail to stream the file from a named pipe (as named pipes do not allow seeking). Ensure files are sanitised (moov atom placed at start of file - e.g. for MP4, `ffmpeg -i /path/to/input.mp4 -c copy -movflags +faststart /path/to/output.mp4` - before embedding).
 */
 
 
@@ -97,7 +99,9 @@ uint_fast64_t get_fsize(const char* fp){
 #include <iostream> // for std::cout
 */
 void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t x, uint_fast16_t y, uint_fast16_t min_area, uint_fast16_t required_min_sum, uint_fast16_t &w, uint_fast16_t &h){
+    #ifdef DEBUG1
     std::cout << "iterate_over_all_rects_from_corner_smaller_than\n" << arr << "\nx=" << +x << "\ty=" << +y << "\tmin_area=" << +min_area << "\tmin_sum=" << +required_min_sum << "\tw=" << +w << "\th=" << +h << "\n";
+    #endif
     
     uint_fast16_t cum_sum;
     
@@ -114,7 +118,9 @@ void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t
     uint_fast16_t H;
     uint_fast16_t grid_h;
     
+    #ifdef DEBUG1
     std::cout << "grid_w=" << +grid_w << "\n\n";
+    #endif
     
     do {
         H = arr.rows - y;
@@ -128,24 +134,34 @@ void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t
             cv::Rect grid_shape(cv::Point(x, y), cv::Size(grid_w, grid_h));
             arr(grid_shape).copyTo(grid);
             cum_sum = cv::sum(grid)[0];
+            #ifdef DEBUG1
             std::cout << grid << std::endl;
             std::cout << +grid_w << "x" << +grid_h << "\t" << +cum_sum;
+            #endif
             if (cum_sum >= required_min_sum){
                 min_area = grid_w * grid_h;
                 w = grid_w;
                 h = grid_h;
+                #ifdef DEBUG1
                 std::cout << "min_area=" << +min_area << "\n\n";
+                #endif
                 break;
             } else if (H == 1)
                 break;
+            #ifdef DEBUG1
             std::cout << "\n\n";
+            #endif
         }
     } while (--grid_w != 0);
+    #ifdef DEBUG1
     std::cout << "\n\n";
+    #endif
 }
 
 void minimum_area_rectangle_of_sum_gt(cv::Mat &arr, uint_fast16_t &x, uint_fast16_t &y, uint_fast16_t &w, uint_fast16_t &h, uint_fast16_t min_sum){
+    #ifdef DEBUG1
     std::cout << "minimum_area_rectangle_of_sum_gt\n" << arr << "\nx=" << +x << "\ty=" << +y << "\tw=" << +w << "\th=" << +h << "\tmin_sum=" << +min_sum << "\n\n";
+    #endif
     /*
     Input:
         arr:            2D (w, h) array of uint8_t (values in [0, 8])
@@ -779,8 +795,8 @@ void iterate_over_all_bitgrids(
         minimum_area_rectangle_of_sum_gt(count_complex_grids, x, y, w, h, min_req_complex_grids);
         #ifdef DEBUG2
             printf("Minimum rectangle with >= %d encodable grids is cv::Rect((%d, %d), (%d, %d))\n", min_req_complex_grids, x, y, w, h);
+            std::cout << "(" << +x << ", " << +y << ")\t(" << +w << ", " << +h << ")\n";
         #endif
-        std::cout << "(" << +x << ", " << +y << ")\t(" << +w << ", " << +h << ")\n";
     }
 }
 
@@ -907,13 +923,13 @@ int main(const int argc, char *argv[]){
     chequerboard_b = chequerboard(1, grid_w, grid_h);
     
     uint_fast16_t n_bins;
+    uint_fast8_t n_binchars;
     #ifdef DEBUG1
         if (An_bins)
             n_bins = args::get(An_bins);
         else
             n_bins = 10;
         
-        uint_fast8_t n_binchars;
         if (An_binchars)
             n_binchars = args::get(An_binchars);
         else
