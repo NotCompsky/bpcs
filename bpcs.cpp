@@ -400,8 +400,6 @@ class BPCSStreamBuf { //: public std::streambuf {
     cv::Mat byteplane;
     
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
-    
-    bool past_first_grid;
 };
 
 inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
@@ -483,13 +481,22 @@ void BPCSStreamBuf::load_next_img(){
             }
         }
         this->bitplane = this->bitplanes[0];
+        
+        // Get conjugation grid
+        this->grids_since_conjgrid = 0;
+        this->set_next_grid();
+        this->conjugation_grid = this->grid;
+        
+        this->set_next_grid();
+        this->grids_since_conjgrid = 0;
+        this->gridbitindx = 0;
+        // NOTE: We do not need to call set_next_grid() again to set this->grid to the first grid we wish to write to, as the bitindex is initialised to 64, forcing sputc to call it. // Edit: This is false, due to this->gridbitindx
     } else {
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
         this->load_next_channel();
     }
     this->x = 0;
     this->y = 0;
-    this->past_first_grid = false; // Only care about this if this->embedding
 }
 
 void BPCSStreamBuf::write_conjugation_map(){
@@ -610,10 +617,7 @@ int BPCSStreamBuf::set_next_grid(){
             return 1;
         
         if (this->embedding){
-            if (this->past_first_grid)
-                this->write_conjugation_map();
-            else
-                this->past_first_grid = true;
+            this->write_conjugation_map();
             
             this->conjugation_grid = this->grid;
             this->conjgrid_bitplane_n = this->bitplane_n;
@@ -765,20 +769,19 @@ void BPCSStreamBuf::sputc(unsigned char c){
         mylog << "sputc " << +c << " (" << c << ")" << std::endl;
     #endif
     if (this->gridbitindx == 64){
-        if (this->past_first_grid){
-            #ifdef DEBUG
-                mylog.tedium('B');
-                mylog << "Last grid (pre-conj)" << "\n";
-                mylog.tedium();
-                mylog << this->grid << std::endl;
-            #endif
-            if (this->get_grid_complexity(this->grid) < this->min_complexity){
-                conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
-                this->conjugation_map[this->grids_since_conjgrid] = 1;
-            } else {
-                this->conjugation_map[this->grids_since_conjgrid] = 0;
-            }
-        } 
+        #ifdef DEBUG
+            mylog.tedium('B');
+            mylog << "Last grid (pre-conj)" << "\n";
+            mylog.tedium();
+            mylog << this->grid << std::endl;
+        #endif
+        if (this->get_grid_complexity(this->grid) < this->min_complexity){
+            conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
+            this->conjugation_map[this->grids_since_conjgrid] = 1;
+        } else {
+            this->conjugation_map[this->grids_since_conjgrid] = 0;
+        }
+        
         if (this->set_next_grid()){
             #ifdef DEBUG
                 print_histogram(this->complexities, 10, 200);
@@ -1169,7 +1172,8 @@ int main(const int argc, char *argv[]){
         do {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
-                n_msg_bytes |= (bpcs_stream.sgetc() << (8*j));
+                uchar c = bpcs_stream.sgetc();
+                n_msg_bytes |= (c << (8*j));
             }
             #ifdef DEBUG
                 mylog.info();
