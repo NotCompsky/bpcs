@@ -987,7 +987,7 @@ int main(const int argc, char *argv[]){
                         // outstream - not formatted CompskyLogger
                         os1.set_verbosity(0); goto continue_argloop;
                     default:
-                        goto invalid_argument;
+                        break;
                 }
             #else
             case 'v': verbose = true; goto continue_argloop;
@@ -1000,80 +1000,81 @@ int main(const int argc, char *argv[]){
         
         nextarg = argv[++i];
         
-        #ifdef DEBUG
-        if (second_character == '-'){
-            switch(arg[2]){
-                case 'b':
-                    switch(arg[3]){
-                        case 'i':
-                            switch(arg[4]){
-                                case 'n':
-                                    switch(arg[5]){
-                                        case 'c':
-                                            // --binchars
-                                            // Total number of `#` characters printed out in histogram totals
-                                            n_binchars = std::stoi(nextarg);
-                                            goto continue_argloop;
-                                        case 's':
-                                            // --bins
-                                            // Number of histogram bins
-                                            n_bins = std::stoi(nextarg);
-                                            goto continue_argloop;
-                                        default:
-                                            goto invalid_argument;
-                                    }
-                                default: goto invalid_argument;
-                            }
-                        default: goto invalid_argument;
-                    }
-                case 'c':
-                    switch(arg[3]){
-                        case 'o':
-                            // --conjlimit
-                            // Limit of conjugation grids
-                            MAX_CONJ_GRIDS = std::stoi(nextarg);
-                            goto continue_argloop;
-                        default: goto invalid_argument;
-                    }
-                case 'g':
-                    // --gridlimit
-                    // Quit after having moved through `gridlimit` grids
-                    gridlimit = std::stoi(nextarg);
-                    goto continue_argloop;
-                case 'l':
-                    switch(arg[3]){
-                        case 'o':
-                            switch(arg[4]){
-                                case 'g':
-                                    switch(arg[5]){
-                                        case '-':
-                                            // --log-fmt
-                                            // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
-                                            log_fmt = nextarg;
-                                            goto continue_argloop;
-                                        case '1':
-                                            mylog1.set_level(std::stoi(nextarg)); goto continue_argloop;
-                                        default:
-                                            goto invalid_argument;
-                                    }
-                                default:
-                                    goto invalid_argument;
-                            }
-                        default:
-                            goto invalid_argument;
-                    }
-                default: goto invalid_argument;
-            }
-        }
-        #endif
-        
         switch(second_character){
             case 'o': out_fmt = nextarg; goto continue_argloop;
             // --out-fmt
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
             case 'p': named_pipe_in = nextarg; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
-            case '-': break;
+            case '-':
+                switch(arg[2]){
+                    #ifdef DEBUG
+                    case 'b':
+                        switch(arg[3]){
+                            case 'i':
+                                switch(arg[4]){
+                                    case 'n':
+                                        switch(arg[5]){
+                                            case 'c':
+                                                // --binchars
+                                                // Total number of `#` characters printed out in histogram totals
+                                                n_binchars = std::stoi(nextarg);
+                                                goto continue_argloop;
+                                            case 's':
+                                                // --bins
+                                                // Number of histogram bins
+                                                n_bins = std::stoi(nextarg);
+                                                goto continue_argloop;
+                                            default:
+                                                goto invalid_argument;
+                                        }
+                                    default: goto invalid_argument;
+                                }
+                            default: goto invalid_argument;
+                        }
+                    case 'c':
+                        switch(arg[3]){
+                            case 'o':
+                                // --conjlimit
+                                // Limit of conjugation grids
+                                MAX_CONJ_GRIDS = std::stoi(nextarg);
+                                goto continue_argloop;
+                            default: goto invalid_argument;
+                        }
+                    case 'g':
+                        switch(arg[3]){
+                            case 'r':
+                                // --gridlimit
+                                // Quit after having moved through `gridlimit` grids
+                                gridlimit = std::stoi(nextarg);
+                                goto continue_argloop;
+                            default: goto invalid_argument;
+                        }
+                    case 'l':
+                        switch(arg[3]){
+                            case 'o':
+                                switch(arg[4]){
+                                    case 'g':
+                                        switch(arg[5]){
+                                            case '-':
+                                                // --log-fmt
+                                                // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
+                                                log_fmt = nextarg;
+                                                goto continue_argloop;
+                                            case '1':
+                                                mylog1.set_level(std::stoi(nextarg)); goto continue_argloop;
+                                            default:
+                                                goto invalid_argument;
+                                        }
+                                    default:
+                                        goto invalid_argument;
+                                }
+                            default:
+                                goto invalid_argument;
+                        }
+                    #endif
+                    default: goto invalid_argument;
+                }
             case 'm': break;
             default: goto invalid_argument;
         }
@@ -1254,9 +1255,17 @@ int main(const int argc, char *argv[]){
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             msg_file = fopen(fp, "r");
-            for (j=0; j<n_msg_bytes; ++j)
+            for (j=0; j<n_msg_bytes; ++j){
                 // WARNING: Assumes there are exactly n_msg_bytes
                 bpcs_stream.sputc(getc(msg_file));
+                #ifdef DEBUG
+                    if (whichbyte > gridlimit -10){
+                        mylog.set_verbosity(5);
+                        mylog.set_cl(0);
+                        mylog << "byte #" << +j << std::endl;
+                    }
+                #endif
+            }
             fclose(msg_file);
         }
         // After all messages, signal end with signalled size of 0
