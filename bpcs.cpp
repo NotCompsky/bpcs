@@ -1,6 +1,7 @@
 #include <args.hxx>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+
 #ifdef DEBUG1
     #include <opencv2/imgproc/imgproc.hpp> // for calcHist
 #endif
@@ -22,9 +23,8 @@
 #ifdef DEBUG2
     #define DEBUG1 DEBUG2
 #endif
-#ifdef DEBUG1
-    #include <iostream>
-#endif
+
+#include <iostream>
 #include <fstream>
 #include <functional> // for std::function
 #include <sys/stat.h> // for stat
@@ -59,6 +59,9 @@ Example usage:
 NOTE: Certain codecs (such as mp4) store metadata at the end of the file. This will cause ffplay to fail to stream the file from a named pipe (as named pipes do not allow seeking). Ensure files are sanitised (moov atom placed at start of file - e.g. for MP4, `ffmpeg -i /path/to/input.mp4 -c copy -movflags +faststart /path/to/output.mp4` - before embedding).
 */
 
+
+const char* NULLCHAR      = "[NULL]";
+const std::string NULLSTR = "[NULL]";
 
 
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
@@ -803,7 +806,7 @@ uint_fast8_t get_byte_from(std::vector<uint_fast8_t> &msg, uint_fast64_t indx, c
         byte |= msg[j] << shift++;
     }
     #ifdef DEBUG5
-        if (name != "")
+        if (name != NULLCHAR)
             std::cout << "[" << +(indx >> 3) << "] " << name << "  ==  " << +byte << std::endl;
     #endif
     return byte;
@@ -960,10 +963,17 @@ int main(const int argc, char *argv[]){
             mode += " to ";
             if (Ato_disk)
                 mode += "file";
-            mode += "display";
+            else
+                mode += "display";
         #endif
     } else {
-        out_fmt = "/tmp/bpcs.{fname}";
+        if (Amsg_fps){
+            #ifdef DEBUG1
+                std::cerr << "Must specify out_fmt when embedding" << std::endl;
+            #endif
+            return 1;
+        }
+        out_fmt = NULLCHAR;
         #ifdef DEBUG1
             mode += " to display";
         #endif
@@ -1113,7 +1123,7 @@ int main(const int argc, char *argv[]){
                 byte |= msg[j++] << shift++;
                 if (shift == 8){
                     if (byte == esc_byte) {
-                        extracted_msg.push_back(get_byte_from(msg, j, ""));
+                        extracted_msg.push_back(get_byte_from(msg, j, NULLCHAR));
                         j += 8;
                     } else if (byte == end_byte) {
                         either_endbyte_or_junk = get_byte_from(msg, j, "end_byte or junk");
@@ -1198,30 +1208,37 @@ int main(const int argc, char *argv[]){
                             cv::imshow(fp, decoded_img);
                             cv::waitKey(0);
                         } else {
-                            const char* named_pipe_fp = out_fp.c_str();
-                            
                             struct stat buffer;
                             
-                            if (stat(named_pipe_fp, &buffer) != 0){
-                                // Ensure named_pipe exists, else create
-                                if (mkfifo(named_pipe_fp, 0666) == -1){
-                                    // WARNING: mkfifo is POSIX-specific
-                                    #ifdef DEBUG1
-                                        std::cerr << "Failed to create named pipe `" << named_pipe_fp << "`" << std::endl;
-                                    #endif
-                                    throw std::runtime_error("");
+                            if (out_fmt == NULLSTR){
+                                // Pipe to unnamed pipe
+                                for (k=0; k<n_extracted_msg_bytes; ++k)
+                                    std::cout << extracted_msg[k];
+                            } else {
+                                // Pipe to named pipe
+                                const char* named_pipe_fp = out_fp.c_str();
+                                
+                                if (stat(named_pipe_fp, &buffer) != 0){
+                                    // Ensure named_pipe exists, else create
+                                    if (mkfifo(named_pipe_fp, 0666) == -1){
+                                        // WARNING: mkfifo is POSIX-specific
+                                        #ifdef DEBUG1
+                                            std::cerr << "Failed to create named pipe `" << named_pipe_fp << "`" << std::endl;
+                                        #endif
+                                        throw std::runtime_error("");
+                                    }
                                 }
+                                
+                                #ifdef DEBUG3
+                                    printf("Piping to `%s`\n", named_pipe_fp);
+                                #endif
+                                
+                                int fd = open(named_pipe_fp, O_WRONLY);
+                                write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
+                                close(fd);
+                                
+                                std::remove(named_pipe_fp);
                             }
-                            
-                            #ifdef DEBUG3
-                                printf("Piping to `%s`\n", named_pipe_fp);
-                            #endif
-                            
-                            int fd = open(named_pipe_fp, O_WRONLY);
-                            write(fd, (char*)extracted_msg_pointer, n_extracted_msg_bytes);
-                            close(fd);
-                            
-                            std::remove(named_pipe_fp);
                             
                             if (Apipe_in){
                                 // E.g. editing txt - we'd send it to our edited NoFrillsTextEditor `typed-piper`, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
@@ -1249,7 +1266,7 @@ int main(const int argc, char *argv[]){
                                     #endif
                                 }
                                 fclose(named_pipe_inf);
-                                std::remove(named_pipe_fp);
+                                std::remove(named_pipe_in);
                             }
                         }
                     }
