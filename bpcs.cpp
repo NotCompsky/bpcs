@@ -1222,6 +1222,10 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         mylog.set_verbosity(4);
         mylog << "sizeof(BPCSStreamBuf) == " << +sizeof(BPCSStreamBuf) << std::endl;
+    #else
+        #ifdef RELEASE_STATS
+            std::cout << "sizeof(BPCSStreamBuf) == " << +sizeof(BPCSStreamBuf) << std::endl;
+        #endif
     #endif
     
     BPCSStreamBuf bpcs_stream(min_complexity, img_fps, embedding, out_fmt);
