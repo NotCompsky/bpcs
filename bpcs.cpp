@@ -338,7 +338,11 @@ class BPCSStreamBuf {
     uint8_t bitplane_n;
     
     const std::vector<char*> img_fps;
+    
+    #ifdef EMBEDDOR
     std::vector<cv::Mat> channel_byteplanes;
+    #endif
+    cv::Mat channel;
     
     Matx88uc grid{8, 8, CV_8UC1};
     Matx88uc conjgrid{8, 8, CV_8UC1};
@@ -438,7 +442,7 @@ inline void BPCSStreamBuf::load_next_bitplane(){
         mylog << "Loading bitplane " << +(this->bitplane_n -1) << " of " << +this->n_bitplanes << " from channel " << +this->channel_n << std::endl;
     #endif
     
-    bitandshift(this->channel_byteplanes[this->channel_n], this->bitplane, this->n_bitplanes - ++this->bitplane_n);
+    bitandshift(this->channel, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
     
     #ifdef DEBUG
         mylog.set_verbosity(10);
@@ -453,9 +457,10 @@ void BPCSStreamBuf::load_next_channel(){
     #ifdef DEBUG
         mylog.set_verbosity(4);
         mylog.set_cl(0);
-        mylog << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
+        mylog << "Loading channel(sum==" << +cv::sum(this->channel)[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
-    convert_to_cgc(this->channel_byteplanes[this->channel_n]);
+    cv::extractChannel(this->im_mat, this->channel, this->channel_n);
+    convert_to_cgc(this->channel);
     this->bitplane_n = 0;
     this->load_next_bitplane();
 }
@@ -476,7 +481,9 @@ void BPCSStreamBuf::load_next_img(){
         assert(this->im_mat.isContinuous());
         // Apparently guaranteed to be the case for imread, as it calls create()
     #endif
+    #ifdef EMBEDDOR
     cv::split(this->im_mat, this->channel_byteplanes);
+    #endif
     this->n_channels = this->im_mat.channels();
     
     switch(this->im_mat.depth()){
@@ -565,7 +572,7 @@ void BPCSStreamBuf::load_next_img(){
             // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
             this->conjugate_grid(this->grid);
     
-    this->conjgrid = this->grid;
+    memcpy(this->conjgrid.val, this->grid.val, 64);
     
     // Get first data grid
     this->set_next_grid();
