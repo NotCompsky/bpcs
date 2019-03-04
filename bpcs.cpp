@@ -897,7 +897,7 @@ int main(const int argc, char *argv[]){
     std::vector<char*> nextlist;
     #endif
     char second_character;
-    do {
+    while (true) {
         // Find opts, until reach arg that does not begin with '-'
         arg = argv[++i];
         if (arg[0] != '-')
@@ -1051,7 +1051,7 @@ int main(const int argc, char *argv[]){
         
         continue_argloop:
         continue;
-    } while (true);
+    }
     
     
     
@@ -1224,7 +1224,7 @@ int main(const int argc, char *argv[]){
     #endif
         std::string fp_str;
         i = 0;
-        do {
+        while (true) {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
                 uchar c = bpcs_stream.sgetc();
@@ -1321,7 +1321,7 @@ int main(const int argc, char *argv[]){
             }
             
             ++i;
-        } while (true);
+        }
     #ifdef EMBEDDOR
     }
     #endif
