@@ -1,26 +1,6 @@
-#include <args.hxx>
+#include <args.hxx> // https://github.com/Taywee/args
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-
-#ifdef DEBUG7
-    #define DEBUG6 DEBUG7
-#endif
-#ifdef DEBUG6
-    #define DEBUG5 DEBUG6
-#endif
-#ifdef DEBUG5
-    #define DEBUG4 DEBUG5
-#endif
-#ifdef DEBUG4
-    #define DEBUG3 DEBUG4
-#endif
-#ifdef DEBUG3
-    #define DEBUG2 DEBUG3
-#endif
-#ifdef DEBUG2
-    #define DEBUG1 DEBUG2
-#endif
-
 #include <iostream>
 #include <fstream>
 #include <sys/stat.h> // for stat
@@ -32,7 +12,7 @@ namespace sodium {
     #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
 }
 
-#include <boost/log/trivial.hpp>
+#include <compsky/logger.hpp> // for CompskyLogger
 
 
 
@@ -71,6 +51,10 @@ static const uint_fast8_t MODE_EDIT = 3;
 
 
 
+#ifdef DEBUG
+    static CompskyLogger mylog(std::cout);
+#endif
+
 
 
 
@@ -98,18 +82,30 @@ inline uint_fast16_t xor_adj(
 
 
 void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "bitandshift " << +n << std::endl;
+    #endif
     for (uint_fast16_t i=0; i!=arr.rows*arr.cols; ++i)
         dest.data[i] = (arr.data[i] >> n) & 1;
-    #ifdef DEBUG3
-        std::cout << "bitandshift:  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
+    #ifdef DEBUG
+        mylog << "bitandshift:  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
     #endif
 }
 
 void bitshift_up(cv::Mat &arr, uint_fast16_t n){
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "bitshift_up " << +n << std::endl;
+    #endif
     cv::multiply(arr, 1 << n, arr);
 }
 
 void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "convert_to_cgc " << std::endl;
+    #endif
     cv::bitwise_xor(arr, arr/2, dest);
 }
 
@@ -170,26 +166,31 @@ void conjugate_grid(cv::Mat &grid){
  * Display statistics
  */
 
-#ifdef DEBUG1
+#ifdef DEBUG
 void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uint_fast16_t n_binchars){
     std::sort(std::begin(complexities), std::end(complexities));
     uint_fast64_t len_complexities = complexities.size();
     
-    std::cout << std::endl;
-    
     if (len_complexities == 0){
-        std::cout << "No complexities to display" << std::endl;
+        mylog.warn();
+        mylog << "No complexities to display" << std::endl;
         return;
     }
     
-    std::cout << "Complexities Histogram" << std::endl;
+    mylog.info('B');
+    mylog << "Complexities Histogram" << std::endl;
+    mylog.info();
+    
     float min = *std::min_element(std::begin(complexities), std::end(complexities));
     float max = *std::max_element(std::begin(complexities), std::end(complexities));
-    std::cout << "Total: " << +len_complexities << " between " << +min << ", " << +max << std::endl;
-    if (min == max)
+    mylog << "Total: " << +len_complexities << " between " << +min << ", " << +max << std::endl;
+    if (min == max){
+        mylog.warn();
+        mylog << "No complexity range" << std::endl;
         return;
+    }
     float step = (max - min) / (float)n_bins;
-    std::cout << "Bins:  " << +n_bins << " with step " << step << std::endl;
+    mylog << "Bins:  " << +n_bins << " with step " << step << std::endl;
     std::vector<uint_fast64_t> bin_totals;
     float bin_max = step;
     uint_fast64_t bin_total = 0;
@@ -209,15 +210,14 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
     uint_fast16_t k;
     for (j=0; j<n_bins; ++j){
         bin_total = n_binchars * bin_totals[j] / len_complexities;
-        std::cout << j * step << ": " << bin_totals[j] << std::endl << "   ";
+        mylog << j * step << ": " << bin_totals[j] << '\n' << "    ";
         for (k=0; k<bin_total; ++k){
-            std::cout << "#";
+            mylog << "#";
         }
-        std::cout << std::endl;
+        mylog << '\n';
     }
     
-    std::cout << n_bins * step << std::endl;
-    std::cout << std::endl << std::endl;
+    mylog << n_bins * step << "\n\n" << std::endl;
 }
 #endif
 
@@ -288,7 +288,7 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     unsigned char conjugation_map[64];
     
-    #ifdef DEBUG1
+    #ifdef DEBUG
         std::vector<float> complexities;
     #endif
     
@@ -317,8 +317,9 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
 }
 
 inline void BPCSStreamBuf::unxor_bitplane(){
-    #ifdef DEBUG3
-        std::cout << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
     #endif
     if (this->bitplane_n == 1)
         // Remember - value of this->bitplane_n is the index of the NEXT bitplane
@@ -333,8 +334,9 @@ inline void BPCSStreamBuf::unxor_bitplane(){
     
     bitshift_up(this->unXORed_bitplane, this->n_bitplanes - this->bitplane_n -1);
     
-    #ifdef DEBUG4
-        std::cout << "Adding unXORed bitplane(sum==" << +cv::sum(this->bitplane)[0] << ") to channel " << +this->byteplane.cols << "x" << +this->byteplane.rows << " byteplane" << std::endl;
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "Adding unXORed bitplane(sum==" << +cv::sum(this->bitplane)[0] << ") to channel " << +this->byteplane.cols << "x" << +this->byteplane.rows << " byteplane" << std::endl;
     #endif
     
     cv::bitwise_or(this->byteplane, this->unXORed_bitplane, this->byteplane);
@@ -344,29 +346,34 @@ inline void BPCSStreamBuf::load_next_bitplane(){
     if (this->embedding && this->bitplane_n != 0)
         this->unxor_bitplane();
     bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
-    #ifdef DEBUG3
-        std::cout << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
     #endif
     this->x = 0;
     this->y = 0;
 }
 
 inline void BPCSStreamBuf::commit_channel(){
-    #ifdef DEBUG3
-        std::cout << "Committing changes to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
-    #endif
     if (this->embedding && this->bitplane_n != 0){
         // this->bitplane_n refers to the index of the NEXT bitplane to load - a value of 0 can only mean it has yet to be initialised
         // Commit changes to last bitplane
-        while (this->bitplane_n++ < this->n_bitplanes)
+        while (this->bitplane_n < this->n_bitplanes){
+            this->load_next_bitplane();
             this->unxor_bitplane();
+        }
     }
     this->channel_byteplanes[this->channel_n -1] = this->byteplane; // WARNING: clone?
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "Committed changes to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
+    #endif
 }
 
 inline void BPCSStreamBuf::load_next_channel(){
-    #ifdef DEBUG3
-        std::cout << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
+    #ifdef DEBUG
+        mylog.dbg();
+        mylog << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
     if (this->embedding && this->channel_n != 0){
         // this->channel_n refers to the index of the NEXT channel to load - a value of 0 can only mean it has yet to be initialised
@@ -384,8 +391,9 @@ void BPCSStreamBuf::load_next_img(){
         this->commit_channel();
         this->save_im();
     }
-    #ifdef DEBUG2
-        std::cout << "Loading img " << +(this->img_n + 1) << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " <<  +this->min_complexity << std::endl;
+    #ifdef DEBUG
+        mylog.info();
+        mylog << "Loading img " << +(this->img_n + 1) << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " <<  +this->min_complexity << std::endl;
     #endif
     this->im_mat = cv::imread(this->img_fps[this->img_n++], CV_LOAD_IMAGE_COLOR);
     cv::split(this->im_mat, this->channel_byteplanes);
@@ -397,14 +405,15 @@ void BPCSStreamBuf::load_next_img(){
             break;
     }
     
-    #ifdef DEBUG2
-        std::cout << +this->im_mat.cols << "x" << +this->im_mat.rows << std::endl;
-        std::cout << +this->n_channels << " channels" << std::endl;
-        std::cout << "Bit-depth of " << +this->n_bitplanes << std::endl;
-        std::cout << std::endl;
+    #ifdef DEBUG
+        mylog.info();
+        mylog << +this->im_mat.cols << "x" << +this->im_mat.rows << '\n';
+        mylog << +this->n_channels << " channels" << '\n';
+        mylog << "Bit-depth of " << +this->n_bitplanes << '\n';
+        mylog << std::endl;
     #endif
     
-    #ifdef DEBUG1
+    #ifdef DEBUG
         this->complexities.clear();
     #endif
     
@@ -452,7 +461,7 @@ int BPCSStreamBuf::set_next_grid(){
             // TODO: Look into removing this unnecessary copy
             //complexity = this->get_grid_complexity(this->bitplane(grid_shape));
             
-            #ifdef DEBUG1
+            #ifdef DEBUG
                 this->complexities.push_back(complexity);
             #endif
             
@@ -540,24 +549,26 @@ void BPCSStreamBuf::save_im(){
     std::regex_search(this->img_fps[this->img_n -1], this->path_regexp_match, path_regexp);
     std::string out_fp = format_out_fp(this->out_fmt, this->path_regexp_match);
     cv::merge(this->channel_byteplanes, this->im_mat);
-    #ifdef DEBUG1
-        std::cout << "Saving to  `" << out_fp << "`" << std::endl;
+    #ifdef DEBUG
+        mylog.info();
+        mylog << "Saving to  `" << out_fp << "`" << std::endl;
     #endif
     
     std::regex_search(out_fp, this->path_regexp_match, path_regexp);
     
     if (path_regexp_match[5] != "png"){
-        #ifdef DEBUG1
-            std::cerr << "Must be encoded with lossless format, not `" << path_regexp_match[5] << "`" << std::endl;
+        #ifdef DEBUG
+            mylog.crit();
+            mylog << "Must be encoded with lossless format, not `" << path_regexp_match[5] << "`" << std::endl;
         #endif
-        throw std::runtime_error("");
+        throw std::invalid_argument(path_regexp_match[5]);
     }
     
     cv::imwrite(out_fp, this->im_mat);
 }
 
 void BPCSStreamBuf::end(){
-    #ifdef DEBUG1
+    #ifdef DEBUG
         print_histogram(complexities, 10, 200);
     #endif
     assert(this->embedding);
@@ -574,8 +585,9 @@ void BPCSStreamBuf::end(){
 uint_fast64_t get_fsize(const char* fp){
     struct stat stat_buf;
     if (stat(fp, &stat_buf) == -1){
-        #ifdef DEBUG1
-            std::cout << "No such file:  " << fp << std::endl;
+        #ifdef DEBUG
+            mylog.crit();
+            mylog << "No such file:  " << fp << std::endl;
         #endif
         throw std::runtime_error("");
     }
@@ -596,10 +608,15 @@ int main(const int argc, char *argv[]){
     args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
     args::HelpFlag                      Ahelp           (parser, "help", "Display help", {'h', "help"});
     
-    #ifdef DEBUG1
+    #ifdef DEBUG
+    args::Group dbg_parser(parser, "Debug args", args::Group::Validators::DontCare, args::Options::Global);
+    
+    args::CounterFlag                   Averbose        (dbg_parser, "verbose", "verbose (count) - verbosity is 3 + verbose - quiet, between 0 and 5 inclusive", {'v', "verbose"});
+    args::CounterFlag                   Aquiet          (dbg_parser, "quiet", "quiet (count)", {'q', "quiet"});
+    
     // Histogram args
-    args::ValueFlag<uint_fast8_t>       An_bins         (parser, "n_bins", "Number of histogram bins", {'B', "bins"});
-    args::ValueFlag<uint_fast8_t>       An_binchars     (parser, "n_binchars", "Total number of `#` characters printed out in histogram totals", {"binchars"});
+    args::ValueFlag<uint_fast8_t>       An_bins         (dbg_parser, "n_bins", "Number of histogram bins", {'B', "bins"});
+    args::ValueFlag<uint_fast8_t>       An_binchars     (dbg_parser, "n_binchars", "Total number of `#` characters printed out in histogram totals", {"binchars"});
     #endif
     
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
@@ -616,16 +633,16 @@ int main(const int argc, char *argv[]){
     args::Positional<float>             Amin_complexity (parser, "min_complexity", "Minimum bitplane complexity");
     args::PositionalList<std::string>   Aimg_fps        (parser, "img_fps", "File path(s) of input image file(s)");
     
-    #ifdef DEBUG1
+    #ifdef DEBUG
     try {
     #endif
         parser.ParseCLI(argc, argv);
-    #ifdef DEBUG1
+    #ifdef DEBUG
     } catch (const args::Completion& e) {
-        std::cout << e.what();
+        mylog << e.what();
         return 0;
     } catch (const args::Help&) {
-        std::cout << parser;
+        mylog << parser;
         return 0;
     } catch (const args::ParseError& e) {
         std::cerr << e.what() << std::endl;
@@ -635,15 +652,24 @@ int main(const int argc, char *argv[]){
     #endif
     
     if (Amin && !Amsg_fps){
-        #ifdef DEBUG1
+        #ifdef DEBUG
             std::cerr << parser;
         #endif
         return 1;
     }
     
+    uint_fast8_t verbosity = 3 + Averbose - Aquiet;
+    if (verbosity < 0)
+        verbosity = 0;
+    else if (verbosity > 5)
+        verbosity = 5;
+    mylog.setLevel(verbosity);
+    mylog.set_dt_fmt("[%T] ");
+    
     if (sodium::sodium_init() == -1) {
-        #ifdef DEBUG1
-            std::cerr << "libsodium init fail" << std::endl;
+        #ifdef DEBUG
+            mylog.crit();
+            mylog << "libsodium init fail" << std::endl;
         #endif
         return 1;
     }
@@ -651,7 +677,7 @@ int main(const int argc, char *argv[]){
     chequerboard_a = chequerboard(0, 8, 8);
     chequerboard_b = chequerboard(1, 8, 8);
     
-    #ifdef DEBUG1
+    #ifdef DEBUG
         uint_fast16_t n_bins;
         uint_fast8_t n_binchars;
         
@@ -682,12 +708,13 @@ int main(const int argc, char *argv[]){
         mode = MODE_EXTRACT;
     }
     
-    #ifdef DEBUG1
+    #ifdef DEBUG
+        mylog.info();
         switch(mode){
-            case MODE_EMBEDDING:     std::cout << "Embedding"; break;
-            case MODE_CALC_MAX_CAP:  std::cout << "Calculating max cap"; break;
-            case MODE_EDIT:          std::cout << "Editing"; break;
-            case MODE_EXTRACT:       std::cout << "Extracting"; break;
+            case MODE_EMBEDDING:     mylog << "Embedding"; break;
+            case MODE_CALC_MAX_CAP:  mylog << "Calculating max cap"; break;
+            case MODE_EDIT:          mylog << "Editing"; break;
+            case MODE_EXTRACT:       mylog << "Extracting"; break;
         }
     #endif
     
@@ -695,38 +722,40 @@ int main(const int argc, char *argv[]){
     std::string out_fp;
     if (Aout_fmt){
         out_fmt = args::get(Aout_fmt);
-        #ifdef DEBUG1
+        #ifdef DEBUG
             if (!Amsg_fps){
-                std::cout << " to ";
+                mylog << " to ";
                 if (Ato_disk)
-                    std::cout << "file";
+                    mylog << "file";
                 else
-                    std::cout << "display";
+                    mylog << "display";
             }
         #endif
     } else {
         if (Amsg_fps){
-            #ifdef DEBUG1
-                std::cerr << "Must specify out_fmt when embedding" << std::endl;
+            #ifdef DEBUG
+                mylog.crit();
+                mylog << "Must specify out_fmt when embedding" << std::endl;
             #endif
             return 1;
         }
         #ifdef DEBUG1
             else
-                std::cout << " to display";
+                mylog << " to display";
         #endif
         out_fmt = NULLCHAR;
     }
-    #ifdef DEBUG1
-        std::cout << std::endl;
+    #ifdef DEBUG
+        mylog << std::endl;
     #endif
     
     std::smatch path_regexp_match;
     
     const float min_complexity = args::get(Amin_complexity);
     if (min_complexity > 0.5){
-        #ifdef DEBUG1
-            std::cerr << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
+        #ifdef DEBUG
+            mylog.crit();
+            mylog << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
         #endif
         return 1;
     }
@@ -743,8 +772,9 @@ int main(const int argc, char *argv[]){
         FILE* msg_file;
         for (i=0; i<msg_fps.size(); ++i){
             fp = msg_fps[i];
-            #ifdef DEBUG2
-                std::cout << "Reading msg `" << fp << "`" << std::endl;
+            #ifdef DEBUG
+                mylog.info();
+                mylog << "Reading msg `" << fp << "`" << std::endl;
             #endif
             
             // At start, and between embedded messages, is a 64-bit integer telling us the size of the next embedded message
