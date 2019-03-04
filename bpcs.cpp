@@ -57,6 +57,10 @@ Example usage:
 */
 
 
+const char* named_pipe_in = "/tmp/bpcs.inpipe";
+
+
+
 const std::regex path_regexp("^((.*)/)?(([^/]+)[.]([^./]+))$");
 // Groups are full_match, optional, parent_dir, filename, basename, ext
 const std::regex fmt_fp("[{]fp[}]");
@@ -97,6 +101,7 @@ uint_fast64_t get_fsize(const char* fp){
 */
 void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t x, uint_fast16_t y, uint_fast16_t min_area, uint_fast16_t required_min_sum, uint_fast16_t &w, uint_fast16_t &h){
     std::cout << "iterate_over_all_rects_from_corner_smaller_than\n" << arr << "\nx=" << +x << "\ty=" << +y << "\tmin_area=" << +min_area << "\tmin_sum=" << +required_min_sum << "\tw=" << +w << "\th=" << +h << "\n";
+    
     uint_fast16_t cum_sum;
     
     uint_fast16_t grid_w;
@@ -127,14 +132,15 @@ void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t
             arr(grid_shape).copyTo(grid);
             cum_sum = cv::sum(grid)[0];
             std::cout << grid << std::endl;
-            std::cout << +cum_sum;
+            std::cout << +grid_w << "x" << +grid_h << "\t" << +cum_sum;
             if (cum_sum >= required_min_sum){
                 min_area = grid_w * grid_h;
                 w = grid_w;
                 h = grid_h;
                 std::cout << "min_area=" << +min_area << "\n\n";
                 break;
-            }
+            } else if (H == 1)
+                break;
             std::cout << "\n\n";
         }
     } while (--grid_w != 0);
@@ -418,6 +424,10 @@ void conjugate_grid(cv::Mat &grid){
  * Act on complex grids
  */
 
+int preserve_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg){
+    return 1;
+}
+
 int decode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complexity, cv::Mat &grid, uint_fast16_t grid_w, uint_fast16_t grid_h, std::vector<uint_fast8_t> &msg){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
     
@@ -514,83 +524,6 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
 
 
 /*
- * Iterate over complex grids
- */
-
-#ifdef DEBUG3
-void iterate_over_bitgrids__msg(const char* msg, uint_fast32_t n_grids_so_far, uint_fast32_t n_grids_used, uint_fast32_t n_grids_total, float min_complexity, uint_fast64_t msg_size){
-    std::cout << msg << ", at state:  " << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity;
-    if (msg_size != 0)
-        std::cout << "\tmsg size " << msg_size;
-    std::cout << std::endl;
-}
-#endif
-
-int iterate_over_bitgrids(std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, uint_fast16_t n_hztl_grids, uint_fast16_t n_vert_grids, uint_fast16_t bitplane_w, uint_fast16_t bitplane_h, uint_fast16_t grid_w, uint_fast16_t grid_h, std::function<int(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg){
-    // Pass reference to complexities, else a copy is passed (and changes are not kept)
-    // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results. Hence we use float not double
-    cv::Mat grid(grid_h, grid_w, CV_8UC1);
-    uint_fast32_t n_grids_used = 0;
-    float complexity;
-    int grid_fnct_status;
-    #ifdef DEBUG3
-        uint_fast64_t msg_size = 0;
-        uint_fast32_t n_grids_so_far = 0;
-        uint_fast32_t n_grids_total  = n_hztl_grids * n_vert_grids;
-    #endif
-    for (int i=0; i<n_hztl_grids; ++i){
-        for (int j=0; j<n_vert_grids; ++j){
-            cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
-            // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height)
-            bitplane(grid_shape).copyTo(grid);
-            complexity = grid_complexity(grid, grid_w, grid_h);
-            
-            #ifdef DEBUG1
-                complexities.push_back(complexity);
-            #endif
-            
-            if (complexity < min_complexity)
-                continue;
-            
-            grid_fnct_status = grid_fnct(bitplane, grid_shape, min_complexity, grid, grid_w, grid_h, msg);
-            
-            if (grid_fnct_status == 0){
-                #ifdef DEBUG3
-                    iterate_over_bitgrids__msg("msg exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, 0);
-                #endif
-                return 0;
-            }
-            
-            ++n_grids_used;
-        }
-        #ifdef DEBUG3
-            n_grids_so_far += n_vert_grids;
-        #endif
-        #ifdef DEBUG4
-            if (i % 10 == 0 || n_hztl_grids < 11 || msg_size < 20000){
-                msg_size = msg.size();
-                iterate_over_bitgrids__msg("debug", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg_size);
-            }
-        #endif
-    }
-    #ifdef DEBUG3
-        iterate_over_bitgrids__msg("bitplane exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg.size());
-    #endif
-    return 1;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-/*
  * Display statistics
  */
 
@@ -608,7 +541,10 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
     
     std::cout << std::endl;
     
-    assert(("len_complexities must be positive", len_complexities != 0));
+    if (len_complexities == 0){
+        std::cout << "No complexities to display" << std::endl;
+        return;
+    }
     
     std::cout << "Complexities Histogram" << std::endl;
     min = *std::min_element(std::begin(complexities), std::end(complexities));
@@ -643,6 +579,202 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
 }
 #endif
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+ * Iterate over complex grids
+ */
+
+#ifdef DEBUG3
+void iterate_over_bitgrids__msg(const char* msg, uint_fast32_t n_grids_so_far, uint_fast32_t n_grids_used, uint_fast32_t n_grids_total, float min_complexity, uint_fast64_t msg_size){
+    std::cout << msg << ", at state:  " << n_grids_so_far << " of " << n_grids_total << " grids\t" << n_grids_used << " with complexity >= " << min_complexity;
+    if (msg_size != 0)
+        std::cout << "\tmsg size " << msg_size;
+    std::cout << std::endl;
+}
+#endif
+
+int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::vector<float> &complexities, cv::Mat &bitplane, float min_complexity, uint_fast16_t n_hztl_grids, uint_fast16_t n_vert_grids, uint_fast16_t bitplane_w, uint_fast16_t bitplane_h, uint_fast16_t grid_w, uint_fast16_t grid_h, std::function<int(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&)> grid_fnct, std::vector<uint_fast8_t> &msg){
+    // Pass reference to complexities, else a copy is passed (and changes are not kept)
+    // Note that we will be doing millions of operations, and do not mind rounding errors - the important thing here is that we get consistent results. Hence we use float not double
+    cv::Mat grid(grid_h, grid_w, CV_8UC1);
+    uint_fast32_t n_grids_used = 0;
+    float complexity;
+    int grid_fnct_status;
+    #ifdef DEBUG3
+        uint_fast64_t msg_size = 0;
+        uint_fast32_t n_grids_so_far = 0;
+        uint_fast32_t n_grids_total  = n_hztl_grids * n_vert_grids;
+    #endif
+    for (int i=0; i<n_hztl_grids; ++i){
+        for (int j=0; j<n_vert_grids; ++j){
+            cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
+            // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height)
+            bitplane(grid_shape).copyTo(grid);
+            complexity = grid_complexity(grid, grid_w, grid_h);
+            
+            #ifdef DEBUG1
+                complexities.push_back(complexity);
+            #endif
+            
+            if (complexity < min_complexity)
+                continue;
+            
+            if (minimise_img)
+                ++count_complex_grids.at<uint_fast8_t>(j, i);
+            
+            grid_fnct_status = grid_fnct(bitplane, grid_shape, min_complexity, grid, grid_w, grid_h, msg);
+            
+            if (grid_fnct_status == 0){
+                #ifdef DEBUG3
+                    iterate_over_bitgrids__msg("msg exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, 0);
+                #endif
+                return 0;
+            }
+            
+            ++n_grids_used;
+        }
+        #ifdef DEBUG3
+            n_grids_so_far += n_vert_grids;
+        #endif
+        #ifdef DEBUG4
+            if (i % 10 == 0 || n_hztl_grids < 11 || msg_size < 20000){
+                msg_size = msg.size();
+                iterate_over_bitgrids__msg("debug", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg_size);
+            }
+        #endif
+    }
+    #ifdef DEBUG3
+        iterate_over_bitgrids__msg("bitplane exhausted", n_grids_so_far, n_grids_used, n_grids_total, min_complexity, msg.size());
+    #endif
+    return 1;
+}
+
+void iterate_over_all_bitgrids(
+    cv::Mat &im_mat,
+    std::vector<uint_fast8_t> &msg,
+    
+    bool minimise_img,
+    bool encoding,
+    std::function<int(cv::Mat&, cv::Rect&, const float, cv::Mat&, uint_fast16_t, uint_fast16_t, std::vector<uint_fast8_t>&)> grid_fnct,
+    
+    uint_fast8_t grid_w,
+    uint_fast8_t grid_h,
+    float min_complexity,
+    
+    uint_fast16_t n_bins,
+    uint_fast16_t n_binchars,
+    
+    std::vector<cv::Mat> &channel_byteplanes
+){
+    
+    cv::Mat XORed_byteplane;
+    cv::Mat prev_bitplane;
+    
+    uint_fast8_t n_channels = im_mat.channels();
+    
+    uint_fast16_t w = im_mat.cols;
+    uint_fast16_t h = im_mat.rows;
+    
+    // NOTE: OpenCV treats matrices in row-major order - i.e. accessed as (row_id, column_id). For images, this is (y, x).
+    
+    uint_fast16_t n_hztl_grids = w / grid_w;
+    uint_fast16_t n_vert_grids = h / grid_h;
+    
+    cv::Mat count_complex_grids = cv::Mat::zeros(n_vert_grids, n_hztl_grids, CV_8UC1);
+    
+    cv::Mat bitplane = cv::Mat(h, w, CV_8UC1);
+    // CV_8UC1 - aka CV_8UC(1) - means 1 channel of uint8
+    
+    std::vector<float> complexities;
+    complexities.reserve(n_hztl_grids * n_vert_grids);
+    // Speeds up assignments by reserving required memory beforehand
+    
+    uint_fast8_t n_bits;
+    switch(im_mat.depth()){
+        case CV_8UC1:
+            n_bits = 8;
+            break;
+    }
+    
+    #ifdef DEBUG3
+        std::cout << +w << "x" << +h << "\t" << +n_channels << " channels\t" << +n_bits << " depth" << std::endl;
+    #endif
+    
+    int iterate_over_bitgrids__result;
+    bool msg_was_exhausted = false;
+    
+    for (uint_fast8_t j=0; j<n_channels; ++j){
+        convert_to_cgc(channel_byteplanes[j], w, h, XORed_byteplane);
+        // Bitshifting up ensures that the last bits of (arr >> 1) are 0 - so the last digit of this CGC'd (or XOR'd-ish) arr is retained
+        
+        cv::Mat byteplane = cv::Mat::zeros(h, w, CV_8UC1);
+        
+        for (uint_fast8_t k=0; k<n_bits; ++k){
+            bitandshift(XORed_byteplane, bitplane, w, h, n_bits-k);
+            if (!msg_was_exhausted){
+                iterate_over_bitgrids__result = iterate_over_bitgrids(minimise_img, count_complex_grids, complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg);
+                
+                if (iterate_over_bitgrids__result == 0)
+                    msg_was_exhausted = true;
+            }
+            if (encoding){
+                cv::Mat unXORed_bitplane;
+                // TODO: We probably don't need to define new matrices here... but using src as the dest matrix seemed to cause issues (returned 0)
+                
+                if (k == 0)
+                    unXORed_bitplane = bitplane.clone();
+                else
+                    // Revert conversion of non-first planes to CGC
+                    cv::bitwise_xor(bitplane, prev_bitplane, unXORed_bitplane);
+                
+                prev_bitplane = unXORed_bitplane.clone();
+                // WARNING: MUST BE DEEP COPY!
+                
+                bitshift_up(unXORed_bitplane, w, h, n_bits-k);
+                
+                cv::bitwise_or(byteplane, unXORed_bitplane, byteplane);
+            }
+        }
+        if (encoding)
+            // i.e. if (mode == "Encoding")
+            channel_byteplanes[j] = byteplane;
+        if (msg_was_exhausted)
+            break;
+    }
+    
+    goto_print_histogram:
+    #ifdef DEBUG1
+        print_histogram(complexities, n_bins, n_binchars);
+    #endif
+    
+    if (minimise_img){
+        #ifdef DEBUG3
+            std::cout << count_complex_grids << "\n\n";
+        #endif
+        uint_fast16_t x = 0;
+        uint_fast16_t y = 0;
+        uint_fast16_t w, h;
+        uint_fast64_t min_req_complex_grids = 100; // msg.size() / (grid_w * grid_h);
+        minimum_area_rectangle_of_sum_gt(count_complex_grids, x, y, w, h, min_req_complex_grids);
+        #ifdef DEBUG2
+            printf("Minimum rectangle with >= %d encodable grids is cv::Rect((%d, %d), (%d, %d))\n", min_req_complex_grids, x, y, w, h);
+        #endif
+        std::cout << "(" << +x << ", " << +y << ")\t(" << +w << ", " << +h << ")\n";
+    }
+}
 
 
 
@@ -702,10 +834,6 @@ int main(const int argc, char *argv[]){
     args::ArgumentParser parser("(En|De)code BPCS", "This goes after the options.");
     args::HelpFlag                      Ahelp           (parser, "help", "Display help", {'h', "help"});
     
-    // Image format args
-    // TODO: automatically detect these settings per image file
-    args::ValueFlag<uint_fast8_t>       An_bits         (parser, "n_bits", "n_bits", {'b', "bits"});
-    
     #ifdef DEBUG1
     // Histogram args
     args::ValueFlag<uint_fast8_t>       An_bins         (parser, "n_bins", "Number of histogram bins", {'B', "bins"});
@@ -747,6 +875,13 @@ int main(const int argc, char *argv[]){
     }
     #endif
     
+    if (Amin && !Amsg_fps){
+        #ifdef DEBUG1
+            std::cerr << parser;
+        #endif
+        return 1;
+    }
+    
     uint_fast16_t grid_w;
     if (Agrid_w)
         grid_w = args::get(Agrid_w);
@@ -762,16 +897,8 @@ int main(const int argc, char *argv[]){
     chequerboard_a = chequerboard(0, grid_w, grid_h);
     chequerboard_b = chequerboard(1, grid_w, grid_h);
     
-    uint_fast8_t n_bits;
-    if (An_bits)
-        n_bits = args::get(An_bits);
-    else
-        n_bits = 8;
-    
-    uint_fast8_t n_channels;
-    
+    uint_fast16_t n_bins;
     #ifdef DEBUG1
-        uint_fast8_t n_bins;
         if (An_bins)
             n_bins = args::get(An_bins);
         else
@@ -828,15 +955,6 @@ int main(const int argc, char *argv[]){
     }
     
     cv::Mat im_mat;
-    cv::Mat XORed_byteplane;
-    cv::Mat bitplane;
-    cv::Mat prev_bitplane;
-    
-    uint_fast16_t w;
-    uint_fast16_t h;
-    
-    uint_fast16_t n_hztl_grids;
-    uint_fast16_t n_vert_grids;
     
     std::vector<std::string>img_fps = args::get(Aimg_fps);
     uint_fast16_t img_fps_len        = img_fps.size();
@@ -850,7 +968,7 @@ int main(const int argc, char *argv[]){
     }
     
     #ifdef DEBUG1
-        std::cout << mode << ": " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << ", " << +n_channels << " channels, " << +n_bits << " bits" << std::endl;
+        std::cout << mode << ": " << +img_fps_len << " img inputs, using: Complexity >= " <<  +min_complexity << std::endl;
         // Preceding primitive data type with `+` operator makes it print ASCII character representing that numerical value, rather than the ASCII character of that value
     #endif
     
@@ -881,16 +999,9 @@ int main(const int argc, char *argv[]){
         #ifdef DEBUG2
             std::cout << msg_size << "b to encode" << std::endl;
         #endif
-        
-        if (Amin){
-            minimum_area_rectangle_of_sum_gt(arr, uint_fast16_t &x, uint_fast16_t &y, uint_fast16_t &w, uint_fast16_t &h, uint_fast16_t min_sum){
     }
     
-    bool msg_was_exhausted = false;
-    
     int j;
-    
-    int iterate_over_bitgrids__result;
     
     std::smatch path_regexp_match;
     
@@ -909,75 +1020,16 @@ int main(const int argc, char *argv[]){
             return 1;
         }
         
-        n_channels = im_mat.channels();
-        
-        w = im_mat.cols;
-        h = im_mat.rows;
-        
-        // NOTE: OpenCV treats matrices in row-major order - i.e. accessed as (row_id, column_id). For images, this is (y, x).
-        
-        #ifdef DEBUG3
-            std::cout << +w << "x" << +h << "\t" << +n_channels << " channels" << std::endl;
-        #endif
-        
-        n_hztl_grids = w / grid_w;
-        n_vert_grids = h / grid_h;
-        
-        bitplane = cv::Mat(h, w, CV_8UC1);
-        // CV_8UC1 - aka CV_8UC(1) - means 1 channel of uint8
-        
         std::vector<cv::Mat> channel_byteplanes;
-        cv::split(im_mat.clone(), channel_byteplanes);
-        
-        std::vector<float> complexities;
-        complexities.reserve(n_hztl_grids * n_vert_grids);
-        // Speeds up assignments by reserving required memory beforehand
+        cv::split(im_mat, channel_byteplanes);
         
         if (Amin){
-            cv::Mat n_grids_w_min_complexity(n_vert_grids, n_hztl_grids, CV_8UC1);
-            for (j=0; j<n_channels; ++j)
+            #ifdef DEBUG2
+                std::cout << "Minimising img" << std::endl;
+            #endif
+            iterate_over_all_bitgrids(im_mat, msg, true, false, preserve_grid, grid_w, grid_h, min_complexity, n_bins, n_binchars, channel_byteplanes);
         }
-        
-        for (j=0; j<n_channels; ++j){
-            convert_to_cgc(channel_byteplanes[j], w, h, XORed_byteplane);
-            // Bitshifting up ensures that the last bits of (arr >> 1) are 0 - so the last digit of this CGC'd (or XOR'd-ish) arr is retained
-            
-            cv::Mat byteplane = cv::Mat::zeros(h, w, CV_8UC1);
-            
-            for (uint_fast8_t k=0; k<n_bits; ++k){
-                bitandshift(XORed_byteplane, bitplane, w, h, n_bits-k);
-                if (!msg_was_exhausted){
-                    iterate_over_bitgrids__result = iterate_over_bitgrids(complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg);
-                    
-                    if (iterate_over_bitgrids__result == 0)
-                        msg_was_exhausted = true;
-                }
-                if (encoding){
-                    cv::Mat unXORed_bitplane;
-                    // TODO: We probably don't need to define new matrices here... but using src as the dest matrix seemed to cause issues (returned 0)
-                    
-                    if (k == 0)
-                        unXORed_bitplane = bitplane.clone();
-                    else
-                        // Revert conversion of non-first planes to CGC
-                        cv::bitwise_xor(bitplane, prev_bitplane, unXORed_bitplane);
-                    
-                    prev_bitplane = unXORed_bitplane.clone();
-                    // WARNING: MUST BE DEEP COPY!
-                    
-                    bitshift_up(unXORed_bitplane, w, h, n_bits-k);
-                    
-                    cv::bitwise_or(byteplane, unXORed_bitplane, byteplane);
-                }
-            }
-            if (encoding)
-                // i.e. if (mode == "Encoding")
-                channel_byteplanes[j] = byteplane;
-            if (msg_was_exhausted)
-                goto msg_exhausted;
-        }
-        
-        msg_exhausted:
+        iterate_over_all_bitgrids(im_mat, msg, false, encoding, grid_fnct, grid_w, grid_h, min_complexity, n_bins, n_binchars, channel_byteplanes);
         
         if (encoding){
             // i.e. if (mode == "Encoding")
@@ -1006,6 +1058,12 @@ int main(const int argc, char *argv[]){
             uint_fast8_t shift = 0;
             uint_fast8_t byte = 0;
             uint_fast8_t either_endbyte_or_junk;
+            if (n_msg_bits < 32){
+                #ifdef DEBUG1
+                    std::cerr << "Failed to extract complete message; only " << +n_msg_bits << " bits were extracted" << std::endl;
+                #endif
+                return 1;
+            }
             #ifdef DEBUG1
                 std::cout << "Extracted message" << std::endl;
             #endif
@@ -1030,7 +1088,7 @@ int main(const int argc, char *argv[]){
                         if (either_endbyte_or_junk == end_byte){
                             goto print_extracted_msg;
                         } else if (either_endbyte_or_junk != end_byte+1){
-                            goto goto_print_histogram;
+                            return 0;
                         }
                         j += 8;
                         // Discard the previously calculated byte
@@ -1133,9 +1191,21 @@ int main(const int argc, char *argv[]){
                             if (Aedit){
                                 // E.g. editing txt - we'd send it to our edited NoFrillsTextEditor `typed-piper`, which reads the input stream from named_pipe, and - when saved - pipes the edited file to `/tmp/NoFrillsTextEditor.named_pipe`
                                 #ifdef DEBUG2
-                                    std::cout << "Reading edited file from `/tmp/bpcs.inpipe`" << std::endl;
+                                    std::cout << "Reading edited file from:  " << named_pipe_in << std::endl;
                                 #endif
-                                FILE* named_pipe_inf = fopen("/tmp/bpcs.inpipe", "r");
+                                
+                                if (stat(named_pipe_in, &buffer) != 0){
+                                    // Ensure named_pipe exists, else create
+                                    if (mkfifo(named_pipe_in, 0666) == -1){
+                                        // WARNING: mkfifo is POSIX-specific
+                                        #ifdef DEBUG1
+                                            std::cerr << "Failed to create named pipe `" << named_pipe_in << "`" << std::endl;
+                                        #endif
+                                        throw std::runtime_error("");
+                                    }
+                                }
+                                
+                                FILE* named_pipe_inf = fopen(named_pipe_in, "r");
                                 char c;
                                 while ((c=getc(named_pipe_inf)) != EOF){
                                     // TODO: Input this data to a bitarray vector, and BPCS embed into image. This will require the re-ordering of the majority of this code.
@@ -1150,13 +1220,6 @@ int main(const int argc, char *argv[]){
                 }
             }
         }
-        
-        goto_print_histogram:
-        #ifdef DEBUG1
-            print_histogram(complexities, n_bins, n_binchars);
-        #endif
-        if (msg_was_exhausted)
-            return 0;
     }
     return 0;
 }
