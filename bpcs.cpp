@@ -371,14 +371,13 @@ class BPCSStreamBuf { //: public std::streambuf {
         uint_fast64_t n_grids;
     #endif
     
+    uint_fast8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     uint_fast8_t grids_since_conjgrid;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
     
     uint_fast64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
     uint_fast64_t y;
-    
-    uint_fast8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     
     cv::Mat im_mat;
     std::vector<cv::Mat> channel_byteplanes;
