@@ -37,24 +37,25 @@
 #include <cstdio> // for std::remove
 
 /*
-Example usage:
+Example usage (here $a = 0.45)
     A:
         PIPE_FP=/tmp/bpcs.pipe
-        a=0.45
         ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.txt -o '/tmp/bpcs.png'
         (typed-piper "$PIPE_FP")& ./bpcs "$a" /tmp/bpcs.png -o "$PIPE_FP"
     B:
         PIPE_FP=/tmp/bpcs.pipe
-        a=0.45
         ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.mp4 -o '/tmp/bpcs.png'
         (ffmpeg "$PIPE_FP")& ./bpcs "$a" /tmp/bpcs.png -o "$PIPE_FP"
     
     C:
         # No need for pipe because OpenCV can disply images
         
-        a=0.45
         ./bpcs "$a" /tmp/img.jpg -m /tmp/msg.jpg -o '/tmp/bpcs.png'
         ./bpcs "$a" /tmp/bpcs.png
+    
+    D:
+        ./bpcs "$a" /tmp/img.png > /tmp/extracted.img.jpg
+        Equivalent to -o '/tmp/extracted.img.jpg', except will concatenate all extracted images into the single output.
 
 NOTE: Certain codecs (such as mp4) store metadata at the end of the file. This will cause ffplay to fail to stream the file from a named pipe (as named pipes do not allow seeking). Ensure files are sanitised (moov atom placed at start of file - e.g. for MP4, `ffmpeg -i /path/to/input.mp4 -c copy -movflags +faststart /path/to/output.mp4` - before embedding).
 */
@@ -861,6 +862,7 @@ int main(const int argc, char *argv[]){
     
     args::ValueFlag<std::string>        Aout_fmt        (parser, "out_fmt", "Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.", {'o', "out"});
     args::Flag                          Ato_disk        (parser, "to_disk", "Write to disk (as opposed to psuedofile)", {'d', "to-disk"});
+    args::Flag                          Adisplay_img    (parser, "display", "Display embedded images through OpenCV::imshow (rather than pipe)", {'D', "display"});
     
     args::ValueFlag<std::string>        Apipe_in        (parser, "pipe_in", "Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`", {'i', "pipe-in"});
     
@@ -1198,7 +1200,7 @@ int main(const int argc, char *argv[]){
                             std::cout << "Reading `" << ext << "` data stream originating from: " << fp << std::endl;
                         #endif
                         
-                        if (ext == "jpg" || ext == "png" || ext == "jpeg" || ext == "bmp"){
+                        if (out_fmt == NULLSTR && Adisplay_img && (ext == "jpg" || ext == "png" || ext == "jpeg" || ext == "bmp")){
                             cv::Mat rawdata(1, n_extracted_msg_bytes, CV_8UC1, extracted_msg_pointer);
                             cv::Mat decoded_img = cv::imdecode(rawdata, CV_LOAD_IMAGE_UNCHANGED);
                             if (decoded_img.data == NULL){
