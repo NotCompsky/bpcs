@@ -98,7 +98,16 @@ uint_fast64_t get_fsize(const char* fp){
 #include <opencv2/core/core.hpp>
 #include <iostream> // for std::cout
 */
-void iterate_over_all_rects_from_corner_smaller_than(cv::Mat &arr, uint_fast16_t x, uint_fast16_t y, uint_fast16_t min_area, uint_fast16_t required_min_sum, uint_fast16_t &w, uint_fast16_t &h){
+void iterate_over_all_rects_from_corner_smaller_than(
+    cv::Mat &arr,
+    
+    uint_fast16_t x, uint_fast16_t y,
+    
+    uint_fast16_t min_area,
+    uint_fast16_t required_min_sum,
+    
+    uint_fast16_t &w, uint_fast16_t &h
+){
     #ifdef DEBUG1
     std::cout << "iterate_over_all_rects_from_corner_smaller_than\n" << arr << "\nx=" << +x << "\ty=" << +y << "\tmin_area=" << +min_area << "\tmin_sum=" << +required_min_sum << "\tw=" << +w << "\th=" << +h << "\n";
     #endif
@@ -177,8 +186,8 @@ void minimum_area_rectangle_of_sum_gt(cv::Mat &arr, uint_fast16_t &x, uint_fast1
     uint_fast16_t min_area = arr.cols * arr.rows;
     uint_fast16_t min_area_tmp;
     
-    for (uint_fast16_t j=0; j<arr.rows; ++j){
-        for (uint_fast16_t i=0; i<arr.cols; ++i){
+    for (int j=0; j!=arr.rows; ++j){
+        for (int i=0; i!=arr.cols; ++i){
             iterate_over_all_rects_from_corner_smaller_than(arr, i, j, min_area, min_sum, w, h);
             min_area_tmp = w * h;
             if (min_area_tmp < min_area){
@@ -253,7 +262,7 @@ uint_fast8_t add_bytes_to_msg(std::vector<uint_fast8_t> &msg, std::vector<uint_f
     
     uint_fast64_t n_bytes = bytes.size();
     uint_fast8_t byte;
-    for (int j=0; j<n_bytes; ++j){
+    for (uint_fast64_t j=0; j<n_bytes; ++j){
         byte = bytes[j];
         if (byte == esc_byte || byte == end_byte){
             add_msg_bits(msg, esc_byte);
@@ -704,8 +713,10 @@ void iterate_over_all_bitgrids(
     uint_fast8_t grid_h,
     float min_complexity,
     
-    uint_fast16_t n_bins,
-    uint_fast16_t n_binchars,
+    #ifdef DEBUG1
+        uint_fast16_t n_bins,
+        uint_fast16_t n_binchars,
+    #endif
     
     std::vector<cv::Mat> &channel_byteplanes
 ){
@@ -922,9 +933,10 @@ int main(const int argc, char *argv[]){
     chequerboard_a = chequerboard(0, grid_w, grid_h);
     chequerboard_b = chequerboard(1, grid_w, grid_h);
     
-    uint_fast16_t n_bins;
-    uint_fast8_t n_binchars;
     #ifdef DEBUG1
+        uint_fast16_t n_bins;
+        uint_fast8_t n_binchars;
+        
         if (An_bins)
             n_bins = args::get(An_bins);
         else
@@ -1002,7 +1014,7 @@ int main(const int argc, char *argv[]){
     
     std::vector<uint_fast8_t> msg;
     
-    int i;
+    uint_fast16_t i;
     
     uint_fast8_t esc_byte;
     uint_fast8_t end_byte;
@@ -1013,7 +1025,7 @@ int main(const int argc, char *argv[]){
         const uint_fast16_t bits_encoded_per_grid = grid_w * grid_h -1;
         uint_fast64_t msg_size = msg.size();
         
-        int diff = (int)msg_size % bits_encoded_per_grid;
+        uint_fast16_t diff = (int)msg_size % bits_encoded_per_grid;
         if (diff != 0){
             diff = bits_encoded_per_grid - diff;
             
@@ -1058,9 +1070,21 @@ int main(const int argc, char *argv[]){
                 std::cout << "Minimising img" << std::endl;
             #endif
             std::vector<float> complexities_tmp;
-            iterate_over_all_bitgrids(im_mat, msg, complexities_tmp, true, false, preserve_grid, grid_w, grid_h, min_complexity, n_bins, n_binchars, channel_byteplanes);
+            iterate_over_all_bitgrids(
+                im_mat, msg, complexities_tmp, true, false, preserve_grid, grid_w, grid_h, min_complexity,
+                #ifdef DEBUG1
+                    n_bins, n_binchars,
+                #endif
+                channel_byteplanes
+            );
         }
-        iterate_over_all_bitgrids(im_mat, msg, complexities, false, (Amsg_fps), grid_fnct, grid_w, grid_h, min_complexity, n_bins, n_binchars, channel_byteplanes);
+        iterate_over_all_bitgrids(
+            im_mat, msg, complexities, false, (Amsg_fps), grid_fnct, grid_w, grid_h, min_complexity,
+            #ifdef DEBUG1
+                n_bins, n_binchars,
+            #endif
+            channel_byteplanes
+        );
         
         if (Amsg_fps){
             // i.e. if (mode == "Encoding")
@@ -1141,7 +1165,7 @@ int main(const int argc, char *argv[]){
             } while (true);
             
             print_extracted_msg:
-            int n_extracted_msgs = stream_starts.size() -1;
+            uint_fast16_t n_extracted_msgs = stream_starts.size() -1;
             
             uint_fast64_t n_extracted_msg_bytes;
             
