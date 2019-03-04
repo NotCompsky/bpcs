@@ -642,7 +642,7 @@ int BPCSStreamBuf::set_next_grid(){
     mylog.set_cl(0);
     mylog << "conjmap_indx " << +this->conjmap_indx << std::endl; // tmp
     #endif
-    if (this->conjmap_indx == 64){ 
+    if (this->conjmap_indx == 63){ 
         // First grid in every 64 is reserved for conjugation map
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
         // The old such grid must have the conjugation map emptied into it
@@ -789,7 +789,7 @@ uchar BPCSStreamBuf::sgetc(){
             abort();
             #endif
         
-        if (this->conjugation_map[this->conjmap_indx++])
+        if (this->conjugation_map[++this->conjmap_indx])
             this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
