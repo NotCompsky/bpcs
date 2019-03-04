@@ -81,31 +81,26 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
             ++it;
             if (*it == '{'){
                 result += '{';
-                continue;
             } else if (*it == 'b'){
                 it += 8; // WARNING: Skipping avoids error checking.
                 result += basename;
-                continue;
             } else if (*it == 'd'){
                 it += 3;
                 result += dir;
-                continue;
             } else if (*it == 'e'){
                 it += 3;
                 result += ext;
-                continue;
             } else if (*it == 'f'){
                 ++it;
                 if (*it == 'p'){
                     it += 1;
                     result += fp;
-                    continue;
                 } else {
                     it += 4;
                     result += fname;
-                    continue;
                 }
             }
+            continue;
         } else {
             result += *it;
         }
@@ -167,8 +162,8 @@ inline void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
     
     cv::bitwise_and(dest, 1, dest);
     */
-    for (uchar* bit = arr.data;  bit != arr.data + arr.rows*arr.cols;  ++bit)
-        *bit = (*bit >> n) & 1;
+    for (uint_fast16_t i=0; i<arr.rows*arr.cols; ++i)
+        dest.data[i] = (arr.data[i] >> n) & 1;
     #ifdef DEBUG
         mylog.tedium();
         mylog << "bitandshift " << +n << ":  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
@@ -183,12 +178,15 @@ inline void bitshift_up(cv::Mat &arr, uint_fast16_t n){
     cv::multiply(arr, 1 << n, arr);
 }
 
-inline void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
-    for (uchar* bit = arr.data;  bit != arr.data + arr.rows*arr.cols;  ++bit)
-        *bit = *bit ^ (*bit >> 1);
+inline void convert_to_cgc(cv::Mat &arr){
     #ifdef DEBUG
         mylog.tedium();
-        mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
+        mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==";
+    #endif
+    for (uchar* bit = arr.data;  bit != arr.data + (arr.rows*arr.cols);  ++bit)
+        *bit = *bit ^ (*bit >> 1);
+    #ifdef DEBUG
+        mylog << +cv::sum(arr)[0] << ")" << std::endl;
     #endif
 }
 
@@ -200,6 +198,7 @@ inline void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
 /*
  * Initialise chequerboards
  */
+#ifdef DEBUG
 cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
     // indx should be 0 or 1
     cv::Mat arr = cv::Mat(h, w, CV_8UC1);
@@ -211,7 +210,28 @@ cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
 
 static const cv::Mat chequerboard_a = chequerboard(0, 8, 8);
 static const cv::Mat chequerboard_b = chequerboard(1, 8, 8);
-
+#else
+static const cv::Mat chequerboard_a = cv::Mat(8,8, CV_8UC1, {
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+});
+static const cv::Mat chequerboard_b = cv::Mat(8,8, CV_8UC1, {
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+                                        1, 0, 1, 0, 1, 0, 1, 0,
+                                        0, 1, 0, 1, 0, 1, 0, 1,
+});
+#endif
 
 
 
@@ -393,7 +413,6 @@ class BPCSStreamBuf { //: public std::streambuf {
     cv::Mat unXORed_bitplane;
     
     cv::Mat byteplane;
-    cv::Mat XORed_byteplane;
     
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
     
@@ -409,7 +428,7 @@ inline void BPCSStreamBuf::load_next_bitplane(){
         if (this->embedding)
             throw std::runtime_error("load_next_bitplane should not be used for embedding");
     #endif
-    bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
+    bitandshift(this->channel_byteplanes[this->channel_n], this->bitplane, this->n_bitplanes - ++this->bitplane_n);
     
     #ifdef DEBUG
         mylog.dbg();
@@ -422,10 +441,10 @@ void BPCSStreamBuf::load_next_channel(){
         mylog.dbg();
         mylog << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
-    convert_to_cgc(this->channel_byteplanes[this->channel_n], this->XORed_byteplane);
-    ++this->channel_n;
+    convert_to_cgc(this->channel_byteplanes[this->channel_n]);
     this->bitplane_n = 0;
     this->load_next_bitplane();
+    ++this->channel_n;
 }
 
 void BPCSStreamBuf::load_next_img(){
@@ -458,23 +477,21 @@ void BPCSStreamBuf::load_next_img(){
         this->complexities.clear();
     #endif
     
-    this->XORed_byteplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1);
-    
     this->channel_n = 0;
     if (this->embedding){
         uint_fast8_t k = 0;
         uint_fast8_t i = 0;
         for (uint_fast8_t j=0; j<this->n_channels; ++j){
-            convert_to_cgc(this->channel_byteplanes[j], this->XORed_byteplane);
+            convert_to_cgc(this->channel_byteplanes[j]);
             i = 0;
             while (i < this->n_bitplanes){
                 this->bitplanes[k] = cv::Mat::zeros(this->im_mat.rows, this->im_mat.cols, CV_8UC1);
-                bitandshift(this->XORed_byteplane, this->bitplanes[k++], this->n_bitplanes - ++i);
+                bitandshift(this->channel_byteplanes[j], this->bitplanes[k++], this->n_bitplanes - ++i);
             }
         }
         this->bitplane = this->bitplanes[0];
     } else {
-        convert_to_cgc(this->channel_byteplanes[this->channel_n], this->XORed_byteplane);
+        convert_to_cgc(this->channel_byteplanes[this->channel_n]);
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
         this->load_next_channel();
     }
@@ -844,10 +861,6 @@ void BPCSStreamBuf::save_im(){
 
 
 int main(const int argc, char *argv[]){
-    char* arg;
-    char* nextarg;
-    std::vector<char*> nextlist;
-    
     bool to_disk = false;
     bool to_display = false;
     
@@ -870,6 +883,12 @@ int main(const int argc, char *argv[]){
         uint_fast8_t n_binchars = 200;
     #endif
     uint_fast64_t i = 0;
+    
+    
+    /* Argument parser */
+    char* arg;
+    char* nextarg;
+    std::vector<char*> nextlist;
     char second_character;
     do {
         // Find opts, until reach arg that does not begin with '-'
