@@ -345,6 +345,10 @@ class BPCSStreamBuf {
     
     #ifdef EMBEDDOR
     void write_conjugation_map();
+    #ifdef TESTS
+    void unset_conjmap();
+    void assert_conjmap_set();
+    #endif
     #endif
     
     inline float get_grid_complexity(Matx88uc&);
@@ -486,6 +490,10 @@ void BPCSStreamBuf::load_next_img(){
     }
     #endif
     
+    #ifdef TESTS
+        this->unset_conjmap();
+    #endif
+    
     this->conjmap_indx = 0;
     
     // Get conjugation grid
@@ -494,14 +502,17 @@ void BPCSStreamBuf::load_next_img(){
     #ifdef EMBEDDOR
     if (this->embedding){
         this->conjgrid_orig = this->grid_orig;
-    } else
+    } else {
     #endif
         if (this->grid.val[63] != 0)
             // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
             // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
             this->conjugate_grid(this->grid);
-    
-    memcpy(this->conjgrid.val, this->grid.val, 64);
+        
+        memcpy(this->conjgrid.val, this->grid.val, 64);
+    #ifdef EMBEDDOR
+    }
+    #endif
     
     // Get first data grid
     this->set_next_grid();
@@ -516,14 +527,49 @@ void BPCSStreamBuf::load_next_img(){
         if (this->conjgrid.val[0])
             this->conjugate_grid(this->grid);
         this->conjmap_indx = 1;
+        // Must be 1 for extracting, and 0 for embedding
+        // It denotes the index of the *next* complex grid when extracting, but the index of the *current* grid when embedding.
     #ifdef EMBEDDOR
     }
     #endif
 }
 
+
+#ifdef EMBEDDOR
+#ifdef TESTS
+void BPCSStreamBuf::unset_conjmap(){
+    for (uint8_t i=0; i<64; ++i)
+        this->conjgrid.val[i] = 2;
+}
+void BPCSStreamBuf::assert_conjmap_set(){
+    for (uint8_t i=0; i<63; ++i){
+        if (this->conjgrid.val[i] == 2){
+            std::cerr << "conjmap[" << +i << "] was not set\n" << this->conjgrid << std::endl;
+            goto abort_w_info;
+        }
+    }
+    if (this->conjgrid.val[63] != 2){
+        std::cerr << "conjmap[63] was set\n" << this->conjgrid << std::endl;
+        goto abort_w_info;
+    }
+    
+    return;
+    
+    abort_w_info:
+    this->print_state();
+    abort();
+}
+#endif
+#endif
+
+
 #ifdef EMBEDDOR
 void BPCSStreamBuf::write_conjugation_map(){
     float complexity;
+    
+    #ifdef TESTS
+        this->assert_conjmap_set();
+    #endif
     
     #ifdef DEBUG
         mylog.set_verbosity(6);
@@ -559,10 +605,15 @@ void BPCSStreamBuf::write_conjugation_map(){
     
     cv::Mat(this->conjgrid).copyTo(this->conjgrid_orig);
     
+    #ifdef TESTS
+        this->unset_conjmap();
+        assert(cv::sum(this->conjgrid_orig)[0] < 65);
+    #endif
+    
     #ifdef DEBUG
         mylog.set_verbosity(6);
         mylog.set_cl(0);
-        mylog << "Written conjugation map" << "\n" << this->conjgrid << std::endl;
+        mylog << "Written conjugation map" << "\n" << this->conjgrid_orig << std::endl;
     #endif
 }
 #endif
@@ -794,6 +845,9 @@ void BPCSStreamBuf::save_im(){
     // TODO: Value of char inserted by sputc would ideally be randomised
     while ((this->gridbitindx != 8) && (this->gridbitindx != 0))
         this->sputc(0);
+    
+    for (uint8_t i=this->conjmap_indx; i<63; ++i)
+        this->conjgrid.val[i] = 0;
     
     this->write_conjugation_map();
     
