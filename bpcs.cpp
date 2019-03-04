@@ -495,7 +495,7 @@ int BPCSStreamBuf::set_next_grid(){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
-            this->bitplane(grid_shape).copyTo(this->grid);
+            this->grid = this->bitplane(grid_shape);
             complexity = this->get_grid_complexity(this->grid);
             
             // TODO: Look into removing this unnecessary copy
