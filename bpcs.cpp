@@ -628,12 +628,12 @@ int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::
     cv::Rect xor_adj_rect4(cv::Point(0, 1), cv::Size(grid_w,   grid_h-1));
     uint_fast32_t n_grids_used = 0;
     float complexity;
-    uint_fast64_t msg_size_orig = msg.size();
-    uint_fast64_t msg_size = msg_size_orig;
+    uint_fast64_t msg_size = msg.size();
+    bool embedding = (msg_size != 0);
     #ifdef DEBUG3
         uint_fast32_t n_grids_so_far = 0;
         uint_fast32_t n_grids_total  = n_hztl_grids * n_vert_grids;
-        std::cout << "msg_size_orig:  " << +msg_size_orig << std::endl;
+        std::cout << "msg_size before embedding:  " << +msg_size << std::endl;
     #endif
     for (uint_fast16_t i=0; i<n_hztl_grids; ++i){
         for (uint_fast16_t j=0; j<n_vert_grids; ++j){
@@ -651,7 +651,12 @@ int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::
             if (minimise_img)
                 ++count_complex_grids.at<uint_fast8_t>(j, i);
             
-            if (msg_size_orig && msg_size == 0){
+            grid_fnct(
+                bitplane, grid_shape, min_complexity, grid, grid_w, grid_h, msg, msg_size,
+                xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4
+            );
+            
+            if (embedding && msg_size == 0){
                 // If started off with non-empty msg, but now have empty msg
                 // We've successfully embedded the entirety of the message bits into the image grids
                 // Note that we can only guarantee that the msg will either entirely fit or have 0 length if we ensure its length is divisible by grid_w*grid_h earlier, after initialising it.
@@ -660,11 +665,6 @@ int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::
                 #endif
                 return 0;
             }
-            
-            grid_fnct(
-                bitplane, grid_shape, min_complexity, grid, grid_w, grid_h, msg, msg_size,
-                xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4
-            );
             
             ++n_grids_used;
         }
