@@ -866,6 +866,12 @@ void BPCSStreamBuf::save_im(){
         bitshift_up(this->channel_byteplanes[i], j--);
         do {
             --k;
+            #ifdef TESTS
+                if (!this->bitplanes[k].cols){
+                    std::cerr << "bitplane " << +k << " is empty" << std::endl;
+                    abort();
+                }
+            #endif
             cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
             
             this->bitplane = this->bitplanes[k].clone();
