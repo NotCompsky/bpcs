@@ -526,7 +526,7 @@ void BPCSStreamBuf::load_next_img(){
         this->grids_since_conjgrid = 0;
         this->set_next_grid();
         this->conjugation_grid = this->grid;
-        this->conjugation_grid_ptr = this->bitplane.data + (this->y)*(this->bitplane.cols) + (this->x -8);
+        this->conjugation_grid_ptr = this->grid_ptr;
         
         this->set_next_grid();
         this->grids_since_conjgrid = 0;
@@ -561,7 +561,7 @@ void BPCSStreamBuf::write_conjugation_map(){
     }
     
     // this->conjugation_grid_ptr should obviously be at the 64th element, due to the memcpy-ing above
-    *this->conjugation_grid_ptr = 0;
+    *(this->conjugation_grid_ptr) = 0;
     
     complexity = this->get_grid_complexity(this->conjugation_grid);
     
@@ -653,7 +653,7 @@ int BPCSStreamBuf::set_next_grid(){
             this->write_conjugation_map();
             
             this->conjugation_grid = this->grid;
-            this->conjugation_grid_ptr = this->bitplane.data + (this->y)*(this->bitplane.cols) + (this->x -8);
+            this->conjugation_grid_ptr = this->grid_ptr;
         } else {
             if (*(this->grid_ptr + 7*(this->bitplane.cols) + 7) != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
@@ -959,6 +959,8 @@ int main(const int argc, char *argv[]){
         
         uint_fast16_t n_bins = 10;
         uint_fast8_t n_binchars = 200;
+    #else
+        bool verbose = false;
     #endif
     uint_fast64_t i = 0;
     
@@ -988,6 +990,10 @@ int main(const int argc, char *argv[]){
             #ifdef DEBUG
             case 'v': ++verbosity; goto continue_argloop;
             case 'q': --verbosity; goto continue_argloop;
+            #else
+            case 'v': verbose = true; goto continue_argloop;
+            // --verbose
+            // If writing to disk, print output filepath
             #endif
         }
         
@@ -1293,6 +1299,10 @@ int main(const int argc, char *argv[]){
                     for (j=0; j<n_msg_bytes; ++j)
                         of.put(bpcs_stream.sgetc());
                     of.close();
+                    #ifndef DEBUG
+                        if (verbose)
+                            std::cout << fp_str << std::endl;
+                    #endif
                 } else if (mode == MODE_EXTRACT){
                     unsigned char data[n_msg_bytes];
                     for (j=0; j<n_msg_bytes; ++j)
