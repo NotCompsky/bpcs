@@ -474,8 +474,26 @@ void BPCSStreamBuf::load_next_img(){
     this->n_channels = this->im_mat.channels();
     
     switch(this->im_mat.depth()){
-        case CV_8UC1:
+        case CV_8U:
             this->n_bitplanes = 8;
+            break;
+        case CV_8S:
+            this->n_bitplanes = 8;
+            break;
+        case CV_16U:
+            this->n_bitplanes = 16;
+            break;
+        case CV_16S:
+            this->n_bitplanes = 16;
+            break;
+        case CV_32S:
+            this->n_bitplanes = 32;
+            break;
+        case CV_32F:
+            this->n_bitplanes = 32;
+            break;
+        case CV_64F:
+            this->n_bitplanes = 64;
             break;
     }
     
