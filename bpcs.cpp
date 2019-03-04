@@ -702,9 +702,6 @@ int BPCSStreamBuf::set_next_grid(){
             this->grid = this->bitplane(grid_shape);
             complexity = this->get_grid_complexity(this->grid);
             
-            // TODO: Look into removing this unnecessary copy
-            //complexity = this->get_grid_complexity(this->bitplane(grid_shape));
-            
             #ifdef DEBUG
                 //this->complexities.push_back(complexity);
             #endif
@@ -796,7 +793,6 @@ uchar BPCSStreamBuf::sgetc(){
             #else
             abort();
             #endif
-            //return std::char_traits<char>::eof;
         
         if (*(this->conjugation_map_ptr++))
             this->conjugate_grid(this->grid);
@@ -875,7 +871,7 @@ void BPCSStreamBuf::sputc(uchar c){
 }
 
 void BPCSStreamBuf::save_im(){
-    // Called either when we've exhausted this->im_mat's last channel and at end of embedding
+    // Called either when we've exhausted this->im_mat's last channel, or when we've reached the end of embedding
     #ifdef TESTS
         assert(this->embedding);
     #endif
@@ -1210,9 +1206,7 @@ int main(const int argc, char *argv[]){
         for (i=0; i<n_msg_fps; ++i){
             fp = msg_fps[i];
             // At start, and between embedded messages, is a 64-bit integer telling us the size of the next embedded message
-            // TODO: XOR this value with 64-bit integer, else the fact that the first 32+ bits will almost certainly be 0 will greatly help unwanted decryption
-            
-            // TODO: bpcs_stream << encryption << msg_file
+            // The first 32+ bits will almost certainly be 0 - but this will not aid decryption of the rest of the contents (assuming we are using an encryption method that is resistant to known-plaintext attack)
             
             n_msg_bytes = get_charp_len(fp);
             
@@ -1227,10 +1221,8 @@ int main(const int argc, char *argv[]){
             #endif
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
-            //bpcs_stream.write(n_msg_bytes, 8);
             for (j=0; j<n_msg_bytes; ++j)
-                bpcs_stream.sputc((uchar)fp[j]); // WARNING: Accessing char* by indices - how behaves for non-byte characters?
-            //bpcs_stream.write(fp, n_msg_bytes);
+                bpcs_stream.sputc((uchar)fp[j]);
             
             if (stat(fp, &stat_buf) == -1){
                 #ifdef DEBUG
@@ -1251,16 +1243,13 @@ int main(const int argc, char *argv[]){
             
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
-            //bpcs_stream.write(n_msg_bytes, 8);
             msg_file = fopen(fp, "r");
             for (j=0; j<n_msg_bytes; ++j)
                 // WARNING: Assumes there are exactly n_msg_bytes
                 bpcs_stream.sputc(getc(msg_file));
-            //bpcs_stream.write(msg_file, n_msg_bytes);
             fclose(msg_file);
         }
         // After all messages, signal end with signalled size of 0
-        // TODO: XOR, as above
         for (j=0; j<8; ++j)
             bpcs_stream.sputc(0);
         #ifdef DEBUG
