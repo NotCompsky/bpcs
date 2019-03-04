@@ -642,7 +642,7 @@ int BPCSStreamBuf::set_next_grid(){
 
 char BPCSStreamBuf::sgetc(){
     if (this->gridbitindx == 64 || !this->past_first_grid){
-        if (set_next_grid())
+        if (this->set_next_grid())
             throw std::runtime_error("Unexpected end of BPCS stream");
             //return std::char_traits<char>::eof;
         
