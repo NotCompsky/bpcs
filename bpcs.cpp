@@ -410,8 +410,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
 
 inline void BPCSStreamBuf::load_next_bitplane(){
     #ifdef TESTS
-        if (this->embedding)
-            throw std::runtime_error("load_next_bitplane should not be used for embedding");
+        assert (!this->embedding);
     #endif
     bitandshift(this->channel_byteplanes[this->channel_n], this->bitplane, this->n_bitplanes - ++this->bitplane_n);
     
