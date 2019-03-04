@@ -286,25 +286,35 @@ class BPCSStreamBuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps, bool emb, char* outfmt):
-    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), x(0), y(0), img_fps(img_fps)
+    BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps,
+                #ifdef EMBEDDOR
+                  bool emb,
+                #endif
+                  char* outfmt):
+    #ifdef EMBEDDOR
+        embedding(emb), out_fmt(outfmt),
+    #endif
+    min_complexity(min_complexity), img_n(0), x(0), y(0), img_fps(img_fps)
     {}
     
     
+    #ifdef EMBEDDOR
     const bool embedding;
-    uchar sgetc();
-    
     char* out_fmt;
+    #endif
+    
+    uchar sgetc();
     
     #ifdef DEBUG
         std::vector<float> complexities;
     #endif
     
-    
-    void sputc(uchar c);
-    
     void load_next_img(); // Init
+    
+    #ifdef EMBEDDOR
+    void sputc(uchar c);
     void save_im(); // End
+    #endif
   private:
     uint64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
     uint64_t y;
@@ -342,12 +352,16 @@ class BPCSStreamBuf {
     cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(8, 7)};
     
     cv::Mat grid_orig{8, 8, CV_8UC1};
+    
+    #ifdef EMBEDDOR
     cv::Mat conjgrid_orig{8, 8, CV_8UC1};
+    #endif
     
     cv::Mat bitplane;
     
+    #ifdef EMBEDDOR
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
-    
+    #endif
     
     cv::Mat im_mat;
     
@@ -356,7 +370,9 @@ class BPCSStreamBuf {
     void load_next_bitplane();
     void load_next_channel();
     
+    #ifdef EMBEDDOR
     void write_conjugation_map();
+    #endif
     
     inline float get_grid_complexity(Matx88uc&);
     inline float get_grid_complexity(cv::Mat&);
@@ -445,9 +461,11 @@ void BPCSStreamBuf::load_next_channel(){
 }
 
 void BPCSStreamBuf::load_next_img(){
+    #ifdef EMBEDDOR
     if (this->embedding && this->img_n != 0){
         this->save_im();
     }
+    #endif
     #ifdef DEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
@@ -502,6 +520,7 @@ void BPCSStreamBuf::load_next_img(){
     this->channel_n = 0;
     this->gridbitindx = 0;
     
+    #ifdef EMBEDDOR
     if (this->embedding){
         uint_fast8_t k = 0;
         uint_fast8_t i = 0;
@@ -524,38 +543,47 @@ void BPCSStreamBuf::load_next_img(){
         
         this->bitplane_n = 1;
     } else {
+    #endif
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
         this->load_next_channel();
+    #ifdef EMBEDDOR
     }
+    #endif
     
     this->conjmap_indx = 0;
     
     // Get conjugation grid
     this->set_next_grid();
     
+    #ifdef EMBEDDOR
     if (this->embedding){
         this->conjgrid_orig = this->grid_orig;
-    } else {
+    } else
+    #endif
         if (this->grid.val[63] != 0)
             // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
             // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
             this->conjugate_grid(this->grid);
-    }
     
     this->conjgrid = this->grid;
     
     // Get first data grid
     this->set_next_grid();
     
+    #ifdef EMBEDDOR
     if (!this->embedding){
+    #endif
         if (this->conjgrid.val[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
         this->conjmap_indx = 1;
+    #ifdef EMBEDDOR
     } else {
         this->conjmap_indx = 0;
     }
+    #endif
 }
 
+#ifdef EMBEDDOR
 void BPCSStreamBuf::write_conjugation_map(){
     float complexity;
     
@@ -599,6 +627,7 @@ void BPCSStreamBuf::write_conjugation_map(){
         mylog << "Written conjugation map" << "\n" << this->conjgrid << std::endl;
     #endif
 }
+#endif
 
 void BPCSStreamBuf::set_next_grid(){
     #ifdef DEBUG
@@ -624,11 +653,13 @@ void BPCSStreamBuf::set_next_grid(){
         
         this->set_next_grid();
         
+        #ifdef EMBEDDOR
         if (this->embedding){
             this->write_conjugation_map();
             cv::Rect grid_shape(cv::Point(this->x -8, this->y), cv::Size(8, 8));
             this->conjgrid_orig = this->bitplane(grid_shape);
         } else {
+        #endif
             if (this->grid.val[63] != 0)
                 // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
                 // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
@@ -643,7 +674,9 @@ void BPCSStreamBuf::set_next_grid(){
                 mylog << std::endl;
                 mylog << "\n" << this->grid;
             #endif
+        #ifdef EMBEDDOR
         }
+        #endif
         
         #ifdef DEBUG
             mylog << std::endl;
@@ -702,6 +735,7 @@ void BPCSStreamBuf::set_next_grid(){
         this->print_state();
     #endif
     
+    #ifdef EMBEDDOR
     if (this->embedding){
         if (this->bitplane_n < this->n_bitplanes * this->n_channels){
             this->bitplane = this->bitplanes[this->bitplane_n++]; // Equivalent to this->load_next_bitplane();
@@ -709,7 +743,9 @@ void BPCSStreamBuf::set_next_grid(){
                 ++this->channel_n;
             goto try_again;
         }
-    } else if (this->bitplane_n < this->n_bitplanes){
+    } else
+    #endif
+    if (this->bitplane_n < this->n_bitplanes){
         this->load_next_bitplane();
         goto try_again;
     } else if (++this->channel_n < this->n_channels){
@@ -769,6 +805,7 @@ uchar BPCSStreamBuf::sgetc(){
     return c;
 }
 
+#ifdef EMBEDDOR
 void BPCSStreamBuf::sputc(uchar c){
     #ifdef DEBUG
         mylog.set_verbosity(5);
@@ -865,7 +902,7 @@ void BPCSStreamBuf::save_im(){
     
     cv::imwrite(out_fp, this->im_mat);
 }
-
+#endif
 
 
 
@@ -879,7 +916,9 @@ void BPCSStreamBuf::save_im(){
 int main(const int argc, char *argv[]){
     bool to_disk = false;
     bool to_display = false;
+    #ifdef EMBEDDOR
     bool embedding = false;
+    #endif
     bool extracting = false;
     // bool editing = false; // Use named_pipe_in[0] != 0
     
@@ -1049,6 +1088,7 @@ int main(const int argc, char *argv[]){
         }
         --i;
         
+        #ifdef EMBEDDOR
         if (second_character == 'm'){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
             n_msg_fps = nextlist.size();
@@ -1056,6 +1096,7 @@ int main(const int argc, char *argv[]){
             msg_fps = nextlist;
             continue;
         }
+        #endif
         
         invalid_argument:
         #ifdef DEBUG
@@ -1165,7 +1206,11 @@ int main(const int argc, char *argv[]){
         #endif
     #endif
     
-    BPCSStreamBuf bpcs_stream(min_complexity, img_fps, embedding, out_fmt);
+    BPCSStreamBuf bpcs_stream(min_complexity, img_fps,
+                              #ifdef EMBEDDOR
+                              embedding,
+                              #endif
+                              out_fmt);
     bpcs_stream.load_next_img(); // Init
     
     uint_fast64_t j;
@@ -1173,6 +1218,7 @@ int main(const int argc, char *argv[]){
     uint_fast64_t n_msg_bytes;
     struct stat stat_buf;
     
+    #ifdef EMBEDDOR
     if (embedding){
         FILE* msg_file;
         for (i=0; i<n_msg_fps; ++i){
@@ -1237,6 +1283,7 @@ int main(const int argc, char *argv[]){
         #endif
         bpcs_stream.save_im();
     } else {
+    #endif
         std::string fp_str;
         i = 0;
         do {
@@ -1344,5 +1391,7 @@ int main(const int argc, char *argv[]){
             
             ++i;
         } while (true);
+    #ifdef EMBEDDOR
     }
+    #endif
 }
