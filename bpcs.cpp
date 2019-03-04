@@ -497,9 +497,7 @@ void BPCSStreamBuf::load_next_img(){
         mylog << +this->n_channels << " channels" << '\n';
         mylog << "Bit-depth of " << +this->n_bitplanes << '\n';
         mylog << std::endl;
-    #endif
-    
-    #ifdef DEBUG
+        
         this->complexities.clear();
         this->n_complex_grids_found = 0;
     #endif
