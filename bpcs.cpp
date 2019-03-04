@@ -467,13 +467,13 @@ void decode_grid(
     cv::Mat &xor_adj_mat1, cv::Mat &xor_adj_mat2, cv::Rect &xor_adj_rect1, cv::Rect &xor_adj_rect2, cv::Rect &xor_adj_rect3, cv::Rect &xor_adj_rect4
 ){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
-    uint_fast64_t encoded_bits = grid_w * grid_h -1;
+    uint_fast16_t encoded_bits = grid_w * grid_h -1;
     msg.reserve(encoded_bits);
     
-    if (grid.at<uint_fast8_t>(0,0) == 1)
+    if (grid.data[encoded_bits] == 1)
         conjugate_grid(grid);
     
-    for (uint_fast16_t i=1; i!=encoded_bits+1; ++i)
+    for (uint_fast16_t i=0; i<encoded_bits; ++i)
         msg.push_back(grid.data[i]);
     
     msg_size += encoded_bits;
@@ -485,12 +485,12 @@ void encode_grid(
 ){
     // Pass reference to msg, else a copy is passed (and changes are not kept)
     
-    uint_fast64_t encoded_bits = grid_w * grid_h -1;
+    uint_fast16_t encoded_bits = grid_w * grid_h -1;
     
-    for (uint_fast16_t i=1; i!=encoded_bits+1; ++i)
+    for (uint_fast16_t i=0; i<encoded_bits; ++i)
         grid.data[i] = msg[i];
     
-    msg.erase(msg.begin(), msg.begin() + encoded_bits + 1);
+    msg.erase(std::begin(msg), std::begin(msg) + encoded_bits);
     msg_size -= encoded_bits;
     
     float old_complexity = grid_complexity(grid, grid_w, grid_h, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4);
@@ -498,7 +498,7 @@ void encode_grid(
     bool to_conjugate = true;
     
     if (old_complexity >= min_complexity){
-        grid.at<uint_fast8_t>(0,0) = 0;
+        grid.data[encoded_bits] = 0;
         new_complexity = grid_complexity(grid, grid_w, grid_h, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4);
         if (new_complexity >= min_complexity)
             to_conjugate = false;
@@ -506,7 +506,7 @@ void encode_grid(
     
     if (to_conjugate){
         conjugate_grid(grid);
-        grid.at<uint_fast8_t>(0,0) = 1;
+        grid.data[encoded_bits] = 1;
         new_complexity = grid_complexity(grid, grid_w, grid_h, xor_adj_mat1, xor_adj_mat2, xor_adj_rect1, xor_adj_rect2, xor_adj_rect3, xor_adj_rect4);
         if (new_complexity < min_complexity){
             #ifdef DEBUG1
@@ -629,7 +629,7 @@ int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::
     uint_fast32_t n_grids_used = 0;
     float complexity;
     uint_fast64_t msg_size_orig = msg.size();
-    uint_fast64_t msg_size = msg_size;
+    uint_fast64_t msg_size = msg_size_orig;
     #ifdef DEBUG3
         uint_fast32_t n_grids_so_far = 0;
         uint_fast32_t n_grids_total  = n_hztl_grids * n_vert_grids;
