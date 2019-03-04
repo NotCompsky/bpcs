@@ -211,26 +211,11 @@ cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
 static const cv::Mat chequerboard_a = chequerboard(0, 8, 8);
 static const cv::Mat chequerboard_b = chequerboard(1, 8, 8);
 #else
-static const cv::Mat chequerboard_a = cv::Mat(8,8, CV_8UC1, {
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-});
-static const cv::Mat chequerboard_b = cv::Mat(8,8, CV_8UC1, {
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-                                        1, 0, 1, 0, 1, 0, 1, 0,
-                                        0, 1, 0, 1, 0, 1, 0, 1,
-});
+// Results in a larger binary size by 152B, but *surely* in slightly less overhead regardless...
+uchar chequered_arr_a[64] = {0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0};
+uchar chequered_arr_b[64] = {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
+static const cv::Mat chequerboard_a = cv::Mat(8,8, CV_8UC1, chequered_arr_a);
+static const cv::Mat chequerboard_b = cv::Mat(8,8, CV_8UC1, chequered_arr_b);
 #endif
 
 
@@ -432,7 +417,11 @@ inline void BPCSStreamBuf::load_next_bitplane(){
     
     #ifdef DEBUG
         mylog.dbg();
-        mylog << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
+        mylog << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << " from channel " << +this->channel_n << std::endl;
+        mylog.tedium('g');
+        mylog << "\n";
+        mylog << this->bitplane;
+        mylog << "\n";
     #endif
 }
 
@@ -487,6 +476,12 @@ void BPCSStreamBuf::load_next_img(){
             while (i < this->n_bitplanes){
                 this->bitplanes[k] = cv::Mat::zeros(this->im_mat.rows, this->im_mat.cols, CV_8UC1);
                 bitandshift(this->channel_byteplanes[j], this->bitplanes[k++], this->n_bitplanes - ++i);
+                #ifdef DEBUG
+                    mylog.tedium('g');
+                    mylog << "\n";
+                    mylog << this->bitplanes[k-1];
+                    mylog << "\n";
+                #endif
             }
         }
         this->bitplane = this->bitplanes[0];
@@ -673,6 +668,12 @@ int BPCSStreamBuf::set_next_grid(){
                 //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
+                #ifdef DEBUG
+                    mylog.tedium('B');
+                    mylog << "Found grid" << "\n";
+                    mylog.tedium('r');
+                    mylog << this->grid << std::endl;
+                #endif
                 return 0;
             }
         }
@@ -735,13 +736,6 @@ unsigned char BPCSStreamBuf::sgetc(){
         if (this->conjugation_map[this->grids_since_conjgrid])
             conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
         
-        #ifdef DEBUG
-            mylog.tedium('B');
-            mylog << "Read grid" << "\n";
-            mylog.tedium();
-            mylog << this->grid << std::endl;
-        #endif
-        
         this->gridbitindx = 0;
     }
     unsigned char c = 0;
@@ -760,16 +754,16 @@ unsigned char BPCSStreamBuf::sgetc(){
         c |= this->grid.data[this->gridbitindx++] << i;
     }
     #ifdef DEBUG
-        mylog.tedium();
-        mylog << "sgetc " << +c << std::endl;
+        mylog.tedium('p');
+        mylog << "sgetc " << +c << " (" << c << ")" << std::endl;
     #endif
     return c;
 }
 
 void BPCSStreamBuf::sputc(unsigned char c){
     #ifdef DEBUG
-        mylog.tedium();
-        mylog << "sputc " << +c << std::endl;
+        mylog.tedium('p');
+        mylog << "sputc " << +c << " (" << c << ")" << std::endl;
     #endif
     if (this->gridbitindx == 64){
         if (this->past_first_grid){
@@ -798,13 +792,15 @@ void BPCSStreamBuf::sputc(unsigned char c){
         this->gridbitindx = 0;
     }
     
+    uchar* bit = this->grid.data + this->gridbitindx;
     for (uint_fast8_t i=0; i<8; ++i){
         #ifdef DEBUG
             mylog.tedium();
             mylog << +((c >> i) & 1);
         #endif
-        this->grid.at<uint_fast8_t>(this->gridbitindx >> 3, i) = (c >> i) & 1;
+        *bit = (c >> i) & 1;
         ++this->gridbitindx;
+        ++bit;
         //this->grid.data[this->gridbitindx++] = (c >> i) & 1;
     }
 }
@@ -816,15 +812,22 @@ void BPCSStreamBuf::save_im(){
     #endif
     this->write_conjugation_map();
     
-    uint_fast8_t k = 0;
-    
     #ifdef DEBUG
         mylog.dbg();
         mylog << "UnXORing " << +this->n_channels << " channels of depth " << +this->n_bitplanes << std::endl;
+        
+        mylog.tedium('g');
+        mylog << "Bitplanes before unXORing" << std::endl;
+        for (uint_fast16_t i=0; i<this->n_bitplanes*this->n_channels; ++i){
+            mylog << "\n";
+            mylog << this->bitplanes[i];
+            mylog << "\n";
+        }
     #endif
     uint_fast8_t j;
+    uint_fast8_t k = 0;
     for (uint_fast8_t i=0; i < this->n_channels; ++i){
-        // First bitplane of each channel is unchanged by conversion to CGC
+        // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[k++].clone();
         bitshift_up(this->channel_byteplanes[i], this->n_bitplanes -1);
         
@@ -1164,25 +1167,23 @@ int main(const int argc, char *argv[]){
     } else {
         std::string fp_str;
         i = 0;
-        unsigned char INTTOREMOVE = 0;
         do {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
-                INTTOREMOVE = bpcs_stream.sgetc();
-                n_msg_bytes |= (INTTOREMOVE << (8*j));
+                n_msg_bytes |= (bpcs_stream.sgetc() << (8*j));
             }
             #ifdef DEBUG
                 mylog.info();
                 mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
-            #endif
-            
-            #ifdef TESTS
-                if (n_msg_bytes == 0){
-                    mylog.crit();
-                    mylog << "n_msg_bytes = 0" << std::endl;
-                    //return 1;
-                    n_msg_bytes = 100;
-                }
+                
+                #ifdef TESTS
+                    if (n_msg_bytes == 0){
+                        mylog.crit();
+                        mylog << "n_msg_bytes = 0" << std::endl;
+                        //return 1;
+                        n_msg_bytes = 100;
+                    }
+                #endif
             #endif
             
             if (i & 1){
