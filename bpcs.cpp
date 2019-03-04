@@ -334,7 +334,7 @@ class BPCSStreamBuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps, bool emb, char* outfmt):
-    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), x(0), y(0), grids_since_conjgrid(0), img_fps(img_fps)
+    embedding(emb), out_fmt(outfmt), min_complexity(min_complexity), img_n(0), x(0), y(0), img_fps(img_fps)
     {}
     
     
@@ -365,7 +365,7 @@ class BPCSStreamBuf {
     
     uint16_t img_n;
     uint8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
-    uint8_t grids_since_conjgrid;
+    uint8_t conjmap_indx;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
     
@@ -375,7 +375,6 @@ class BPCSStreamBuf {
     uint8_t bitplane_n;
     
     uchar conjugation_map[64];
-    uint8_t conjugation_map_indx;
     
     uchar* conjugation_grid_ptr;
     
@@ -431,7 +430,7 @@ inline void BPCSStreamBuf::conjugate_grid(cv::Mat &grid){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "<*" << +this->grids_since_conjgrid << "(" << +(this->x -8) << ", " << +this->y << ")>" << std::endl;
+        mylog << "<*" << +this->conjmap_indx << "(" << +(this->x -8) << ", " << +this->y << ")>" << std::endl;
         mylog << grid << std::endl;
     #endif
 }
@@ -552,6 +551,9 @@ void BPCSStreamBuf::load_next_img(){
         this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
         this->load_next_channel();
     }
+    
+    this->conjmap_indx = 0;
+    
     // Get conjugation grid
     this->set_next_grid();
     
@@ -571,16 +573,14 @@ void BPCSStreamBuf::load_next_img(){
     this->conjugation_grid = this->grid;
     this->conjugation_grid_ptr = this->grid_ptr;
     
-    this->conjugation_map_indx = 0;
-    
-    this->grids_since_conjgrid = 0;
-    
     // Get first data grid
     this->set_next_grid();
     
     if (!this->embedding)
-        if (this->conjugation_map[this->conjugation_map_indx++])
+        if (this->conjugation_map[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
+    
+    this->conjmap_indx = 0;
 }
 
 void BPCSStreamBuf::write_conjugation_map(){
@@ -640,9 +640,9 @@ int BPCSStreamBuf::set_next_grid(){
     }
     mylog.set_verbosity(5);
     mylog.set_cl(0);
-    mylog << "grids_since_conjgrid " << +this->grids_since_conjgrid << std::endl; // tmp
+    mylog << "conjmap_indx " << +this->conjmap_indx << std::endl; // tmp
     #endif
-    if (++this->grids_since_conjgrid == 64){ 
+    if (this->conjmap_indx == 64){ 
         // First grid in every 64 is reserved for conjugation map
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
         // The old such grid must have the conjugation map emptied into it
@@ -651,6 +651,8 @@ int BPCSStreamBuf::set_next_grid(){
             if (++conj_grids_found == MAX_CONJ_GRIDS)
                 throw std::runtime_error("Found maximum number of conj grids");
         #endif
+        
+        this->conjmap_indx = 0;
         
         if (this->set_next_grid())
             // Ran out of grids
@@ -682,13 +684,10 @@ int BPCSStreamBuf::set_next_grid(){
                 mylog << "\n" << this->grid;
             #endif
         }
-        this->conjugation_map_indx = 0;
         
         #ifdef DEBUG
             mylog << std::endl;
         #endif
-        
-        this->grids_since_conjgrid = 0;
     }
     
     float complexity;
@@ -773,9 +772,6 @@ int BPCSStreamBuf::set_next_grid(){
     return 1;
     
     try_again:
-    if (this->grids_since_conjgrid != 0)
-        // Because we might have set it to 0 above
-        --this->grids_since_conjgrid;
     return this->set_next_grid();
 }
 
@@ -793,7 +789,7 @@ uchar BPCSStreamBuf::sgetc(){
             abort();
             #endif
         
-        if (this->conjugation_map[this->conjugation_map_indx++])
+        if (this->conjugation_map[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
@@ -811,7 +807,7 @@ uchar BPCSStreamBuf::sgetc(){
             mylog << "\\r";
         else
             mylog << c;
-        mylog << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjugation_map_indx << "\t(x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
+        mylog << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjmap_indx << "\t(x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
     #endif
     return c;
 }
@@ -820,7 +816,7 @@ void BPCSStreamBuf::sputc(uchar c){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "sputc " << +c << " (" << c << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjugation_map_indx << "\t(x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
+        mylog << "sputc " << +c << " (" << c << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjmap_indx << "\t(x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
         mylog.set_verbosity(5);
         mylog.set_cl(0);
         mylog << "sputc " << +c << " bits ";
@@ -846,11 +842,11 @@ void BPCSStreamBuf::sputc(uchar c){
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
             this->conjugate_grid(this->grid);
-            this->conjugation_map[this->conjugation_map_indx] = 1;
+            this->conjugation_map[this->conjmap_indx] = 1;
         } else {
-            this->conjugation_map[this->conjugation_map_indx] = 0;
+            this->conjugation_map[this->conjmap_indx] = 0;
         }
-        ++this->conjugation_map_indx;
+        ++this->conjmap_indx;
         
         if (this->set_next_grid()){
             #ifdef DEBUG
@@ -876,7 +872,7 @@ void BPCSStreamBuf::save_im(){
     #ifdef TESTS
         assert(this->embedding);
     #endif
-    this->conjugation_map_indx += 63 -this->grids_since_conjgrid;
+    this->conjmap_indx += 63 -this->conjmap_indx;
     this->write_conjugation_map();
     
     #ifdef DEBUG
@@ -1101,7 +1097,7 @@ int main(const int argc, char *argv[]){
         
         invalid_argument:
         #ifdef DEBUG
-            printf("Invalid argument: %s", arg);
+            std::cerr << "Invalid argument: " << arg << std::endl;
             throw std::runtime_error("Invalid argument");
         #else
             abort();
