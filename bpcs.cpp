@@ -576,11 +576,13 @@ void BPCSStreamBuf::load_next_img(){
     // Get first data grid
     this->set_next_grid();
     
-    if (!this->embedding)
+    if (!this->embedding){
         if (this->conjugation_map[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
-    
-    this->conjmap_indx = 0;
+        this->conjmap_indx = 1;
+    } else {
+        this->conjmap_indx = 0;
+    }
 }
 
 void BPCSStreamBuf::write_conjugation_map(){
@@ -789,7 +791,7 @@ uchar BPCSStreamBuf::sgetc(){
             abort();
             #endif
         
-        if (this->conjugation_map[++this->conjmap_indx])
+        if (this->conjugation_map[this->conjmap_indx++])
             this->conjugate_grid(this->grid);
         
         this->gridbitindx = 0;
