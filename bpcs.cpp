@@ -1218,8 +1218,7 @@ int main(const int argc, char *argv[]){
     } else {
     #endif
         std::string fp_str;
-        i = 0;
-        while (true) {
+        for (i=0; true; ++i) {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
                 uchar c = bpcs_stream.sgetc();
@@ -1314,8 +1313,6 @@ int main(const int argc, char *argv[]){
                     mylog << "Formatted fp: " << fp_str << std::endl;
                 #endif
             }
-            
-            ++i;
         }
     #ifdef EMBEDDOR
     }
