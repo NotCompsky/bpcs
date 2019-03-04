@@ -150,12 +150,10 @@ inline uint_fast16_t xor_adj(
 ){
     uint_fast16_t sum = 0;
     
-    arr(xor_adj_rect1).copyTo(xor_adj_mat1);
-    cv::bitwise_xor(arr(xor_adj_rect2), xor_adj_mat1, xor_adj_mat1);
+    cv::bitwise_xor(arr(xor_adj_rect2), arr(xor_adj_rect1), xor_adj_mat1);
     sum += cv::sum(xor_adj_mat1)[0];
     
-    arr(xor_adj_rect3).copyTo(xor_adj_mat2);
-    cv::bitwise_xor(arr(xor_adj_rect4), xor_adj_mat2, xor_adj_mat2);
+    cv::bitwise_xor(arr(xor_adj_rect4), arr(xor_adj_rect3), xor_adj_mat2);
     sum += cv::sum(xor_adj_mat2)[0];
     
     return sum;
