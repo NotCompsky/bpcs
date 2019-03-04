@@ -41,7 +41,6 @@ std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
 
 
 
-
 static const uint_fast8_t MODE_EMBEDDING = 0;
 static const uint_fast8_t MODE_CALC_MAX_CAP = 1;
 static const uint_fast8_t MODE_EXTRACT = 2;
@@ -316,12 +315,15 @@ class BPCSStreamBuf { //: public std::streambuf {
     // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height), but cv::Mat is row-major
     
     uint_fast8_t bitplane_n;
+    uint_fast8_t conjgrid_bitplane_n;
     cv::Mat bitplane;
     cv::Mat prev_bitplane;
     cv::Mat unXORed_bitplane;
     
     cv::Mat byteplane;
     cv::Mat XORed_byteplane;
+    
+    cv::Mat bitplanes[];
     
     std::smatch path_regexp_match;
     
@@ -337,36 +339,38 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
 }
 
-void BPCSStreamBuf::unxor_bitplane(){
+void BPCSStreamBuf::unxor_bitplane(uint_fast8_t n){
     #ifdef DEBUG
         mylog.dbg();
-        mylog << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << " (highest first)" << std::endl;
+        mylog << "UnXORing bitplane " << +n << " of " << +this->n_bitplanes << " (highest first)" << std::endl;
     #endif
-    if (this->bitplane_n == 1)
-        // Remember - value of this->bitplane_n is the index of the NEXT bitplane
+    if (n == 1)
+        // Remember - value of n is the index of the NEXT bitplane
         this->unXORed_bitplane = this->bitplane.clone();
     else
         // Revert conversion of non-first planes to CGC
         cv::bitwise_xor(this->bitplane, this->prev_bitplane, this->unXORed_bitplane);
     
-    if (this->bitplane_n != this->n_bitplanes)
+    if (n != this->n_bitplanes)
         this->prev_bitplane = this->unXORed_bitplane.clone();
         // WARNING: MUST BE DEEP COPY!
     
-    bitshift_up(this->unXORed_bitplane, this->n_bitplanes - this->bitplane_n);
+    bitshift_up(this->unXORed_bitplane, this->n_bitplanes - n);
     
     #ifdef DEBUG
         mylog.dbg();
-        mylog << "Adding unXORed bitplane(sum==" << +cv::sum(this->bitplane)[0] << ") to channel " << +this->byteplane.cols << "x" << +this->byteplane.rows << " byteplane" << std::endl;
+        mylog << "Adding unXORed bitplane(sum==" << +cv::sum(this->bitplane)[0] << ") to channel byteplane" << std::endl;
     #endif
     
-    cv::bitwise_or(this->byteplane, this->unXORed_bitplane, this->byteplane);
+    cv::bitwise_or(this->channel_byteplanes[this->channel_n -1], this->unXORed_bitplane, this->channel_byteplanes[this->channel_n -1]);
 }
 
 void BPCSStreamBuf::load_next_bitplane(){
-    if (this->embedding && this->bitplane_n != 0)
-        this->unxor_bitplane();
-    bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
+    if (this->embedding)
+        this->bitplane = this->bitplanes[this->bitplane_n++];
+    else
+        bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
+    
     #ifdef DEBUG
         mylog.dbg();
         mylog << "Loaded bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
@@ -376,24 +380,14 @@ void BPCSStreamBuf::load_next_bitplane(){
 }
 
 void BPCSStreamBuf::commit_channel(){
-    // Commit changes to last bitplane
-    while (this->bitplane_n < this->n_bitplanes)
-        // Ensure we sum with the bitplanes that we stopped before iterating over
-        // TODO: Replace with a simple AND and |=, rather than including the XOR and immediate unXOR
-        this->load_next_bitplane();
+    this->channel_byteplanes[this->channel_n -1] = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
     
-    #ifdef DEBUG
-        mylog.tedium();
-        mylog << "About to add final bitplane to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
-    #endif
+    for (uint_fast8_t i = 1;  i < this->n_bitplanes + 1;  ++i)
+        this->unxor_bitplane(i);
     
-    this->unxor_bitplane();
-    // Add last bitplane
-    
-    this->channel_byteplanes[this->channel_n -1] = this->byteplane; // WARNING: clone?
     #ifdef DEBUG
         mylog.dbg();
-        mylog << "Committed changes to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
+        mylog << "Committed changes to channel(sum==" << +cv::sum(this->channel_byteplanes[this->channel_n -1])[0] << ") " << +(this->channel_n -1) << std::endl;
     #endif
 }
 
@@ -402,12 +396,6 @@ void BPCSStreamBuf::load_next_channel(){
         mylog.dbg();
         mylog << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
-    if (this->embedding && this->channel_n != 0){
-        // this->channel_n refers to the index of the NEXT channel to load - a value of 0 can only mean it has yet to be initialised
-        // Commit changes to last channel, then init next channel byteplane
-        this->commit_channel();
-        this->byteplane = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
-    }
     convert_to_cgc(this->channel_byteplanes[this->channel_n], this->XORed_byteplane);
     ++this->channel_n;
     this->bitplane_n = 0;
@@ -449,9 +437,19 @@ void BPCSStreamBuf::load_next_img(){
     
     this->channel_n = 0;
     this->bitplane = cv::Mat::zeros(im_mat.rows, im_mat.cols, CV_8UC1); // Need to initialise for bitandshift
-    this->load_next_channel();
-    if (this->embedding)
-        this->byteplane = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
+    if (this->embedding && this->channel_n != 0)
+        // this->channel_n refers to the index of the NEXT channel to load - a value of 0 can only mean it has yet to be initialised
+        // Commit changes to last channel, then init next channel byteplane
+        this->commit_channel();
+    
+    convert_to_cgc(this->channel_byteplanes[this->channel_n], this->XORed_byteplane);
+    if (this->embedding){
+        for (uint_fast8_t i=0; i<this->n_bitplanes; ;){
+            this->bitplanes[i] = cv::Mat::zeros(this->im_mat.rows, this->im_mat.cols, CV_8UC1);
+            bitandshift(this->XORed_byteplane, this->bitplanes[i], this->n_bitplanes - ++i);
+        }
+    } else
+        this->load_next_channel();
 }
 
 void BPCSStreamBuf::write_conjugation_map(){
@@ -483,6 +481,11 @@ void BPCSStreamBuf::write_conjugation_map(){
         
         this->conjugation_grid.data[63] = 0;
         
+        mylog.dbg('B');
+        mylog << "After writing\n";
+        mylog.dbg();
+        mylog << this->conjugation_grid << std::endl;
+        
         complexity = this->get_grid_complexity(this->conjugation_grid);
         if (complexity < this->min_complexity){
             conjugate_grid(this->conjugation_grid, this->grids_since_conjgrid, this->x-64, this->y);
@@ -498,6 +501,9 @@ void BPCSStreamBuf::write_conjugation_map(){
                     if (this->conjugation_grid.data[55] != 0)
                         throw std::runtime_error("Grid complexity fell below minimum value");
         }
+        mylog.dbg('B');
+        mylog << "After conjugation (if any)\n";
+        mylog.dbg();
         mylog << this->conjugation_grid << std::endl;
     #ifdef TESTS
         for (uint_fast8_t i=0; i<64; ++i)
@@ -553,7 +559,7 @@ int BPCSStreamBuf::set_next_grid(){
         
         #ifdef DEBUG
             mylog.dbg();
-            mylog << "Found conjugation grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid;
+            mylog << "Found conjugation grid(" << +(this->x -8) << ", " << +this->y << ")" << "\n" << this->grid;
         #endif
         
         if (this->embedding){
@@ -574,8 +580,6 @@ int BPCSStreamBuf::set_next_grid(){
                     mylog.dbg();
                     mylog << this->conjugation_grid << "\n";
                     
-                    cv::Rect grid_shape(cv::Point(this->conjx, this->conjy), cv::Size(8, 8));
-                    
                     mylog.dbg('B');
                     mylog << "bitplane at conjgrid" << "\n";
                     mylog.dbg();
@@ -590,9 +594,10 @@ int BPCSStreamBuf::set_next_grid(){
             }
             
             this->conjugation_grid = this->grid;
+            this->conjgrid_bitplane_n = this->bitplane_n;
             #ifdef DEBUG
                 this->conjx = this->x -8;
-                this->conjy = this->y -8;
+                this->conjy = this->y;
             #endif
         } else {
             if (this->grid.data[63] != 0)
