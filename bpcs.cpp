@@ -167,8 +167,8 @@ inline void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
     
     cv::bitwise_and(dest, 1, dest);
     */
-    for (uint_fast16_t i=0; i!=arr.rows*arr.cols; ++i)
-        dest.data[i] = (arr.data[i] >> n) & 1;
+    for (uchar* bit = arr.data;  bit != arr.data + arr.rows*arr.cols;  ++bit)
+        *bit = (*bit >> n) & 1;
     #ifdef DEBUG
         mylog.tedium();
         mylog << "bitandshift " << +n << ":  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
@@ -184,12 +184,8 @@ inline void bitshift_up(cv::Mat &arr, uint_fast16_t n){
 }
 
 inline void convert_to_cgc(cv::Mat &arr, cv::Mat &dest){
-    uint_fast8_t n;
-    for (uint_fast64_t i=0; i<arr.rows*arr.cols; ++i){
-        n = arr.data[i];
-        dest.data[i] = n ^ (n >> 1);
-    }
-    //cv::bitwise_xor(arr, arr/2, dest);
+    for (uchar* bit = arr.data;  bit != arr.data + arr.rows*arr.cols;  ++bit)
+        *bit = *bit ^ (*bit >> 1);
     #ifdef DEBUG
         mylog.tedium();
         mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
@@ -495,10 +491,8 @@ void BPCSStreamBuf::write_conjugation_map(){
         mylog << "Conjgrid orig" << "\n";
         mylog.tedium();
         mylog << this->conjugation_grid << "\n";
-    #endif
-    
         for (uint_fast8_t k=0; k<63; ++k){
-            #ifdef TESTS
+            
                 if (this->conjugation_map[k] != 0 && this->conjugation_map[k] != 1){
                     mylog.crit();
                     mylog << "Non-bit this->conjugation_map[" << +k << "]\n";
@@ -507,12 +501,12 @@ void BPCSStreamBuf::write_conjugation_map(){
                     mylog << std::endl;
                     throw std::runtime_error("Non-bit this->conjugation_map");
                 }
-            #endif
-            #ifdef DEBUG
                 mylog << +this->conjugation_map[k];
-            #endif
+            
             this->conjugation_grid.data[k] = this->conjugation_map[k];
         }
+    #endif
+        memcpy(this->conjugation_grid.data, this->conjugation_map, 63);
         
         this->conjugation_grid.data[63] = 0;
         
@@ -616,17 +610,16 @@ int BPCSStreamBuf::set_next_grid(){
             if (this->grid.data[63] != 0)
                 conjugate_grid(this->grid, this->grids_since_conjgrid, this->x, this->y);
             
-            for (uint_fast8_t k=0; k<63; ++k){
-                this->conjugation_map[k] = this->grid.data[k];
-                #ifdef DEBUG
+            #ifdef DEBUG
+                for (uint_fast8_t k=0; k<63; ++k){
+                    this->conjugation_map[k] = this->grid.data[k];
                     mylog.tedium();
                     mylog << +this->conjugation_map[k];
-                #endif
-            }
-            #ifdef DEBUG
+                }
                 mylog << std::endl;
                 mylog << "\n" << this->grid;
             #endif
+            memcpy(this->grid.data, this->conjugation_map, 63);
         }
         
         #ifdef DEBUG
@@ -874,20 +867,23 @@ int main(const int argc, char *argv[]){
         uint_fast8_t n_binchars = 200;
     #endif
     uint_fast64_t i = 0;
+    char second_character;
     do {
         // Find opts, until reach arg that does not begin with '-'
         arg = argv[++i];
         if (arg[0] != '-')
             break;
         
+        second_character = arg[1];
+        
         /* Bool flags */
         
         #ifdef DEBUG
-        if (arg == "-v"){
+        if (second_character == 'v'){
             ++verbosity;
             continue;
         }
-        if (arg == "-q"){
+        if (second_character == 'q'){
             --verbosity;
             continue;
         }
@@ -929,23 +925,23 @@ int main(const int argc, char *argv[]){
         }
         #endif
         
-        if (arg == "-o" || arg == "--out"){
+        if (second_character == 'o' || arg == "--out"){
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
             out_fmt = nextarg;
             continue;
         }
         
-        if (arg == "-d" || arg == "--disk"){
+        if (second_character == 'd' || arg == "--disk"){
             // Write to disk (as opposed to psuedofile)
             to_disk = true;
         }
         
-        if (arg == "-D" || arg == "--display"){
+        if (second_character == 'D' || arg == "--display"){
             // Display embedded images through OpenCV::imshow (rather than pipe)
             to_display = true;
         }
         
-        if (arg == "-p" || arg == "--pipe"){
+        if (second_character == 'p' || arg == "--pipe"){
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
             named_pipe_in = nextarg;
             mode = MODE_EDIT;
@@ -961,12 +957,18 @@ int main(const int argc, char *argv[]){
         }
         --i;
         
-        if (arg == "-m" || arg == "--msg"){
+        if (second_character == 'm' || arg == "--msg"){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
             ++n_msg_fps;
             mode = MODE_EMBEDDING;
             msg_fps = nextlist;
+            continue;
         }
+        
+        #ifdef DEBUG
+            printf("Invalid argument: %s", arg);
+            throw std::runtime_error("Invalid argument");
+        #endif
     } while (true);
     
     
