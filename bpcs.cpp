@@ -768,12 +768,12 @@ void iterate_over_all_bitgrids(
                 
                 cv::bitwise_or(byteplane, unXORed_bitplane, byteplane);
             }
-            if (msg_was_exhausted)
-                goto outofloop;
         }
         if (encoding)
             // i.e. if (mode == "Encoding")
             channel_byteplanes[j] = byteplane;
+        if (msg_was_exhausted)
+            goto outofloop;
     }
     
     outofloop:
