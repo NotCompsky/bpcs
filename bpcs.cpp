@@ -640,31 +640,6 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
 }
 
-#ifdef DEBUG
-void print_grid(cv::Mat& grid, uint_fast32_t x, uint_fast32_t y){
-    uchar c;
-    uint_fast8_t n;
-    mylog.set_verbosity(6);
-    mylog.set_cl('B');
-    mylog << "print_grid (" << +x << ", " << +y << ")" << '\n';
-    for (uint_fast8_t j=0; j<8; ++j){
-        c = 0;
-        mylog.set_verbosity(7);
-        mylog.set_cl(0);
-        for (uint_fast8_t i=0; i<8; ++i){
-            n = grid.at<uint_fast8_t>(j, i);
-            c |= (n << i);
-            mylog << +n;
-        }
-        mylog.set_verbosity(6);
-        mylog.set_cl('b');
-        mylog << " ";
-        mylog << c << '\n';
-    }
-    mylog << std::endl;
-}
-#endif
-
 int BPCSStreamBuf::set_next_grid(){
     #ifdef DEBUG
     if (++whichbyte == gridlimit){
