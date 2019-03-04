@@ -91,7 +91,7 @@ uint_fast64_t get_fsize(const char* fp){
         #endif
         throw std::runtime_error("");
     }
-    return stat_buf.st_size : -1;
+    return stat_buf.st_size;
 }
 
 
@@ -470,7 +470,7 @@ void decode_grid(
     uint_fast64_t encoded_bits = grid_w * grid_h -1;
     msg.reserve(encoded_bits);
     
-    if (grid.data[0] == 1)
+    if (grid.at<uint_fast8_t>(0,0) == 1)
         conjugate_grid(grid);
     
     for (uint_fast16_t i=1; i!=encoded_bits+1; ++i)
