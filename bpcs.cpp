@@ -681,7 +681,6 @@ void BPCSStreamBuf::set_next_grid(){
             
             if (complexity >= this->min_complexity){
                 this->grid_orig = this->bitplane(grid_shape);
-                //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
                 #ifdef DEBUG
