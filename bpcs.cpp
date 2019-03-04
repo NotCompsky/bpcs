@@ -945,7 +945,9 @@ int main(const int argc, char *argv[]){
     /* Argument parser */
     char* arg;
     char* nextarg;
+    #ifdef EMBEDDOR
     std::vector<char*> nextlist;
+    #endif
     char second_character;
     do {
         // Find opts, until reach arg that does not begin with '-'
@@ -993,9 +995,9 @@ int main(const int argc, char *argv[]){
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
             case 'p': named_pipe_in = nextarg; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
+            #ifdef DEBUG
             case '-':
                 switch(arg[2]){
-                    #ifdef DEBUG
                     case 'b':
                         switch(arg[3]){
                             case 'i':
@@ -1064,15 +1066,17 @@ int main(const int argc, char *argv[]){
                             default:
                                 goto invalid_argument;
                         }
-                    #endif
                     default: goto invalid_argument;
                 }
+            #endif
+            #ifdef EMBEDDOR
             case 'm': break;
+            #endif
             default: goto invalid_argument;
         }
         
         /* List flags */
-        
+        #ifdef EMBEDDOR
         nextlist.clear();
         while (nextarg[0] != '-'){
             nextlist.push_back(nextarg);
@@ -1080,7 +1084,6 @@ int main(const int argc, char *argv[]){
         }
         --i;
         
-        #ifdef EMBEDDOR
         if (second_character == 'm'){
             // File path(s) of message file(s) to embed. Sets mode to `embedding`
             n_msg_fps = nextlist.size();
