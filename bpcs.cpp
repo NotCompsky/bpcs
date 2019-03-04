@@ -316,7 +316,7 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return grid_complexity(arr, this->xor_adj_mat1, this->xor_adj_mat2, this->xor_adj_rect1, this->xor_adj_rect2, this->xor_adj_rect3, this->xor_adj_rect4);
 }
 
-void BPCSStreamBuf::unxor_bitplane(){
+inline void BPCSStreamBuf::unxor_bitplane(){
     #ifdef DEBUG3
         std::cout << "UnXORing bitplane " << +this->bitplane_n << " of " << +this->n_bitplanes << std::endl;
     #endif
@@ -340,7 +340,7 @@ void BPCSStreamBuf::unxor_bitplane(){
     cv::bitwise_or(this->byteplane, this->unXORed_bitplane, this->byteplane);
 }
 
-void BPCSStreamBuf::load_next_bitplane(){
+inline void BPCSStreamBuf::load_next_bitplane(){
     if (this->embedding && this->bitplane_n != 0)
         this->unxor_bitplane();
     bitandshift(this->XORed_byteplane, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
@@ -351,7 +351,20 @@ void BPCSStreamBuf::load_next_bitplane(){
     this->y = 0;
 }
 
-void BPCSStreamBuf::load_next_channel(){
+inline void BPCSStreamBuf::commit_channel(){
+    #ifdef DEBUG3
+        std::cout << "Committing changes to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
+    #endif
+    if (this->embedding && this->bitplane_n != 0){
+        // this->bitplane_n refers to the index of the NEXT bitplane to load - a value of 0 can only mean it has yet to be initialised
+        // Commit changes to last bitplane
+        while (this->bitplane_n++ < this->n_bitplanes)
+            this->unxor_bitplane();
+    }
+    this->channel_byteplanes[this->channel_n -1] = this->byteplane; // WARNING: clone?
+}
+
+inline void BPCSStreamBuf::load_next_channel(){
     #ifdef DEBUG3
         std::cout << "Loading channel(sum==" << +cv::sum(channel_byteplanes[this->channel_n])[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
     #endif
@@ -364,19 +377,6 @@ void BPCSStreamBuf::load_next_channel(){
     convert_to_cgc(this->channel_byteplanes[this->channel_n++], this->XORed_byteplane);
     this->bitplane_n = 0;
     this->load_next_bitplane();
-}
-
-void BPCSStreamBuf::commit_channel(){
-    #ifdef DEBUG3
-        std::cout << "Committing changes to channel(sum==" << +cv::sum(this->byteplane)[0] << ") " << +(this->channel_n -1) << std::endl;
-    #endif
-    if (this->embedding && this->bitplane_n != 0){
-        // this->bitplane_n refers to the index of the NEXT bitplane to load - a value of 0 can only mean it has yet to be initialised
-        // Commit changes to last bitplane
-        while (this->bitplane_n++ < this->n_bitplanes)
-            this->unxor_bitplane();
-    }
-    this->channel_byteplanes[this->channel_n -1] = this->byteplane; // WARNING: clone?
 }
 
 void BPCSStreamBuf::load_next_img(){
