@@ -85,8 +85,13 @@ std::string format_out_fp(std::string out_fmt, std::smatch path_regexp_match){
 
 uint_fast64_t get_fsize(const char* fp){
     struct stat stat_buf;
-    int rc = stat(fp, &stat_buf);
-    return rc == 0 ? stat_buf.st_size : -1;
+    if (stat(fp, &stat_buf) == -1){
+        #ifdef DEBUG1
+            std::cout << "No such file:  " << fp << std::endl;
+        #endif
+        throw std::runtime_error("");
+    }
+    return stat_buf.st_size : -1;
 }
 
 
