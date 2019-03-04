@@ -596,7 +596,6 @@ void BPCSStreamBuf::write_conjugation_map(){
     #endif
     
     // NOTE: this->conjugation_map_ptr should at this stage always point at the 63rd element of this->conjugation_grid, as we have either written 63 complex grids, or it has been called by this->save_im() (where it should be set to the 63rd)
-    this->conjugation_map_indx = 0;
     for (uint_fast8_t k=0; k<8; ++k){
         memcpy(this->conjugation_grid_ptr, this->conjugation_map + (k*8), 8);
         this->conjugation_grid_ptr += this->bitplane.cols;
@@ -614,11 +613,11 @@ void BPCSStreamBuf::write_conjugation_map(){
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
             // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
             
-            if (this->conjugation_map[this->conjugation_map_indx -1] != 0)
+            if (this->conjugation_map[63 -1] != 0)
                 // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
                 // Hence the grid complexity would have been at least its previous value
                 
-                if (this->conjugation_map[this->conjugation_map_indx -8] != 0)
+                if (this->conjugation_map[63 -8] != 0)
                     #ifdef DEBUG
                     throw std::runtime_error("Grid complexity fell below minimum value");
                     #else
@@ -812,7 +811,7 @@ uchar BPCSStreamBuf::sgetc(){
             mylog << "\\r";
         else
             mylog << c;
-        mylog << ")  (x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
+        mylog << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjugation_map_indx << "\t(x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
     #endif
     return c;
 }
@@ -821,7 +820,7 @@ void BPCSStreamBuf::sputc(uchar c){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "sputc " << +c << " (" << c << ") at gridbitindx " << +this->gridbitindx << "  (x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
+        mylog << "sputc " << +c << " (" << c << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjugation_map_indx << "\t(x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
         mylog.set_verbosity(5);
         mylog.set_cl(0);
         mylog << "sputc " << +c << " bits ";
