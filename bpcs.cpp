@@ -506,37 +506,39 @@ void BPCSStreamBuf::write_conjugation_map(){
             this->conjugation_grid.data[k] = this->conjugation_map[k];
         }
     #endif
-        memcpy(this->conjugation_grid.data, this->conjugation_map, 63);
-        
-        this->conjugation_grid.data[63] = 0;
-        
-        complexity = this->get_grid_complexity(this->conjugation_grid);
-        
-        #ifdef DEBUG
-            mylog.tedium('p');
-            mylog << "Conjgrid before conjugation" << "\n";
-            mylog.tedium();
-            mylog << this->conjugation_grid << "\n";
-        #endif
-        
-        if (complexity < this->min_complexity){
-            conjugate_grid(this->conjugation_grid, this->grids_since_conjgrid, this->x-64, this->y);
-            this->conjugation_grid.data[63] = 1;
-            if (1 - complexity - 1/57 < this->min_complexity)
-                // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
-                // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
+    
+    memcpy(this->conjugation_grid.data, this->conjugation_map, 63);
+    
+    this->conjugation_grid.data[63] = 0;
+    
+    complexity = this->get_grid_complexity(this->conjugation_grid);
+    
+    #ifdef DEBUG
+        mylog.tedium('p');
+        mylog << "Conjgrid before conjugation" << "\n";
+        mylog.tedium();
+        mylog << this->conjugation_grid << "\n";
+    #endif
+    
+    if (complexity < this->min_complexity){
+        conjugate_grid(this->conjugation_grid, this->grids_since_conjgrid, this->x-64, this->y);
+        this->conjugation_grid.data[63] = 1;
+        if (1 - complexity - 1/57 < this->min_complexity)
+            // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
+            // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
+            
+            if (this->conjugation_grid.data[62] != 0)
+                // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
+                // Hence the grid complexity would have been at least its previous value
                 
-                if (this->conjugation_grid.data[62] != 0)
-                    // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
-                    // Hence the grid complexity would have been at least its previous value
-                    
-                    if (this->conjugation_grid.data[55] != 0)
-                        #ifdef DEBUG
-                        throw std::runtime_error("Grid complexity fell below minimum value");
-                        #else
-                        abort();
-                        #endif
-        }
+                if (this->conjugation_grid.data[55] != 0)
+                    #ifdef DEBUG
+                    throw std::runtime_error("Grid complexity fell below minimum value");
+                    #else
+                    abort();
+                    #endif
+    }
+    
     #ifdef TESTS
         for (uint_fast8_t i=0; i<64; ++i)
             if (this->conjugation_grid.data[i] != 0 && this->conjugation_grid.data[i] != 1){
