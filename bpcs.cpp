@@ -47,10 +47,8 @@ static const std::string NULLSTR = "[NULL]";
 
 inline uint_fast64_t get_charp_len(char* chrp){
     uint_fast64_t i = 0;
-    while (*chrp != 0){
+    while (*(chrp++) != 0)
         ++i;
-        ++chrp;
-    }
     return i;
 }
 
