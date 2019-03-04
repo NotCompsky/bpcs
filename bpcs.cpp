@@ -447,9 +447,8 @@ void BPCSStreamBuf::load_next_channel(){
 
 void BPCSStreamBuf::load_next_img(){
     #ifdef EMBEDDOR
-    if (this->embedding && this->img_n != 0){
+    if (this->embedding && this->img_n != 0)
         this->save_im();
-    }
     #endif
     #ifdef DEBUG
         mylog.set_verbosity(3);
@@ -457,10 +456,6 @@ void BPCSStreamBuf::load_next_img(){
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
     this->im_mat = cv::imread(this->img_fps[this->img_n++], -1);
-    #ifdef TESTS
-        assert(this->im_mat.isContinuous());
-        // Apparently guaranteed to be the case for imread, as it calls create()
-    #endif
     #ifdef EMBEDDOR
     cv::split(this->im_mat, this->channel_byteplanes);
     #endif
