@@ -332,14 +332,14 @@ uint_fast16_t xor_adj(cv::Mat &arr, uint_fast16_t w, uint_fast16_t h){
 }
 
 void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t w, uint_fast16_t h, uint_fast16_t n){
-    for (int i=0; i<w; ++i)
-        for (int j=0; j<h; ++j)
+    for (uint_fast16_t i=0; i<w; ++i)
+        for (uint_fast16_t j=0; j<h; ++j)
             dest.at<uint_fast8_t>(j,i) = (arr.at<uint_fast8_t>(j,i) >> n) & 1;
 }
 
 void bitshift_up(cv::Mat &arr, uint_fast16_t w, uint_fast16_t h, uint_fast16_t n){
-    for (int i=0; i<w; ++i)
-        for (int j=0; j<h; ++j)
+    for (uint_fast16_t i=0; i<w; ++i)
+        for (uint_fast16_t j=0; j<h; ++j)
             arr.at<uint_fast8_t>(j,i) = arr.at<uint_fast8_t>(j,i) << n;
 }
 
@@ -358,8 +358,8 @@ void convert_to_cgc(cv::Mat &arr, uint_fast16_t w, uint_fast16_t h, cv::Mat &des
 cv::Mat chequerboard(uint_fast16_t indx, uint_fast16_t w, uint_fast16_t h){
     // indx should be 0 or 1
     cv::Mat arr = cv::Mat(h, w, CV_8UC1);
-    for (int i=0; i<w; ++i)
-        for (int j=0; j<h; ++j){
+    for (uint_fast16_t i=0; i<w; ++i)
+        for (uint_fast16_t j=0; j<h; ++j){
             arr.at<uint_fast8_t>(j, i) = ((i ^ j) ^ indx) & 1;
         }
     return arr;
@@ -431,8 +431,8 @@ int decode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
         conjugate_grid(grid);
     
     bool not_encountered_first_el = true;
-    for (int j=0; j<grid_h; ++j)
-        for (int i=0; i<grid_w; ++i){
+    for (uint_fast16_t j=0; j<grid_h; ++j)
+        for (uint_fast16_t i=0; i<grid_w; ++i){
             if (not_encountered_first_el){
                 // Do not add conjugation status bit to msg
                 not_encountered_first_el = false;
@@ -466,8 +466,8 @@ int encode_grid(cv::Mat &bitplane, cv::Rect &grid_shape, const float min_complex
     bool not_encountered_first_el = true;
     int index = -1;
     
-    for (int j=0; j<grid_h; ++j){
-        for (int i=0; i<grid_w; ++i){
+    for (uint_fast16_t j=0; j<grid_h; ++j){
+        for (uint_fast16_t i=0; i<grid_w; ++i){
             if (not_encountered_first_el){
                 not_encountered_first_el = false;
                 continue;
@@ -614,8 +614,8 @@ int iterate_over_bitgrids(bool minimise_img, cv::Mat &count_complex_grids, std::
         uint_fast32_t n_grids_so_far = 0;
         uint_fast32_t n_grids_total  = n_hztl_grids * n_vert_grids;
     #endif
-    for (int i=0; i<n_hztl_grids; ++i){
-        for (int j=0; j<n_vert_grids; ++j){
+    for (uint_fast16_t i=0; i<n_hztl_grids; ++i){
+        for (uint_fast16_t j=0; j<n_vert_grids; ++j){
             cv::Rect grid_shape(cv::Point(i*grid_w, j*grid_h), cv::Size(grid_w, grid_h));
             // cv::Rect, cv::Point, cv::Size are all column-major, i.e. (x, y) or (width, height)
             bitplane(grid_shape).copyTo(grid);
