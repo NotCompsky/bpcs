@@ -1285,18 +1285,19 @@ int main(const int argc, char *argv[]){
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
                 mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
-                
-                
-                if (n_msg_bytes == 0){
-                    // Reached end of embedded datas
+            #endif
+            
+            if (n_msg_bytes == 0){
+                // Reached end of embedded datas
+                #ifdef DEBUG
                     mylog.set_verbosity(0);
                     mylog.set_cl('r');
                     mylog << "n_msg_bytes = 0";
                     mylog.set_cl(0);
                     mylog << std::endl;
-                    return 0;
-                }
-            #endif
+                #endif
+                return 0;
+            }
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
