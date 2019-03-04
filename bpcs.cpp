@@ -134,13 +134,10 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
                 mylog.set_verbosity(0);
                 mylog.set_cl('r');
                 mylog << "Must write to a file in lossless format, not `" << result_ext << "`" << std::endl;
-                throw std::runtime_error("Must write to a file in lossless format");
-            #else
-                abort();
             #endif
+            abort();
         }
     }
-    
     return result;
 }
 
@@ -552,12 +549,12 @@ void BPCSStreamBuf::write_conjugation_map(){
                 // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
                 // Hence the grid complexity would have been at least its previous value
                 
-                if (this->conjgrid.val[63 -8] != 0)
+                if (this->conjgrid.val[63 -8] != 0){
                     #ifdef DEBUG
-                    throw std::runtime_error("Grid complexity fell below minimum value");
-                    #else
-                    abort();
+                    std::cerr << "Grid complexity fell below minimum value" << std::endl;
                     #endif
+                    abort();
+                }
     }
     
     cv::Mat(this->conjgrid).copyTo(this->conjgrid_orig);
@@ -700,10 +697,9 @@ void BPCSStreamBuf::set_next_grid(){
     #ifdef DEBUG
         print_histogram(this->complexities, 10, 200);
         this->print_state();
-        throw std::runtime_error("Ran out of complex grids (either too much data to embed, or missing files when extracting");
-    #else
-        abort();
+        std::cerr << "Ran out of complex grids (either too much data to embed, or missing files when extracting" << std::endl;
     #endif
+    abort();
     
     try_again:
     this->set_next_grid();
@@ -731,7 +727,7 @@ uchar BPCSStreamBuf::sgetc(){
         if (sgetputc_count == SGETPUTC_MAX){
             mylog.set_verbosity(0);
             mylog << "Reached SGETPUTC_MAX " << +SGETPUTC_MAX << std::endl;
-            throw std::runtime_error("Reached SGETPUTC_MAX");
+            abort();
         } else if (sgetputc_count == SGETPUTC_MAX -120){
             mylog.set_level(10);
         }
@@ -755,7 +751,7 @@ void BPCSStreamBuf::sputc(uchar c){
         if (sgetputc_count == SGETPUTC_MAX){
             mylog.set_verbosity(0);
             mylog << "Reached SGETPUTC_MAX " << +SGETPUTC_MAX << std::endl;
-            throw std::runtime_error("Reached SGETPUTC_MAX");
+            abort()
         } else if (sgetputc_count == SGETPUTC_MAX -120){
             mylog.set_level(10);
         }
@@ -1081,10 +1077,9 @@ int main(const int argc, char *argv[]){
     if (out_fmt[0] == 0){
         if (n_msg_fps != 0){
             #ifdef DEBUG
-                throw std::runtime_error("Must specify --out-fmt if embedding --msg files");
-            #else
-                return 1;
+                std::cerr << "Must specify --out-fmt if embedding --msg files" << std::endl;
             #endif
+            return 1;
         }
         #ifdef DEBUG
             mylog << "display";
