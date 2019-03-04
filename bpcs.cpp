@@ -151,23 +151,11 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
 /*
  * Bitwise operations on OpenCV Matrices
  */
-inline void bitandshift(cv::Mat &arr, cv::Mat &dest, uint_fast16_t n){
-    /*
-    IIRC, cv::divide does not divide by 2 via bitshifts - it rounds up
-    TODO: Maybe fix this by looking at the assembly generated
-    
-    for (uint_fast8_t i = 0; i<n; ++i)
-        cv::divide(arr,  2,  dest);
-    
-    cv::bitwise_and(dest, 1, dest);
-    */
-    for (uint_fast16_t i=0; i<arr.rows*arr.cols; ++i)
-        dest.data[i] = (arr.data[i] >> n) & 1;
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-        mylog.set_cl(0);
-        mylog << "bitandshift " << +n << ":  arr(sum==" << +cv::sum(arr)[0] << ")  ->  dest(sum==" << +cv::sum(dest)[0] << ")" << std::endl;
-    #endif
+inline void cv_div2(cv::Mat& arr, cv::Mat& dest){
+    cv::Mat m;
+    m = ((arr & 2) / 2) & (arr & 1);
+    dest  = arr/2;
+    dest -= m;
 }
 
 inline void bitshift_up(cv::Mat &arr, uint_fast16_t n){
@@ -185,8 +173,9 @@ inline void convert_to_cgc(cv::Mat &arr){
         mylog.set_cl(0);
         mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==";
     #endif
-    for (uchar* bit = arr.data;  bit != arr.data + (arr.rows*arr.cols);  ++bit)
-        *bit = *bit ^ (*bit >> 1);
+    cv::Mat dest;
+    cv_div2(arr, dest);
+    cv::bitwise_xor(arr, dest, arr);
     #ifdef DEBUG
         mylog << +cv::sum(arr)[0] << ")" << std::endl;
     #endif
@@ -442,7 +431,9 @@ inline void BPCSStreamBuf::load_next_bitplane(){
         mylog << "Loading bitplane " << +(this->bitplane_n -1) << " of " << +this->n_bitplanes << " from channel " << +this->channel_n << std::endl;
     #endif
     
-    bitandshift(this->channel, this->bitplane, this->n_bitplanes - ++this->bitplane_n);
+    this->bitplane = this->channel & 1;
+    cv_div2(this->channel, this->channel);
+    ++this->bitplane_n;
     
     #ifdef DEBUG
         mylog.set_verbosity(10);
@@ -476,7 +467,7 @@ void BPCSStreamBuf::load_next_img(){
         mylog.set_cl('g');
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
-    this->im_mat = cv::imread(this->img_fps[this->img_n++], CV_LOAD_IMAGE_COLOR);
+    this->im_mat = cv::imread(this->img_fps[this->img_n++], -1);
     #ifdef TESTS
         assert(this->im_mat.isContinuous());
         // Apparently guaranteed to be the case for imread, as it calls create()
@@ -535,8 +526,9 @@ void BPCSStreamBuf::load_next_img(){
             convert_to_cgc(this->channel_byteplanes[j]);
             i = 0;
             while (i < this->n_bitplanes){
-                this->bitplanes[k] = cv::Mat::zeros(this->im_mat.rows, this->im_mat.cols, CV_8UC1);
-                bitandshift(this->channel_byteplanes[j], this->bitplanes[k++], this->n_bitplanes - ++i);
+                this->bitplanes[k++] = this->channel_byteplanes[j] & 1;
+                cv_div2(this->channel_byteplanes[j], this->channel_byteplanes[j]);
+                ++i;
                 #ifdef DEBUG
                     mylog.set_verbosity(10);
                     mylog.set_cl('g');
@@ -663,14 +655,15 @@ void BPCSStreamBuf::set_next_grid(){
         #ifdef EMBEDDOR
         if (this->embedding){
             this->write_conjugation_map();
-            cv::Rect grid_shape(cv::Point(this->x -8, this->y), cv::Size(8, 8));
-            this->conjgrid_orig = this->bitplane(grid_shape);
+            this->conjgrid_orig = this->grid_orig;
         } else {
         #endif
             if (this->grid.val[63] != 0)
                 // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
                 // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
                 this->conjugate_grid(this->grid);
+            
+            memcpy(this->conjgrid.val, this->grid.val, 64);
             
             #ifdef DEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
@@ -702,7 +695,7 @@ void BPCSStreamBuf::set_next_grid(){
             complexity = this->get_grid_complexity(this->grid_orig);
             
             #ifdef DEBUG
-                //this->complexities.push_back(complexity);
+                this->complexities.push_back(complexity);
             #endif
             
             i += 8;
@@ -881,23 +874,24 @@ void BPCSStreamBuf::save_im(){
         mylog << "UnXORing " << +this->n_channels << " channels of depth " << +this->n_bitplanes << std::endl;
     #endif
     uint_fast8_t j;
-    uint_fast8_t k = 0;
-    for (uint_fast8_t i=0; i < this->n_channels; ++i){
+    uint_fast8_t k = this->n_channels * this->n_bitplanes;
+    uint_fast8_t i = this->n_channels -1;
+    do {
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
-        this->channel_byteplanes[i] = this->bitplanes[k++].clone();
+        this->channel_byteplanes[i] = this->bitplanes[--k].clone();
         bitshift_up(this->channel_byteplanes[i], this->n_bitplanes -1);
         
-        j = 1;
-        while (j < this->n_bitplanes){
-            cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k-1], this->bitplanes[k]);
+        j = this->n_bitplanes -1;
+        do {
+            --j;
+            --k;
+            cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
             
             this->bitplane = this->bitplanes[k].clone();
-            bitshift_up(this->bitplane, this->n_bitplanes - ++j);
+            bitshift_up(this->bitplane, j);
             cv::bitwise_or(this->channel_byteplanes[i], this->bitplane, this->channel_byteplanes[i]);
-            
-            ++k;
-        }
-    }
+        } while (j != 0);
+    } while (i-- != 0);
     
     std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], true);
     cv::merge(this->channel_byteplanes, this->im_mat);
@@ -910,7 +904,6 @@ void BPCSStreamBuf::save_im(){
     cv::imwrite(out_fp, this->im_mat);
 }
 #endif
-
 
 
 
@@ -1345,7 +1338,7 @@ int main(const int argc, char *argv[]){
                     for (j=0; j<n_msg_bytes; ++j)
                         data[j] = bpcs_stream.sgetc();
                     cv::Mat rawdata(1, n_msg_bytes, CV_8UC1, data);
-                    cv::Mat decoded_img = cv::imdecode(rawdata, CV_LOAD_IMAGE_UNCHANGED);
+                    cv::Mat decoded_img = cv::imdecode(rawdata, -1);
                     if (decoded_img.data == NULL){
                         #ifdef DEBUG
                             mylog.set_verbosity(0);
