@@ -240,7 +240,7 @@ class BPCSStreamBuf { //: public std::streambuf {
   public:
     /* Constructors */
     BPCSStreamBuf(const float min_complexity, const std::vector<std::string> img_fps):
-    min_complexity(min_complexity), img_fps(img_fps), img_n(0), byteindx(0), grids_since_conjgrid(63)
+    min_complexity(min_complexity), img_fps(img_fps), img_n(0), byteindx(0), grids_since_conjgrid(63), conjugation_map_set(false)
     {}
     
     
@@ -260,6 +260,8 @@ class BPCSStreamBuf { //: public std::streambuf {
     void commit_channel();
     
     void save_im();
+    
+    void write_conjugation_map();
     
     inline float get_grid_complexity(cv::Mat&);
 
@@ -287,6 +289,8 @@ class BPCSStreamBuf { //: public std::streambuf {
     uint_fast8_t n_bitplanes;
     
     unsigned char conjugation_map[64];
+    bool conjugation_map_set;
+    cv::Mat conjugation_grid;
     
     #ifdef DEBUG
         std::vector<float> complexities;
@@ -332,7 +336,7 @@ void BPCSStreamBuf::unxor_bitplane(){
         this->prev_bitplane = this->unXORed_bitplane.clone();
         // WARNING: MUST BE DEEP COPY!
     
-    bitshift_up(this->unXORed_bitplane, this->n_bitplanes - this->bitplane_n -1);
+    bitshift_up(this->unXORed_bitplane, this->n_bitplanes - this->bitplane_n);
     
     #ifdef DEBUG
         mylog.dbg();
@@ -430,23 +434,44 @@ void BPCSStreamBuf::load_next_img(){
         this->byteplane = cv::Mat::zeros(this->im_mat.rows, im_mat.cols, CV_8UC1);
 }
 
+void BPCSStreamBuf::write_conjugation_map(){
+    #ifdef DEBUG
+        mylog.tedium();
+        mylog << "write_conjugation_map" << std::endl;
+    #endif
+    if (this->conjugation_map_set){
+        for (uint_fast8_t k=1; k<64; ++k)
+            this->conjugation_grid.data[k] = this->conjugation_map[k];
+        
+        this->conjugation_grid.data[0] = 0;
+        
+        if (this->get_grid_complexity(this->conjugation_grid) < this->min_complexity){
+            conjugate_grid(this->conjugation_grid);
+            this->conjugation_grid.data[0] = 1;
+            if (this->get_grid_complexity(this->conjugation_grid) < this->min_complexity){
+                throw std::runtime_error("Grid complexity fell below minimum value");
+            }
+        }
+    } else {
+        this->conjugation_map_set = false;
+    }
+}
+
 int BPCSStreamBuf::set_next_grid(){
     if (++this->grids_since_conjgrid == 64){
         // First grid in every 64 is reserved for conjugation map
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
         // The old such grid must have the conjugation map emptied into it
         
-        for (uint_fast8_t k=1; k<64; ++k)
-            this->grid.data[k] = conjugation_map[k];
-        
-        this->grid.data[0] = 0;
-        
-        if (this->get_grid_complexity(this->grid) < this->min_complexity){
-            conjugate_grid(this->grid);
-            this->grid.data[0] = 1;
-            if (this->get_grid_complexity(this->grid) < this->min_complexity){
-                throw std::runtime_error("Grid complexity fell below minimum value");
-            }
+        if (this->embedding){
+            this->write_conjugation_map();
+            this->conjugation_grid = this->grid;
+        } else {
+            if (this->grid.data[0] == 1)
+                conjugate_grid(this->grid);
+            
+            for (uint_fast8_t k=1; k<64; ++k)
+                this->conjugation_map[k] = this->grid.data[k];
         }
         
         this->set_next_grid();
@@ -527,17 +552,25 @@ char BPCSStreamBuf::sgetc(){
 
 char BPCSStreamBuf::sputc(char c){
     if (this->byteindx == 8){
-        if (this->get_grid_complexity(this->grid) < this->min_complexity){
-            // Commit grid
-            conjugate_grid(this->grid);
-            this->conjugation_map[this->grids_since_conjgrid] = 1;
-        } else {
-            this->conjugation_map[this->grids_since_conjgrid] = 0;
+        if (this->embedding){
+            if (this->get_grid_complexity(this->grid) < this->min_complexity){
+                // Commit grid
+                conjugate_grid(this->grid);
+                this->conjugation_map[this->grids_since_conjgrid] = 1;
+            } else {
+                this->conjugation_map[this->grids_since_conjgrid] = 0;
+            }
         }
         
         if (this->set_next_grid())
             throw std::runtime_error("Too much data to encode");
             //return std::char_traits<char>::eof;
+        
+        if (!this->embedding){
+            if (this->conjugation_map[this->grids_since_conjgrid])
+                conjugate_grid(this->grid);
+        }
+        
         this->byteindx = 0;
     }
     for (uint_fast8_t i=0; i<8; ++i)
@@ -551,6 +584,7 @@ void BPCSStreamBuf::save_im(){
     #ifdef TESTS
         assert(this->embedding);
     #endif
+    this->write_conjugation_map();
     this->commit_channel();
     std::regex_search(this->img_fps[this->img_n -1], this->path_regexp_match, path_regexp);
     std::string out_fp = format_out_fp(this->out_fmt, this->path_regexp_match);
@@ -578,7 +612,6 @@ void BPCSStreamBuf::end(){
         print_histogram(complexities, 10, 200);
     #endif
     assert(this->embedding);
-    this->unxor_bitplane();
     this->save_im();
 }
 
@@ -667,7 +700,7 @@ int main(const int argc, char *argv[]){
     }
     
     #ifdef DEBUG
-        uint_fast8_t verbosity = 3 + Averbose - Aquiet;
+        uint_fast8_t verbosity = 3 + args::get(Averbose) - args::get(Aquiet);
         if (verbosity < 0)
             verbosity = 0;
         else if (verbosity > 5)
@@ -830,6 +863,16 @@ int main(const int argc, char *argv[]){
             for (j=0; j<8; ++j){
                 n_msg_bytes |= (bpcs_stream.sgetc() << j);
             }
+            #ifdef DEBUG
+                mylog.tedium();
+                mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
+            #endif
+            
+            #ifdef TESTS
+                mylog.crit();
+                mylog << "n_msg_bytes = 0" << std::endl;
+                throw std::runtime_error("Failed to extract message");
+            #endif
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
@@ -838,6 +881,25 @@ int main(const int argc, char *argv[]){
                     for (j=0; j<n_msg_bytes; ++j)
                         of.put(bpcs_stream.sgetc());
                     of.close();
+                } else if (mode == MODE_EXTRACT){
+                    char data[n_msg_bytes];
+                    for (j=0; j<n_msg_bytes; ++j)
+                        data[j] = bpcs_stream.sgetc();
+                    cv::Mat rawdata(1, n_msg_bytes, CV_8UC1, data);
+                    cv::Mat decoded_img = cv::imdecode(rawdata, CV_LOAD_IMAGE_UNCHANGED);
+                    if (decoded_img.data == NULL){
+                        #ifdef DEBUG
+                            mylog.crit();
+                            mylog << "No image data loaded from " << n_msg_bytes << "B data stream claiming to originate from file `" << fp << "`" << std::endl;
+                        #endif
+                        throw std::invalid_argument("");
+                    }
+                    #ifdef DEBUG
+                        mylog.info();
+                        mylog << "Displaying image" << std::endl;
+                    #endif
+                    cv::imshow(fp, decoded_img);
+                    cv::waitKey(0);
                 } else {
                     for (j=0; j<n_msg_bytes; ++j){
                     }
@@ -846,8 +908,16 @@ int main(const int argc, char *argv[]){
                 for (j=0; j<n_msg_bytes; ++j){
                     fp += bpcs_stream.sgetc();
                 }
+                #ifdef DEBUG
+                    mylog.info();
+                    mylog << "Original fp: " << fp << std::endl;
+                #endif
                 std::regex_search(fp, path_regexp_match, path_regexp);
                 fp = format_out_fp(out_fmt, path_regexp_match);
+                #ifdef DEBUG
+                    mylog.info();
+                    mylog << "Formatted fp: " << fp << std::endl;
+                #endif
             }
             
             ++i;
