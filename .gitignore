@@ -2,3 +2,4 @@ build/*
 *.kate-swp
 *.swp
 nohup.out
+test/*
