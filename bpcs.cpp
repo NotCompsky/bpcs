@@ -555,12 +555,10 @@ void BPCSStreamBuf::load_next_img(){
     #ifdef EMBEDDOR
     if (!this->embedding){
     #endif
-        if (this->conjgrid.val[this->conjmap_indx++])
+        if (this->conjgrid.val[this->conjmap_indx])
             this->conjugate_grid(this->grid);
         this->conjmap_indx = 1;
     #ifdef EMBEDDOR
-    } else {
-        this->conjmap_indx = 0;
     }
     #endif
 }
@@ -855,7 +853,6 @@ void BPCSStreamBuf::save_im(){
     while ((this->gridbitindx != 8) && (this->gridbitindx != 0))
         this->sputc(0);
     
-    this->conjmap_indx += 63 -this->conjmap_indx;
     this->write_conjugation_map();
     
     #ifdef DEBUG
