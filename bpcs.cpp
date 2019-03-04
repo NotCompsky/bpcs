@@ -872,7 +872,8 @@ void BPCSStreamBuf::sputc(uchar c){
             mylog.set_cl(0);
             mylog << +(*this->grid_ptr);
         #endif
-        *this->grid_ptr++ = (c >> i) & 1;
+        *this->grid_ptr++ = c & 1;
+        c = c >> 1;
     }
     
     if (++this->gridbitindx == 8){
