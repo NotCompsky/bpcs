@@ -854,6 +854,7 @@ void BPCSStreamBuf::sputc(unsigned char c){
     #endif
     for (uint_fast8_t i=0; i<8; ++i){
         #ifdef DEBUG
+            mylog.set_cl('B');
             mylog << +((c >> i) & 1);
         #endif
         this->grid.data[this->gridbitindx++] = (c >> i) & 1;
