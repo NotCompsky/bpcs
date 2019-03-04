@@ -396,6 +396,8 @@ class BPCSStreamBuf { //: public std::streambuf {
     
     unsigned char conjugation_map[63];
     
+    uchar* grid_ptr;
+    
     const std::vector<char*> img_fps;
     std::vector<cv::Mat> channel_byteplanes;
     
@@ -706,6 +708,7 @@ int BPCSStreamBuf::set_next_grid(){
                 //this->bitplane(grid_shape).copyTo(this->grid);
                 this->x = i;
                 this->y = j;
+                this->grid_ptr = this->grid.data;
                 #ifdef DEBUG
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
@@ -788,9 +791,9 @@ unsigned char BPCSStreamBuf::sgetc(){
         #ifdef DEBUG
             mylog.set_verbosity(8);
             mylog.set_cl(0);
-            mylog << +this->grid.data[this->gridbitindx];
+            mylog << +(*this->grid_ptr);
             #ifdef TESTS
-                if (this->grid.data[this->gridbitindx] != 0 && this->grid.data[this->gridbitindx] != 1){
+                if (*this->grid_ptr != 0 && *this->grid_ptr != 1){
                     mylog.set_verbosity(0);
                     mylog.set_cl('r');
                     mylog << "Non-bit in grid(" << +this->x << ", " << +this->y << ")" << "\n" << this->grid << std::endl;
@@ -798,8 +801,9 @@ unsigned char BPCSStreamBuf::sgetc(){
                 }
             #endif
         #endif
-        c |= this->grid.data[this->gridbitindx++] << i;
+        c |= *(this->grid_ptr++) << i;
     }
+    this->gridbitindx += 8;
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
@@ -857,11 +861,17 @@ void BPCSStreamBuf::sputc(unsigned char c){
             mylog.set_cl('B');
             mylog << +((c >> i) & 1);
         #endif
-        this->grid.data[this->gridbitindx++] = (c >> i) & 1;
+        *this->grid_ptr++ = (c >> i) & 1;
         #ifdef TESTS
-            assert(this->grid.data[this->gridbitindx-1] == (c >> i) & 1);
+            if (this->grid.data[this->gridbitindx+i] != ((c >> i) & 1)){
+                mylog.set_verbosity(0);
+                mylog.set_cl('r');
+                mylog << +this->grid.data[this->gridbitindx+i] << " != " << +((c >> i) & 1) << std::endl;
+                throw std::runtime_error("");
+            }
         #endif
     }
+    this->gridbitindx += 8;
     #ifdef DEBUG
         mylog << std::endl;
     #endif
