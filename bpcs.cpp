@@ -279,6 +279,10 @@ uint_fast8_t add_bytes_to_msg(std::vector<uint_fast8_t> &msg, std::vector<uint_f
 }
 
 uint_fast8_t add_msgfile_bits(std::vector<uint_fast8_t> &msg, std::string fp){
+    #ifdef DEBUG1
+        std::cout << "add_msg_bits:  " << fp << std::endl;
+    #endif
+    
     std::vector<uint_fast8_t> fp_as_vector(fp.begin(), fp.end());
     uint_fast8_t end_byte;
 
@@ -744,7 +748,6 @@ void iterate_over_all_bitgrids(
         std::cout << +w << "x" << +h << "\t" << +n_channels << " channels\t" << +n_bits << " depth" << std::endl;
     #endif
     
-    int iterate_over_bitgrids__result;
     bool msg_was_exhausted = false;
     
     for (uint_fast8_t j=0; j<n_channels; ++j){
@@ -756,9 +759,7 @@ void iterate_over_all_bitgrids(
         for (uint_fast8_t k=0; k<n_bits; ++k){
             bitandshift(XORed_byteplane, bitplane, w, h, n_bits-k);
             if (!msg_was_exhausted){
-                iterate_over_bitgrids__result = iterate_over_bitgrids(minimise_img, count_complex_grids, complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg);
-                
-                if (iterate_over_bitgrids__result == 0)
+                if (iterate_over_bitgrids(minimise_img, count_complex_grids, complexities, bitplane, min_complexity, n_hztl_grids, n_vert_grids, w, h, grid_w, grid_h, grid_fnct, msg) == 0)
                     msg_was_exhausted = true;
             }
             if (encoding){
@@ -778,13 +779,15 @@ void iterate_over_all_bitgrids(
                 
                 cv::bitwise_or(byteplane, unXORed_bitplane, byteplane);
             }
+            if (msg_was_exhausted)
+                goto outofloop;
         }
         if (encoding)
             // i.e. if (mode == "Encoding")
             channel_byteplanes[j] = byteplane;
-        if (msg_was_exhausted)
-            break;
     }
+    
+    outofloop:
     
     if (minimise_img){
         #ifdef DEBUG3
