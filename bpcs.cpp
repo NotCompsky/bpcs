@@ -418,27 +418,12 @@ inline void BPCSStreamBuf::conjugate_grid(Matx88uc &grid){
 }
 
 inline void BPCSStreamBuf::load_next_bitplane(){
-    #ifdef TESTS
-        assert (!this->embedding);
-    #endif
-    
-    #ifdef DEBUG
-        mylog.set_verbosity(4);
-        mylog.set_cl('b');
-        mylog << "Loading bitplane " << +(this->bitplane_n -1) << " of " << +this->n_bitplanes << " from channel " << +this->channel_n << std::endl;
-    #endif
-    
     this->bitplane = this->channel & 1;
     cv_div2(this->channel, this->channel);
     ++this->bitplane_n;
 }
 
 void BPCSStreamBuf::load_next_channel(){
-    #ifdef DEBUG
-        mylog.set_verbosity(4);
-        mylog.set_cl(0);
-        mylog << "Loading channel(sum==" << +cv::sum(this->channel)[0] << ") " << +(this->channel_n + 1) << " of " << +this->n_channels << std::endl;
-    #endif
     cv::extractChannel(this->im_mat, this->channel, this->channel_n);
     convert_to_cgc(this->channel);
     this->bitplane_n = 0;
@@ -486,13 +471,8 @@ void BPCSStreamBuf::load_next_img(){
     }
     
     #ifdef DEBUG
-        mylog.set_verbosity(3);
-        mylog.set_cl('g');
-        mylog << +this->im_mat.cols << "x" << +this->im_mat.rows << '\n';
-        mylog << +this->n_channels << " channels" << '\n';
-        mylog << "Bit-depth of " << +this->n_bitplanes << '\n';
-        mylog << std::endl;
-        
+        mylog.set_verbosity(4);
+        this->print_state();
         this->complexities.clear();
         this->n_complex_grids_found = 0;
     #endif
@@ -649,14 +629,10 @@ void BPCSStreamBuf::set_next_grid(){
                     mylog << +this->conjgrid.val[k];
                 }
                 mylog << std::endl;
-                mylog << "\n" << this->grid;
+                mylog << "\n" << this->grid << std::endl;
             #endif
         #ifdef EMBEDDOR
         }
-        #endif
-        
-        #ifdef DEBUG
-            mylog << std::endl;
         #endif
     }
     
@@ -708,7 +684,6 @@ void BPCSStreamBuf::set_next_grid(){
         mylog.set_verbosity(4);
         mylog.set_cl('b');
         mylog << "Exhausted bitplane" << std::endl;
-        mylog.set_verbosity(4);
         this->print_state();
     #endif
     
@@ -832,18 +807,10 @@ void BPCSStreamBuf::sputc(uchar c){
         
         this->gridbitindx = 0;
     }
-    
-    #ifdef DEBUG
-        mylog << std::endl;
-    #endif
 }
 
 void BPCSStreamBuf::save_im(){
     // Called either when we've exhausted this->im_mat's last channel, or when we've reached the end of embedding
-    #ifdef TESTS
-        assert(this->embedding);
-    #endif
-    
     // Ensure last grid is saved
     // TODO: Value of char inserted by sputc would ideally be randomised
     while ((this->gridbitindx != 8) && (this->gridbitindx != 0))
@@ -1092,7 +1059,7 @@ int main(const int argc, char *argv[]){
         invalid_argument:
         #ifdef DEBUG
             std::cerr << "Invalid argument: " << arg << std::endl;
-            throw std::runtime_error("Invalid argument");
+            return 1;
         #else
             abort();
         #endif
