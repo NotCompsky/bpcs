@@ -1186,10 +1186,7 @@ int main(const int argc, char *argv[]){
         mylog.set_verbosity(4);
         mylog.set_cl('b');
         mylog << "Verbosity " << +verbosity << std::endl;
-    #endif
-    
-    
-    #ifdef DEBUG
+        
         mylog.set_verbosity(3);
         mylog.set_cl('g');
         if (n_msg_fps != 0)
@@ -1208,21 +1205,18 @@ int main(const int argc, char *argv[]){
         #ifdef DEBUG
             mylog << "display";
         #endif
-    } else {
-        #ifdef DEBUG
+    }
+    #ifdef DEBUG
+        else {
             if (n_msg_fps == 0){
                 if (to_disk)
                     mylog << "file";
                 else
                     mylog << "display";
             }
-        #endif
-    }
-    #ifdef DEBUG
+        }
         mylog << std::endl;
-    #endif
-    
-    #ifdef DEBUG
+        
         mylog.set_verbosity(5);
         mylog.set_cl(0);
         mylog << "min_complexity: " << +argv[i] << std::endl;
@@ -1274,19 +1268,18 @@ int main(const int argc, char *argv[]){
         FILE* msg_file;
         for (i=0; i<n_msg_fps; ++i){
             fp = msg_fps[i];
-            #ifdef DEBUG
-                mylog.set_verbosity(3);
-                mylog.set_cl('g');
-                mylog << "Reading msg `" << fp << "`" << std::endl;
-            #endif
-            
             // At start, and between embedded messages, is a 64-bit integer telling us the size of the next embedded message
             // TODO: XOR this value with 64-bit integer, else the fact that the first 32+ bits will almost certainly be 0 will greatly help unwanted decryption
             
             // TODO: bpcs_stream << encryption << msg_file
             
             n_msg_bytes = get_charp_len(fp);
+            
             #ifdef DEBUG
+                mylog.set_verbosity(3);
+                mylog.set_cl('g');
+                mylog << "Reading msg `" << fp << "`" << std::endl;
+                
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
                 mylog << "n_msg_bytes (filepath): " << +n_msg_bytes << std::endl;
