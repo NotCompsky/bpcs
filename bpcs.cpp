@@ -859,6 +859,7 @@ int main(const int argc, char *argv[]){
     bool to_display = false;
     #ifdef EMBEDDOR
     bool embedding = false;
+    std::vector<char*> msg_fps;
     #endif
     bool extracting = false;
     // bool editing = false; // Use named_pipe_in[0] != 0
@@ -869,8 +870,6 @@ int main(const int argc, char *argv[]){
     char* named_pipe_in = "";
     
     std::string out_fp;
-    
-    std::vector<char*> msg_fps;
     
     #ifdef DEBUG
         int verbosity = 3;
@@ -1160,9 +1159,10 @@ int main(const int argc, char *argv[]){
     uint_fast64_t j;
     char* fp;
     uint_fast64_t n_msg_bytes;
-    struct stat stat_buf;
     
     #ifdef EMBEDDOR
+    struct stat stat_buf;
+    
     if (embedding){
         FILE* msg_file;
         for (i=0; i<n_msg_fps; ++i){
