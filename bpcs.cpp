@@ -1216,6 +1216,11 @@ int main(const int argc, char *argv[]){
         return 1;
     }
     
+    #ifdef DEBUG
+        mylog.set_verbosity(4);
+        mylog << "sizeof(BPCSStreamBuf) == " << +sizeof(BPCSStreamBuf) << std::endl;
+    #endif
+    
     BPCSStreamBuf bpcs_stream(min_complexity, img_fps, embedding, out_fmt);
     bpcs_stream.load_next_img(); // Init
     
