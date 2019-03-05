@@ -909,12 +909,12 @@ int main(const int argc, char *argv[]){
     std::vector<char*> msg_fps;
     #endif
     bool extracting = false;
-    // bool editing = false; // Use named_pipe_in[0] != 0
+    // bool editing = false; // Use named_pipe_in != NULL
     
     uint_fast8_t n_msg_fps = 0;
     
-    char* out_fmt;
-    char* named_pipe_in;
+    char* out_fmt = NULL;
+    char* named_pipe_in = NULL;
     
     std::string out_fp;
     
@@ -1125,8 +1125,8 @@ int main(const int argc, char *argv[]){
         else
             mylog << "Extracting to ";
     #endif
-    if (out_fmt[0] == 0){
-        if (n_msg_fps != 0){
+    if (out_fmt == NULL){
+        if (n_msg_fps != NULL){
             #ifdef DEBUG
                 std::cerr << "Must specify --out-fmt if embedding --msg files" << std::endl;
             #endif
