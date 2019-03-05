@@ -14,6 +14,9 @@ namespace sodium {
 #endif
 
 
+#define N_BITPLANES 8
+#define N_CHANNELS 3
+
 
 typedef cv::Matx<uchar, 8, 8> Matx88uc;
 typedef cv::Matx<uchar, 8, 7> Matx87uc;
@@ -296,16 +299,15 @@ class BPCSStreamBuf {
 
     const float min_complexity;
     
-    uint16_t img_n;
     uint8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     uint8_t conjmap_indx;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
     
-    const uint8_t n_channels = 3;
     uint8_t channel_n;
-    const uint8_t n_bitplanes = 8;
     uint8_t bitplane_n;
+    
+    uint16_t img_n;
     
     const std::vector<char*> img_fps;
     
@@ -369,9 +371,9 @@ void BPCSStreamBuf::print_state(){
     mylog.set_cl(0);
     mylog << "embedding: " << +this->embedding << std::endl;
     mylog << "bitplane_n: " << +this->bitplane_n << std::endl;
-    mylog << "n_bitplanes: " << +this->n_bitplanes << std::endl;
+    mylog << "n_bitplanes: " << +N_BITPLANES << std::endl;
     mylog << "channel_n: " << +this->channel_n << std::endl;
-    mylog << "n_channels: " << +this->n_channels << std::endl;
+    mylog << "n_channels: " << +N_CHANNELS << std::endl;
     mylog << "n_complex_grids_found: " << +n_complex_grids_found << std::endl;
     mylog << "sgetputc_count: " << +sgetputc_count << std::endl;
 }
@@ -481,7 +483,7 @@ void BPCSStreamBuf::load_next_img(){
     png_get_IHDR(png_ptr, png_info_ptr, &w, &h, &bit_depth, &colour_type, NULL, NULL, NULL);
     
     #ifdef TESTS
-        assert(bit_depth == this->n_bitplanes);
+        assert(bit_depth == N_BITPLANES);
         assert(colour_type == PNG_COLOR_TYPE_RGB);
     #endif
     
@@ -536,10 +538,10 @@ void BPCSStreamBuf::load_next_img(){
     if (this->embedding){
         uint_fast8_t k = 0;
         uint_fast8_t i = 0;
-        for (uint_fast8_t j=0; j<this->n_channels; ++j){
+        for (uint_fast8_t j=0; j<N_CHANNELS; ++j){
             convert_to_cgc(this->channel_byteplanes[j]);
             i = 0;
-            while (i < this->n_bitplanes){
+            while (i < N_BITPLANES){
                 this->bitplanes[k++] = this->channel_byteplanes[j] & 1;
                 cv_div2(this->channel_byteplanes[j], this->channel_byteplanes[j]);
                 ++i;
@@ -776,16 +778,16 @@ void BPCSStreamBuf::set_next_grid(){
     ++this->bitplane_n;
     #ifdef EMBEDDOR
     if (this->embedding){
-        if (this->bitplane_n < this->n_bitplanes * this->n_channels){
+        if (this->bitplane_n < N_BITPLANES * N_CHANNELS){
             this->bitplane = this->bitplanes[this->bitplane_n];
             goto try_again;
         }
     } else
     #endif
-    if (this->bitplane_n < this->n_bitplanes){
+    if (this->bitplane_n < N_BITPLANES){
         this->load_next_bitplane();
         goto try_again;
-    } else if (++this->channel_n < this->n_channels){
+    } else if (++this->channel_n < N_CHANNELS){
         this->load_next_channel();
         goto try_again;
     }
@@ -910,16 +912,16 @@ void BPCSStreamBuf::save_im(){
     #ifdef DEBUG
         mylog.set_verbosity(4);
         mylog.set_cl('b');
-        mylog << "UnXORing " << +this->n_channels << " channels of depth " << +this->n_bitplanes << std::endl;
+        mylog << "UnXORing " << +N_CHANNELS << " channels of depth " << +N_BITPLANES << std::endl;
     #endif
     uint_fast8_t j;
-    uint_fast8_t k = this->n_channels * this->n_bitplanes;
-    uint_fast8_t i = this->n_channels -1;
+    uint_fast8_t k = N_CHANNELS * N_BITPLANES;
+    uint_fast8_t i = N_CHANNELS -1;
     
     do {
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[--k].clone();
-        j = this->n_bitplanes -1;
+        j = N_BITPLANES -1;
         this->channel_byteplanes[i] *= (1 << j--);
         do {
             --k;
@@ -982,7 +984,7 @@ void BPCSStreamBuf::save_im(){
     
     png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
     
-    png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, N_BITPLANES, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     
     png_write_info(png_ptr, png_info_ptr);
     
