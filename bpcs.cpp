@@ -358,7 +358,7 @@ class BPCSStreamBuf {
     
     inline float get_grid_complexity(Matx88uc&);
     inline float get_grid_complexity(cv::Mat&);
-    inline void conjugate_grid(Matx88uc&);
+    inline void conjugate_grid();
     #ifdef DEBUG
         void print_state();
     #endif
@@ -398,14 +398,14 @@ inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
     return sum / (2*8*7);
 }
 
-inline void BPCSStreamBuf::conjugate_grid(Matx88uc &grid){
-    cv::bitwise_xor(grid, chequerboard, grid);
+inline void BPCSStreamBuf::conjugate_grid(){
+    cv::bitwise_xor(this->grid, chequerboard, this->grid);
     
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
         mylog << "<*" << +this->conjmap_indx << "(" << +(this->x -8) << ", " << +this->y << ")>" << std::endl;
-        mylog << grid << std::endl;
+        mylog << this->grid << std::endl;
     #endif
 }
 
@@ -573,7 +573,7 @@ void BPCSStreamBuf::load_next_img(){
         if (this->grid.val[63] != 0)
             // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
             // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
-            this->conjugate_grid(this->grid);
+            this->conjugate_grid();
         
         memcpy(this->conjgrid.val, this->grid.val, 64);
     #ifdef EMBEDDOR
@@ -591,7 +591,7 @@ void BPCSStreamBuf::load_next_img(){
     if (!this->embedding){
     #endif
         if (this->conjgrid.val[0])
-            this->conjugate_grid(this->grid);
+            this->conjugate_grid();
         this->conjmap_indx = 1;
         // Must be 1 for extracting, and 0 for embedding
         // It denotes the index of the *next* complex grid when extracting, but the index of the *current* grid when embedding.
@@ -655,7 +655,8 @@ void BPCSStreamBuf::write_conjugation_map(){
     complexity = this->get_grid_complexity(this->conjgrid);
     
     if (complexity < this->min_complexity){
-        this->conjugate_grid(this->conjgrid);
+        this->grid = this->conjgrid;
+        this->conjugate_grid();
         this->conjgrid.val[63] = 1;
         if (1 - complexity - 1/57 < this->min_complexity)
             // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
@@ -721,7 +722,7 @@ void BPCSStreamBuf::set_next_grid(){
             if (this->grid.val[63] != 0)
                 // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
                 // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
-                this->conjugate_grid(this->grid);
+                this->conjugate_grid();
             
             memcpy(this->conjgrid.val, this->grid.val, 64);
             
@@ -833,7 +834,7 @@ uchar BPCSStreamBuf::sgetc(){
         this->set_next_grid();
         
         if (this->conjgrid.val[this->conjmap_indx++])
-            this->conjugate_grid(this->grid);
+            this->conjugate_grid();
         
         this->gridbitindx = 0;
     }
@@ -895,7 +896,7 @@ void BPCSStreamBuf::sputc(uchar c){
             mylog << this->grid << std::endl;
         #endif
         if (this->get_grid_complexity(this->grid) < this->min_complexity){
-            this->conjugate_grid(this->grid);
+            this->conjugate_grid();
             this->conjgrid.val[this->conjmap_indx] = 1;
         } else {
             this->conjgrid.val[this->conjmap_indx] = 0;
