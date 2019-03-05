@@ -657,21 +657,6 @@ void BPCSStreamBuf::write_conjugation_map(){
     if (complexity < this->min_complexity){
         this->grid = this->conjgrid;
         this->conjugate_grid();
-        this->conjgrid.val[63] = 1;
-        if (1 - complexity - 1/57 < this->min_complexity)
-            // Maximum difference in complexity from changing first bit is `2 / (2 * 8 * 7)` == 1/57
-            // Hence - assuming this->min_complexity<0.5 - the conjugate's complexity is 
-            
-            if (this->conjgrid.val[63 -1] != 0)
-                // If it were 0, the XOR of this with the first bit was 1, and had been 0 before.
-                // Hence the grid complexity would have been at least its previous value
-                
-                if (this->conjgrid.val[63 -8] != 0){
-                    #ifdef DEBUG
-                    std::cerr << "Grid complexity fell below minimum value" << std::endl;
-                    #endif
-                    abort();
-                }
     }
     
     cv::Mat(this->conjgrid).copyTo(this->conjgrid_orig);
