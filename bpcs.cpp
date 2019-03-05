@@ -864,7 +864,7 @@ void BPCSStreamBuf::save_im(){
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[--k].clone();
         j = this->n_bitplanes -1;
-        this->channel_byteplanes[i] *= (2 << j--);
+        this->channel_byteplanes[i] *= (1 << j--);
         do {
             --k;
             #ifdef TESTS
@@ -876,7 +876,7 @@ void BPCSStreamBuf::save_im(){
             cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
             
             this->bitplane = this->bitplanes[k].clone();
-            this->bitplane *= (2 << j);
+            this->bitplane *= (1 << j);
             cv::bitwise_or(this->channel_byteplanes[i], this->bitplane, this->channel_byteplanes[i]);
         } while (j-- != 0);
     } while (i-- != 0);
