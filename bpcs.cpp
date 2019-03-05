@@ -1,7 +1,7 @@
 #include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include <fstream>
+#include <png.h>
 #include <sys/stat.h> // for stat
 #include <string> // for std::stoi (stof already defined elsewhere)
 
@@ -302,9 +302,9 @@ class BPCSStreamBuf {
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
     
-    uint8_t n_channels;
+    const uint8_t n_channels = 3;
     uint8_t channel_n;
-    uint8_t n_bitplanes;
+    const uint8_t n_bitplanes = 8;
     uint8_t bitplane_n;
     
     const std::vector<char*> img_fps;
@@ -338,6 +338,11 @@ class BPCSStreamBuf {
     #endif
     
     cv::Mat im_mat;
+    uchar* img_data;
+    
+    png_color_16p png_bg;
+    int32_t png_srgb_intent;
+    double png_gamma;
     
     void set_next_grid();
     void load_next_bitplane();
@@ -426,35 +431,96 @@ void BPCSStreamBuf::load_next_img(){
         mylog.set_cl('g');
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
-    this->im_mat = cv::imread(this->img_fps[this->img_n++], -1);
+    
+    
+    
+    /* Load PNG file into array */
+    FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
+    
+    uchar png_sig[8];
+    
+    fread(png_sig, 1, 8, png_file);
+    if (!png_check_sig(png_sig, 8)){
+        #ifdef DEBUG
+        std::cerr << "Bad signature in file `" << this->img_fps[this->img_n] << "`" << std::endl;
+        #endif
+        abort();
+    }
+    
+    ++this->img_n;
+    
+    auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    
+    if (!png_ptr)
+        // Could not allocate memory
+        abort();
+  
+    auto png_info_ptr = png_create_info_struct(png_ptr);
+    
+    if (!png_info_ptr){
+        png_destroy_read_struct(&png_ptr, NULL, NULL);
+        abort();
+    }
+    
+    /* ERROR - incorrect use of incomplete type
+    if (setjmp(png_ptr->jmpbuf)){
+        png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
+        abort();
+    }
+    */
+    
+    png_init_io(png_ptr, png_file);
+    png_set_sig_bytes(png_ptr, 8);
+    png_read_info(png_ptr, png_info_ptr);
+    
+    uint32_t w;
+    uint32_t h;
+    int32_t bit_depth;
+    int32_t colour_type;
+    
+    png_get_IHDR(png_ptr, png_info_ptr, &w, &h, &bit_depth, &colour_type, NULL, NULL, NULL);
+    
+    #ifdef TESTS
+        assert(bit_depth == this->n_bitplanes);
+        assert(colour_type == PNG_COLOR_TYPE_RGB);
+    #endif
+    
+    png_get_bKGD(png_ptr, png_info_ptr, &this->png_bg);
+    //png_get_gAMA(png_ptr, png_info_ptr, &this->png_gamma);
+    png_get_sRGB(png_ptr, png_info_ptr, &this->png_srgb_intent);
+    
+    uint32_t rowbytes;
+    
+    png_read_update_info(png_ptr, png_info_ptr);
+    
+    rowbytes = png_get_rowbytes(png_ptr, png_info_ptr);
+    
+    #ifdef TESTS
+        assert(png_get_channels(png_ptr, png_info_ptr) == 3);
+    #endif
+    
+    if ((this->img_data = (uchar*)malloc(rowbytes*h)) == NULL){
+        png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
+        abort();
+    }
+    
+    uchar* row_ptrs[h];
+    for (uint32_t i=0; i<h; ++i)
+        row_ptrs[i] = this->img_data + i*rowbytes;
+    
+    png_read_image(png_ptr, row_ptrs);
+    
+    this->im_mat = cv::Mat(h, w, CV_8UC3, this->img_data);
+    // WARNING: Loaded as RGB rather than OpenCV's default BGR
+    
+    #ifdef TESTS
+        assert(this->im_mat.depth() == CV_8U);
+        assert(this->im_mat.channels() == 3);
+    #endif
+    
     #ifdef EMBEDDOR
     cv::split(this->im_mat, this->channel_byteplanes);
     #endif
-    this->n_channels = this->im_mat.channels();
-    
-    switch(this->im_mat.depth()){
-        case CV_8U:
-            this->n_bitplanes = 8;
-            break;
-        case CV_8S:
-            this->n_bitplanes = 8;
-            break;
-        case CV_16U:
-            this->n_bitplanes = 16;
-            break;
-        case CV_16S:
-            this->n_bitplanes = 16;
-            break;
-        case CV_32S:
-            this->n_bitplanes = 32;
-            break;
-        case CV_32F:
-            this->n_bitplanes = 32;
-            break;
-        case CV_64F:
-            this->n_bitplanes = 64;
-            break;
-    }
     
     #ifdef DEBUG
         mylog.set_verbosity(4);
@@ -488,6 +554,7 @@ void BPCSStreamBuf::load_next_img(){
         this->load_next_channel();
     #ifdef EMBEDDOR
     }
+    
     #ifdef TESTS
         this->unset_conjmap();
     #endif
@@ -892,7 +959,71 @@ void BPCSStreamBuf::save_im(){
         mylog << "Saving to  `" << out_fp << "`" << std::endl;
     #endif
     
-    cv::imwrite(out_fp, this->im_mat);
+    
+    
+    FILE* png_file = fopen(out_fp.c_str(), "wb");
+    auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    
+    #ifdef TESTS
+    if (!png_file){
+        std::cerr << "Cannot write to file" << std::endl;
+        abort();
+    }
+    if (!png_ptr){
+        std::cerr << "png_create_write_struct failed" << std::endl;
+        abort();
+    }
+    #endif
+    
+    auto png_info_ptr = png_create_info_struct(png_ptr);
+    
+    if (!png_info_ptr){
+        std::cerr << "png_create_info_struct failed" << std::endl;
+        abort();
+    }
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        std::cerr << "png_init_io failed" << std::endl;
+        abort();
+    }
+    
+    png_init_io(png_ptr, png_file);
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        std::cerr << "png_set_IHDR failed" << std::endl;
+        abort();
+    }
+    
+    png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
+    
+    std::cout << "this->png_gamma " << +this->png_gamma << std::endl;
+    
+    //if (this->png_gamma)
+    //    png_set_gAMA(png_ptr, png_info_ptr, this->png_gamma);
+    
+    //png_set_sRGB(png_ptr, png_info_ptr, this->png_srgb_intent);
+    
+    png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    
+    png_write_info(png_ptr, png_info_ptr);
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        std::cerr << "png_write_image failed" << std::endl;
+        abort();
+    }
+    
+    uchar* row_ptrs[this->im_mat.rows];
+    for (uint32_t i=0; i<this->im_mat.rows; ++i)
+        row_ptrs[i] = this->img_data + i*3*this->im_mat.cols;
+    
+    png_write_image(png_ptr, row_ptrs);
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        std::cerr << "png_write_end failed" << std::endl;
+        abort();
+    }
+    
+    png_write_end(png_ptr, NULL);
 }
 #endif
 
@@ -905,8 +1036,6 @@ void BPCSStreamBuf::save_im(){
 
 
 int main(const int argc, char *argv[]){
-    bool to_disk = false;
-    bool to_display = false;
     #ifdef EMBEDDOR
     bool embedding = false;
     std::vector<char*> msg_fps;
@@ -958,12 +1087,6 @@ int main(const int argc, char *argv[]){
         /* Bool flags */
         
         switch(second_character){
-            case 'd': to_disk = true; goto continue_argloop;
-            // --to-disk
-            // Write to disk (as opposed to psuedofile)
-            case 'D': to_display = true; goto continue_argloop;
-            // --to-display
-            // Display embedded images through OpenCV::imshow (rather than pipe)
             #ifdef DEBUG
             case 'v': ++verbosity; goto continue_argloop;
             case 'q': --verbosity; goto continue_argloop;
@@ -1129,7 +1252,7 @@ int main(const int argc, char *argv[]){
             mylog << "Extracting to ";
     #endif
     if (out_fmt == NULL){
-        if (n_msg_fps != NULL){
+        if (n_msg_fps != 0){
             #ifdef DEBUG
                 std::cerr << "Must specify --out-fmt if embedding --msg files" << std::endl;
             #endif
@@ -1142,10 +1265,7 @@ int main(const int argc, char *argv[]){
     #ifdef DEBUG
         else {
             if (n_msg_fps == 0){
-                if (to_disk)
-                    mylog << "file";
-                else
-                    mylog << "display";
+                mylog << "file";
             }
         }
         mylog << std::endl;
@@ -1298,7 +1418,7 @@ int main(const int argc, char *argv[]){
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
-                if (to_disk){
+                if (out_fmt != NULL){
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
                         mylog << "Writing extracted file to `" << fp_str << "`" << std::endl;
@@ -1314,27 +1434,6 @@ int main(const int argc, char *argv[]){
                         if (verbose)
                             std::cout << fp_str << std::endl;
                     #endif
-                } else if (extracting){
-                    uchar data[n_msg_bytes];
-                    for (j=0; j<n_msg_bytes; ++j)
-                        data[j] = bpcs_stream.sgetc();
-                    cv::Mat rawdata(1, n_msg_bytes, CV_8UC1, data);
-                    cv::Mat decoded_img = cv::imdecode(rawdata, -1);
-                    if (decoded_img.data == NULL){
-                        #ifdef DEBUG
-                            mylog.set_verbosity(0);
-                            mylog.set_cl('r');
-                            mylog << "No image data loaded from " << +n_msg_bytes << "B data stream claiming to originate from file `" << fp_str << "`" << std::endl;
-                        #endif
-                        return 1;
-                    }
-                    #ifdef DEBUG
-                        mylog.set_verbosity(3);
-                        mylog.set_cl('g');
-                        mylog << "Displaying image" << std::endl;
-                    #endif
-                    cv::imshow(fp_str, decoded_img);
-                    cv::waitKey(0);
                 } else {
                     // Stream to the named pipe
                     #ifdef DEBUG
