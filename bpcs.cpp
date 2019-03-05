@@ -337,12 +337,12 @@ class BPCSStreamBuf {
     cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
     #endif
     
-    cv::Mat im_mat;
     uchar* img_data;
+    cv::Mat im_mat;
     
+    #ifdef EMBEDDOR
     png_color_16p png_bg;
-    int32_t png_srgb_intent;
-    double png_gamma;
+    #endif
     
     void set_next_grid();
     void load_next_bitplane();
@@ -485,9 +485,9 @@ void BPCSStreamBuf::load_next_img(){
         assert(colour_type == PNG_COLOR_TYPE_RGB);
     #endif
     
+    #ifdef EMBEDDOR
     png_get_bKGD(png_ptr, png_info_ptr, &this->png_bg);
-    //png_get_gAMA(png_ptr, png_info_ptr, &this->png_gamma);
-    png_get_sRGB(png_ptr, png_info_ptr, &this->png_srgb_intent);
+    #endif
     
     uint32_t rowbytes;
     
@@ -995,13 +995,6 @@ void BPCSStreamBuf::save_im(){
     }
     
     png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
-    
-    std::cout << "this->png_gamma " << +this->png_gamma << std::endl;
-    
-    //if (this->png_gamma)
-    //    png_set_gAMA(png_ptr, png_info_ptr, this->png_gamma);
-    
-    //png_set_sRGB(png_ptr, png_info_ptr, this->png_srgb_intent);
     
     png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     
