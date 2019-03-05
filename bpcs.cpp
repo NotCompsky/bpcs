@@ -488,10 +488,9 @@ void BPCSStreamBuf::load_next_img(){
         this->load_next_channel();
     #ifdef EMBEDDOR
     }
-    #endif
-    
     #ifdef TESTS
         this->unset_conjmap();
+    #endif
     #endif
     
     this->conjmap_indx = 0;
@@ -556,7 +555,11 @@ void BPCSStreamBuf::assert_conjmap_set(){
     return;
     
     abort_w_info:
+    
+    #ifdef DEBUG
     this->print_state();
+    #endif
+    
     abort();
 }
 #endif
