@@ -1333,6 +1333,7 @@ int main(const int argc, char *argv[]){
                     cv::imshow(fp_str, decoded_img);
                     cv::waitKey(0);
                 } else {
+                    // Stream to the named pipe
                     #ifdef DEBUG
                         mylog.set_verbosity(5);
                         mylog.set_cl(0);
