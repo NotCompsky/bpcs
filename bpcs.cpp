@@ -1245,7 +1245,7 @@ int main(const int argc, char *argv[]){
             
             for (j=0; j<8; ++j)
                 bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
-            msg_file = fopen(fp, "r");
+            msg_file = fopen(fp, "rb");
             for (j=0; j<n_msg_bytes; ++j){
                 // WARNING: Assumes there are exactly n_msg_bytes
                 bpcs_stream.sputc(getc(msg_file));
