@@ -1428,20 +1428,9 @@ int main(const int argc, char *argv[]){
                             std::cout << fp_str << std::endl;
                     #endif
                 } else {
-                    // Stream to the named pipe
-                    #ifdef DEBUG
-                        mylog.set_verbosity(5);
-                        mylog.set_cl(0);
-                    #endif
-                    for (j=0; j<n_msg_bytes; ++j){
-                        #ifdef DEBUG
-                            mylog <<
-                        #endif
-                        bpcs_stream.sgetc();
-                    }
-                    #ifdef DEBUG
-                        mylog << std::endl;
-                    #endif
+                    // Stream to anonymous pipe
+                    for (j=0; j<n_msg_bytes; ++j)
+                        std::cout << bpcs_stream.sgetc();
                 }
             } else {
                 fp_str = "";
@@ -1453,12 +1442,14 @@ int main(const int argc, char *argv[]){
                     mylog.set_cl('g');
                     mylog << "Original fp: " << fp_str << std::endl;
                 #endif
-                fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str(), false);
-                #ifdef DEBUG
-                    mylog.set_verbosity(3);
-                    mylog.set_cl('g');
-                    mylog << "Formatted fp: " << fp_str << std::endl;
-                #endif
+                if (out_fmt != NULL){
+                    fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str(), false);
+                    #ifdef DEBUG
+                        mylog.set_verbosity(3);
+                        mylog.set_cl('g');
+                        mylog << "Formatted fp: " << fp_str << std::endl;
+                    #endif
+                }
             }
         }
     #ifdef EMBEDDOR
