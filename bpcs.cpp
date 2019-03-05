@@ -449,8 +449,6 @@ void BPCSStreamBuf::load_next_img(){
         abort();
     }
     
-    ++this->img_n;
-    
     auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     
     if (!png_ptr)
@@ -592,14 +590,21 @@ void BPCSStreamBuf::load_next_img(){
     #ifdef EMBEDDOR
     if (!this->embedding){
     #endif
-        if (this->conjgrid.val[0])
-            this->conjugate_grid();
-        this->conjmap_indx = 1;
-        // Must be 1 for extracting, and 0 for embedding
-        // It denotes the index of the *next* complex grid when extracting, but the index of the *current* grid when embedding.
+        if (this->img_n == 0){
+            // If false, this function is being called from within sgetc()
+            
+            if (this->conjgrid.val[0])
+                this->conjugate_grid();
+            
+            this->conjmap_indx = 1;
+            // Must be 1 for extracting, and 0 for embedding
+            // It denotes the index of the *next* complex grid when extracting, but the index of the *current* grid when embedding.
+        }
     #ifdef EMBEDDOR
     }
     #endif
+    
+    ++this->img_n;
 }
 
 
@@ -903,6 +908,7 @@ void BPCSStreamBuf::save_im(){
         this->sputc(0);
     
     for (uint8_t i=this->conjmap_indx; i<63; ++i)
+        // This will only occur when reached the end of all data being encoded
         this->conjgrid.val[i] = 0;
     
     this->write_conjugation_map();
