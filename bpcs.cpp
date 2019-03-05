@@ -656,10 +656,8 @@ void BPCSStreamBuf::write_conjugation_map(){
     
     complexity = this->get_grid_complexity(this->conjgrid);
     
-    if (complexity < this->min_complexity){
-        this->grid = this->conjgrid;
-        this->conjugate_grid();
-    }
+    if (complexity < this->min_complexity)
+        cv::bitwise_xor(this->conjgrid, chequerboard, this->conjgrid); // i.e. conjugate
     
     cv::Mat(this->conjgrid).copyTo(this->conjgrid_orig);
     
