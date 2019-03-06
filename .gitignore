@@ -1,5 +1,7 @@
 build/*
 *.kate-swp
 *.swp
+*.gcda
 nohup.out
 test/*
+doc/bpcs.1
