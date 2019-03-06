@@ -1178,6 +1178,11 @@ int main(const int argc, char *argv[]){
             #ifdef EMBEDDOR
             case 'm': break;
             #endif
+            case '-':
+                switch(arg[2]){
+                    case 0: goto stop_parsing_opts;
+                    default: goto invalid_argument;
+                }
             default: goto invalid_argument;
         }
         
@@ -1211,7 +1216,7 @@ int main(const int argc, char *argv[]){
         continue;
     }
     
-    
+    stop_parsing_opts:
     
     #ifdef DEBUG
         if (verbosity < 0)
