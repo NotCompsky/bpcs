@@ -57,7 +57,7 @@ inline uint_fast64_t get_charp_len(char* chrp){
 
 
 
-std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless){
+std::string format_out_fp(char* out_fmt, char* fp){
     // WARNING: Requires absolute paths?
     std::string basename;
     std::string dir = "";
@@ -126,19 +126,6 @@ std::string format_out_fp(char* out_fmt, char* fp, const bool check_if_lossless)
             continue;
         } else {
             result += *it;
-        }
-    }
-    
-    if (check_if_lossless){
-        std::string result_ext = result.substr(result.find_last_of(".") + 1);
-        if (result_ext == "png"){
-        } else {
-            #ifdef DEBUG
-                mylog.set_verbosity(0);
-                mylog.set_cl('r');
-                mylog << "Must write to a file in lossless format, not `" << result_ext << "`" << std::endl;
-            #endif
-            abort();
         }
     }
     return result;
@@ -943,7 +930,7 @@ void BPCSStreamBuf::save_im(){
         } while (j-- != 0);
     } while (i-- != 0);
     
-    std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], true);
+    std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1]);
     cv::merge(this->channel_byteplanes, this->im_mat);
     #ifdef DEBUG
         mylog.set_verbosity(3);
@@ -1440,7 +1427,7 @@ int main(const int argc, char *argv[]){
                     mylog << "Original fp: " << fp_str << std::endl;
                 #endif
                 if (out_fmt != NULL){
-                    fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str(), false);
+                    fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str());
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
                         mylog.set_cl('g');
