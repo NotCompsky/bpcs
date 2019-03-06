@@ -171,7 +171,7 @@ static const Matx88uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 
  */
 
 #ifdef DEBUG
-void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uint_fast16_t n_binchars){
+void print_histogram(std::vector<uint8_t> &complexities, uint_fast16_t n_bins, uint_fast16_t n_binchars){
     std::sort(std::begin(complexities), std::end(complexities));
     uint_fast64_t len_complexities = complexities.size();
     
@@ -187,8 +187,8 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
     mylog << "Complexities Histogram" << '\n';
     mylog.set_cl(0);
     
-    float min = *std::min_element(std::begin(complexities), std::end(complexities));
-    float max = *std::max_element(std::begin(complexities), std::end(complexities));
+    uint8_t min = *std::min_element(std::begin(complexities), std::end(complexities));
+    uint8_t max = *std::max_element(std::begin(complexities), std::end(complexities));
     mylog << "Total: " << +len_complexities << " between " << +min << ", " << +max << '\n';
     if (min == max){
         mylog.set_verbosity(2);
@@ -196,10 +196,10 @@ void print_histogram(std::vector<float> &complexities, uint_fast16_t n_bins, uin
         mylog << "No complexity range" << std::endl;
         return;
     }
-    float step = (max - min) / (float)n_bins;
+    uint8_t step = 1; //(max - min) / (float)n_bins;
     mylog << "Bins:  " << +n_bins << " with step " << step << '\n';
     std::vector<uint_fast64_t> bin_totals;
-    float bin_max = step;
+    uint8_t bin_max = step;
     uint_fast64_t bin_total = 0;
     
     uint_fast32_t j;
@@ -246,7 +246,7 @@ class BPCSStreamBuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const float min_complexity, std::vector<char*>& img_fps,
+    BPCSStreamBuf(const uint8_t min_complexity, std::vector<char*>& img_fps,
                 #ifdef EMBEDDOR
                   bool emb,
                 #endif
@@ -266,7 +266,7 @@ class BPCSStreamBuf {
     uchar sgetc();
     
     #ifdef DEBUG
-        std::vector<float> complexities;
+        std::vector<uint8_t> complexities;
     #endif
     
     void load_next_img(); // Init
@@ -284,7 +284,7 @@ class BPCSStreamBuf {
         uint_fast64_t n_complex_grids_found;
     #endif
 
-    const float min_complexity;
+    const uint8_t min_complexity;
     
     uint8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     uint8_t conjmap_indx;
@@ -345,8 +345,8 @@ class BPCSStreamBuf {
     #endif
     #endif
     
-    inline float get_grid_complexity(Matx88uc&);
-    inline float get_grid_complexity(cv::Mat&);
+    inline uint8_t get_grid_complexity(Matx88uc&);
+    inline uint8_t get_grid_complexity(cv::Mat&);
     inline void conjugate_grid();
     #ifdef DEBUG
         void print_state();
@@ -366,25 +366,25 @@ void BPCSStreamBuf::print_state(){
 }
 #endif
 
-inline float BPCSStreamBuf::get_grid_complexity(Matx88uc &arr){
-    float sum = 0;
+inline uint8_t BPCSStreamBuf::get_grid_complexity(Matx88uc &arr){
+    uint8_t sum = 0;
     cv::bitwise_xor(arr.get_minor<7,8>(1,0), arr.get_minor<7,8>(0,0), this->xor_adj_mat2);
     sum += cv::sum(this->xor_adj_mat2)[0];
     
     cv::bitwise_xor(arr.get_minor<8,7>(0,1), arr.get_minor<8,7>(0,0), this->xor_adj_mat1);
     sum += cv::sum(this->xor_adj_mat1)[0];
     
-    return sum / (2*8*7);
+    return sum;
 }
-inline float BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
-    float sum = 0;
+inline uint8_t BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
+    uint8_t sum = 0;
     cv::bitwise_xor(arr(this->xor_adj_rect2), arr(this->xor_adj_rect1), this->xor_adj_mat1);
     sum += cv::sum(this->xor_adj_mat1)[0];
     
     cv::bitwise_xor(arr(this->xor_adj_rect4), arr(this->xor_adj_rect3), this->xor_adj_mat2);
     sum += cv::sum(this->xor_adj_mat2)[0];
     
-    return sum / (2*8*7);
+    return sum;
 }
 
 inline void BPCSStreamBuf::conjugate_grid(){
@@ -629,7 +629,7 @@ void BPCSStreamBuf::assert_conjmap_set(){
 
 #ifdef EMBEDDOR
 void BPCSStreamBuf::write_conjugation_map(){
-    float complexity;
+    uint8_t complexity;
     
     #ifdef TESTS
         this->assert_conjmap_set();
@@ -717,7 +717,7 @@ void BPCSStreamBuf::set_next_grid(){
         #endif
     }
     
-    float complexity;
+    uint8_t complexity;
     int32_t i = this->x;
     for (int32_t j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
         while (i <= this->im_mat.cols -8){
@@ -1088,9 +1088,9 @@ int main(const int argc, char *argv[]){
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
             case 'p': named_pipe_in = nextarg; goto continue_argloop;
             // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
-            #ifdef DEBUG
             case '-':
                 switch(arg[2]){
+                    #ifdef DEBUG
                     case 'b':
                         switch(arg[3]){
                             case 'i':
@@ -1159,17 +1159,14 @@ int main(const int argc, char *argv[]){
                             default:
                                 goto invalid_argument;
                         }
+                    #endif
+                    case 0:
+                        goto stop_parsing_opts;
                     default: goto invalid_argument;
                 }
-            #endif
             #ifdef EMBEDDOR
             case 'm': break;
             #endif
-            case '-':
-                switch(arg[2]){
-                    case 0: goto stop_parsing_opts;
-                    default: goto invalid_argument;
-                }
             default: goto invalid_argument;
         }
         
@@ -1251,13 +1248,13 @@ int main(const int argc, char *argv[]){
         mylog.set_cl(0);
         mylog << "min_complexity: " << +argv[i] << std::endl;
     #endif
-    const float min_complexity = std::stof(argv[i++]);
+    const uint8_t min_complexity = std::stoi(argv[i++]);
     // Minimum bitplane complexity
-    if (min_complexity > 0.5){
+    if (min_complexity > 112){
         #ifdef DEBUG
             mylog.set_verbosity(0);
             mylog.set_cl('r');
-            mylog << "Current implementation requires maximum minimum complexity of 0.5" << std::endl;
+            mylog << "Current implementation requires maximum minimum complexity of 112" << std::endl;
         #endif
         return 1;
     }
