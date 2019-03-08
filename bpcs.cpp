@@ -4,10 +4,7 @@
 #include <png.h>
 #include <sys/stat.h> // for stat
 #include <string> // for std::stoi (stof already defined elsewhere)
-
-namespace sodium {
-    #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
-}
+#include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
 
 #ifdef DEBUG
     #include <compsky/logger.hpp> // for CompskyLogger
@@ -1274,7 +1271,7 @@ int main(const int argc, char *argv[]){
     
     
     
-    if (sodium::sodium_init() == -1) {
+    if (sodium_init() == -1) {
         #ifdef DEBUG
             mylog.set_verbosity(0);
             mylog.set_cl('r');
