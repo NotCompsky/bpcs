@@ -4,4 +4,4 @@ build/*
 *.gcda
 nohup.out
 test/*
-doc/bpcs.1
+doc/*.1
