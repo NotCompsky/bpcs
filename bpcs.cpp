@@ -1244,16 +1244,9 @@ int main(const int argc, char *argv[]){
         mylog.set_cl(0);
         mylog << "min_complexity: " << +argv[i] << std::endl;
     #endif
-    const uint8_t min_complexity = std::stoi(argv[i++]);
+    const uint8_t min_complexity = 50 + (argv[i++][0] -48);
     // Minimum bitplane complexity
-    if (min_complexity > 112){
-        #ifdef DEBUG
-            mylog.set_verbosity(0);
-            mylog.set_cl('r');
-            mylog << "Current implementation requires maximum minimum complexity of 112" << std::endl;
-        #endif
-        return 1;
-    }
+    assert(50 <= min_complexity && min_complexity <= 56);
     
     std::vector<char*> img_fps;
     // File path(s) of input image file(s)
@@ -1317,7 +1310,7 @@ int main(const int argc, char *argv[]){
                 mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
             #endif
             for (j=0; j<8; ++j)
-                bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
+                bpcs_stream.sputc((n_msg_bytes >> (64 -8 -8*j)) & 255);
             for (j=0; j<n_msg_bytes; ++j)
                 bpcs_stream.sputc((uchar)fp[j]);
             
@@ -1337,7 +1330,7 @@ int main(const int argc, char *argv[]){
             #endif
             
             for (j=0; j<8; ++j)
-                bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
+                bpcs_stream.sputc((n_msg_bytes >> (64 -8 -8*j)) & 255);
             msg_file = fopen(fp, "rb");
             for (j=0; j<n_msg_bytes; ++j){
                 // WARNING: Assumes there are exactly n_msg_bytes
@@ -1365,8 +1358,8 @@ int main(const int argc, char *argv[]){
         for (i=0; true; ++i) {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
-                uchar c = bpcs_stream.sgetc();
-                n_msg_bytes |= (c << (8*j));
+                n_msg_bytes = n_msg_bytes << 8;
+                n_msg_bytes |= bpcs_stream.sgetc();
             }
             #ifdef DEBUG
                 mylog.set_verbosity(3);
