@@ -3,13 +3,8 @@
 #include <fstream>
 #include <png.h>
 #include <sys/stat.h> // for stat
+#include <string> // for std::stoi (stof already defined elsewhere)
 #include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
-
-extern "C" {
-#include <libcperciva/crypto/crypto_entropy.h> // for crypto_entropy_read
-#include <lib/scryptenc/scryptenc.h> // for pickparams
-#include <lib/crypto/crypto_scrypt.h> // for crypto_scrypt
-}
 
 #ifdef DEBUG
     #include <compsky/logger.hpp> // for CompskyLogger
@@ -1249,10 +1244,16 @@ int main(const int argc, char *argv[]){
         mylog.set_cl(0);
         mylog << "min_complexity: " << +argv[i] << std::endl;
     #endif
-    char* pwd = argv[i++];
-    const uint8_t min_complexity = 50 + (argv[i++][0] -48);
+    const uint8_t min_complexity = std::stoi(argv[i++]);
     // Minimum bitplane complexity
-    assert(50 <= min_complexity && min_complexity <= 56);
+    if (min_complexity > 112){
+        #ifdef DEBUG
+            mylog.set_verbosity(0);
+            mylog.set_cl('r');
+            mylog << "Current implementation requires maximum minimum complexity of 112" << std::endl;
+        #endif
+        return 1;
+    }
     
     std::vector<char*> img_fps;
     // File path(s) of input image file(s)
@@ -1297,91 +1298,11 @@ int main(const int argc, char *argv[]){
     uint_fast64_t j;
     uint_fast64_t n_msg_bytes;
     
-    static_assert(crypto_secretstream_xchacha20poly1305_KEYBYTES == 32, "crypto_secretstream_xchacha20poly1305_KEYBYTES is not 32");
-    
-    crypto_secretstream_xchacha20poly1305_state state;
-    uchar header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
-    
-    uchar ibuf[1];
-    uchar obuf[1];
-    
-    
-    
-    
-    /* scrypt, for encryption key generation */
-    double maxmemfrac = 0.5;
-    double maxtime = 0.5;
-    
-    uint8_t salt[32];
-    
-    int logN;
-    uint64_t N;
-    uint32_t r;
-    uint32_t p;
-    uint8_t key[32];
-    int rc;
-    
-    if ((rc = pickparams(0, maxmemfrac, maxtime, &logN, &r, &p)) != 0)
-        return rc;
-    
-    N = (uint64_t)(1) << logN;
-    
-    assert((logN > 0) && (logN < 256));
-    
-    
-    
-    
     #ifdef EMBEDDOR
     char* fp;
     struct stat stat_buf;
     
     if (embedding){
-        /* scrypt */
-        crypto_entropy_read(salt, 32);
-        #ifdef DEBUG
-            mylog.set_verbosity(4);
-            mylog << "pwd:	" << pwd << std::endl;
-            mylog << "strlen(pwd):\t" << +strlen(pwd) << std::endl;
-            mylog << "salt:\t";
-            for (uint8_t p=0; p<32; ++p)
-                mylog << +salt[p] << " ";
-            mylog << std::endl;
-            mylog << "N:	" << +N << std::endl;
-            mylog << "r:	" << +r << std::endl;
-            mylog << "p:	" << +p << std::endl;
-        #endif
-        
-        if (crypto_scrypt((uint8_t*)pwd, strlen(pwd), salt, 32, N, r, p, key, 32))
-            return 3;
-        
-        bpcs_stream.sputc(logN & 0xff);
-        
-        for (i=0; i<4; ++i){
-            bpcs_stream.sputc((r >> (32 -8 - 8*i)) & 255);
-        }
-        for (i=0; i<4; ++i){
-            bpcs_stream.sputc((p >> (32 -8 - 8*i)) & 255);
-        }
-        for (i=0; i<32; ++i)
-            bpcs_stream.sputc(salt[i]);
-        
-        crypto_secretstream_xchacha20poly1305_init_push(&state, header, key);
-        
-        #ifdef DEBUG
-            mylog.set_verbosity(4);
-            mylog << "key:\t";
-            for (uint8_t p=0; p<32; ++p)
-                mylog << +key[p] << " ";
-            mylog << std::endl;
-            mylog << "header:\t";
-            for (uint8_t p=0; p<crypto_secretstream_xchacha20poly1305_HEADERBYTES; ++p)
-                mylog << +header[p] << " ";
-            mylog << std::endl;
-        #endif
-        
-        for (i=0; i<crypto_secretstream_xchacha20poly1305_HEADERBYTES; ++i){
-            bpcs_stream.sputc(header[i]);
-        }
         FILE* msg_file;
         for (i=0; i<n_msg_fps; ++i){
             fp = msg_fps[i];
@@ -1395,16 +1316,10 @@ int main(const int argc, char *argv[]){
                 mylog.set_cl('g');
                 mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
             #endif
-            for (j=0; j<8; ++j){
-                ibuf[0] = (n_msg_bytes >> (64 -8 -8*j)) & 255;
-                crypto_secretstream_xchacha20poly1305_push(&state, ibuf, NULL, obuf, 1, NULL, 0, 0);
-                bpcs_stream.sputc(obuf[0]);
-            }
-            for (j=0; j<n_msg_bytes; ++j){
-                ibuf[0] = (uchar)fp[j];
-                crypto_secretstream_xchacha20poly1305_push(&state, ibuf, NULL, obuf, 1, NULL, 0, 0);
-                bpcs_stream.sputc(obuf[0]);
-            }
+            for (j=0; j<8; ++j)
+                bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
+            for (j=0; j<n_msg_bytes; ++j)
+                bpcs_stream.sputc((uchar)fp[j]);
             
             if (stat(fp, &stat_buf) == -1){
                 #ifdef DEBUG
@@ -1421,17 +1336,12 @@ int main(const int argc, char *argv[]){
                 mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
             #endif
             
-            for (j=0; j<8; ++j){
-                ibuf[0] = (n_msg_bytes >> (64 -8 -8*j)) & 255;
-                crypto_secretstream_xchacha20poly1305_push(&state, ibuf, NULL, obuf, 1, NULL, 0, 0);
-                bpcs_stream.sputc(obuf[0]);
-            }
+            for (j=0; j<8; ++j)
+                bpcs_stream.sputc((n_msg_bytes >> (8*j)) & 255);
             msg_file = fopen(fp, "rb");
             for (j=0; j<n_msg_bytes; ++j){
                 // WARNING: Assumes there are exactly n_msg_bytes
-                ibuf[0] = getc(msg_file);
-                crypto_secretstream_xchacha20poly1305_push(&state, ibuf, NULL, obuf, 1, NULL, 0, 0);
-                bpcs_stream.sputc(obuf[0]);
+                bpcs_stream.sputc(getc(msg_file));
                 #ifdef DEBUG
                     if (whichbyte > gridlimit -10){
                         mylog.set_verbosity(5);
@@ -1443,80 +1353,20 @@ int main(const int argc, char *argv[]){
             fclose(msg_file);
         }
         // After all messages, signal end with signalled size of 0
-        for (j=0; j<8; ++j){
-            ibuf[0] = 0;
-            crypto_secretstream_xchacha20poly1305_push(&state, ibuf, NULL, obuf, 1, NULL, 0, 0);
-            bpcs_stream.sputc(obuf[0]);
-        }
+        for (j=0; j<8; ++j)
+            bpcs_stream.sputc(0);
         #ifdef DEBUG
             print_histogram(bpcs_stream.complexities, 10, 200);
         #endif
         bpcs_stream.save_im();
     } else {
     #endif
-        logN = bpcs_stream.sgetc();
-        N = (uint64_t)(1) << logN;
-        r = 0;
-        for (i=0; i<4; ++i){
-            r = r << 8;
-            r |= bpcs_stream.sgetc();
-        }
-        p = 0;
-        for (i=0; i<4; ++i){
-            p = p << 8;
-            p |= bpcs_stream.sgetc();
-        }
-        for (i=0; i<32; ++i)
-            salt[i] = bpcs_stream.sgetc();
-        
-        #ifdef DEBUG
-            mylog.set_verbosity(4);
-            mylog << "pwd:	" << pwd << std::endl;
-            mylog << "strlen(pwd):\t" << +strlen(pwd) << std::endl;
-            mylog << "salt:\t";
-            for (uint8_t p=0; p<32; ++p)
-                mylog << +salt[p] << " ";
-            mylog << std::endl;
-            mylog << "N:	" << +N << std::endl;
-            mylog << "r:	" << +r << std::endl;
-            mylog << "p:	" << +p << std::endl;
-        #endif
-        
-        if (crypto_scrypt((uint8_t*)pwd, strlen(pwd), salt, 32, N, r, p, key, 32))
-            return 3;
-        
-        for (i=0; i<crypto_secretstream_xchacha20poly1305_HEADERBYTES; ++i){
-            header[i] = bpcs_stream.sgetc();
-        }
-        
-        #ifdef DEBUG
-            mylog.set_verbosity(4);
-            mylog << "key:\t";
-            for (uint8_t p=0; p<32; ++p)
-                mylog << +key[p] << " ";
-            mylog << std::endl;
-            mylog << "header:\t";
-            for (uint8_t p=0; p<crypto_secretstream_xchacha20poly1305_HEADERBYTES; ++p)
-                mylog << +header[p] << " ";
-            mylog << std::endl;
-        #endif
-        
-        if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, key) != 0){
-            #ifdef DEBUG
-                mylog.set_verbosity(0);
-                mylog << "Invalid header";
-            #endif
-            return 1;
-        }
         std::string fp_str;
         for (i=0; true; ++i) {
             n_msg_bytes = 0;
             for (j=0; j<8; ++j){
-                ibuf[0] = bpcs_stream.sgetc();
-                crypto_secretstream_xchacha20poly1305_pull(&state, obuf, NULL, nullptr, ibuf, 1, NULL, 0);
-                std::cout << +ibuf[0] << "\t" << +obuf[0] << std::endl;
-                n_msg_bytes = n_msg_bytes << 8;
-                n_msg_bytes |= obuf[0];
+                uchar c = bpcs_stream.sgetc();
+                n_msg_bytes |= (c << (8*j));
             }
             #ifdef DEBUG
                 mylog.set_verbosity(3);
@@ -1547,11 +1397,8 @@ int main(const int argc, char *argv[]){
                         assert(fp_str != "");
                     #endif
                     std::ofstream of(fp_str);
-                    for (j=0; j<n_msg_bytes; ++j){
-                        ibuf[0] = bpcs_stream.sgetc();
-                        crypto_secretstream_xchacha20poly1305_pull(&state, obuf, NULL, nullptr, ibuf, 1, NULL, 0);
-                        of.put(obuf[0]);
-                    }
+                    for (j=0; j<n_msg_bytes; ++j)
+                        of.put(bpcs_stream.sgetc());
                     of.close();
                     #ifndef DEBUG
                         if (verbose)
@@ -1559,18 +1406,13 @@ int main(const int argc, char *argv[]){
                     #endif
                 } else {
                     // Stream to anonymous pipe
-                    for (j=0; j<n_msg_bytes; ++j){
-                        ibuf[0] = bpcs_stream.sgetc();
-                        crypto_secretstream_xchacha20poly1305_pull(&state, obuf, NULL, nullptr, ibuf, 1, NULL, 0);
-                        std::cout << obuf[0];
-                    }
+                    for (j=0; j<n_msg_bytes; ++j)
+                        std::cout << bpcs_stream.sgetc();
                 }
             } else {
                 fp_str = "";
                 for (j=0; j<n_msg_bytes; ++j){
-                    ibuf[0] = bpcs_stream.sgetc();
-                    crypto_secretstream_xchacha20poly1305_pull(&state, obuf, NULL, nullptr, ibuf, 1, NULL, 0);
-                    fp_str += obuf[0];
+                    fp_str += bpcs_stream.sgetc();
                 }
                 #ifdef DEBUG
                     mylog.set_verbosity(3);
