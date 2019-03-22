@@ -242,11 +242,12 @@ class BPCSStreamBuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const uint8_t min_complexity, std::vector<char*>& img_fps,
+    BPCSStreamBuf(const uint8_t min_complexity, std::vector<char*>& img_fps
                 #ifdef EMBEDDOR
-                  bool emb,
+                  , bool emb
+                  , char* outfmt
                 #endif
-                  char* outfmt):
+                ):
     #ifdef EMBEDDOR
         embedding(emb), out_fmt(outfmt),
     #endif
@@ -1278,11 +1279,12 @@ int main(const int argc, char *argv[]){
         #endif
     #endif
     
-    BPCSStreamBuf bpcs_stream(min_complexity, img_fps,
+    BPCSStreamBuf bpcs_stream(min_complexity, img_fps
                               #ifdef EMBEDDOR
-                              embedding,
+                              , embedding
+                              , out_fmt
                               #endif
-                              out_fmt);
+                              );
     bpcs_stream.load_next_img(); // Init
     
     uint_fast64_t j;
