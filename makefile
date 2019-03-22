@@ -26,12 +26,13 @@ EXVPATH = $(BUILD_DIR)/bpcs-v_$(V)
 DEBUGFLAGS = -DDEBUG -DTESTS
 TINYFLAGS = -ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--build-id=none -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden
 NODEBUGFLAGS = -DNDEBUG -fno-exceptions -DARGS_NOEXCEPT
-RELEASEFLAGS = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -flto -fgcse-las -funsafe-loop-optimizations -Wunsafe-loop-optimizations
+RELEASEFLAGS = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -flto -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
 LDLIBS = -lsodium
 
 
-LIBRARY_PATHS = ""
-INCLUDES = include $(HOME)/include
+LIBRARY_PATHS=
+INCLUDES= include $(HOME)/include
+OBJ_FILES=
 
 ifneq ($(OPENCV_DIR), "")
 INCLUDES += $(OPENCV_DIR)/include/opencv4
@@ -51,7 +52,7 @@ endif
 
 LIBRARY_PARAMS = $(foreach d, $(LIBRARY_PATHS), -L$d)
 INCLUDE_PARAMS = $(foreach d, $(INCLUDES), -I$d)
-STD_PARAMS = $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+STD_PARAMS = $(OBJ_FILES) $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
 
 
 STRIP_ARGS_VERNEEN_RECORD =  -R .gnu.version_r
@@ -69,7 +70,7 @@ CC = g++
 RELEASEFLAGS += -fira-loop-pressure
 endif
 
-CPPFLAGS = -Wall bpcs.cpp
+CPPFLAGS = -Wall -fstack-usage bpcs.cpp
 
 
 
@@ -77,7 +78,6 @@ docs:
 	pandoc -s -t man doc/bpcs.md -o doc/bpcs.1
 	pandoc -s -t man doc/bpcs-v.md -o doc/bpcs-v.1
 	cat README.md | sed -r 's~\[[^]]+\]\(doc/([a-z-]+)\.md\)\.?~`\1(1)`~g' | pandoc -s -t man -o doc/bpcs-doc.1
-
 
 
 debug:
