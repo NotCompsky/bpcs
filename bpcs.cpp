@@ -20,9 +20,6 @@ typedef cv::Matx<uchar, 8, 7> Matx87uc;
 typedef cv::Matx<uchar, 7, 8> Matx78uc;
 
 
-static const std::string NULLSTR = "[NULL]";
-
-
 #ifdef DEBUG
     uint whichbyte = 0;
     uint_fast64_t gridlimit = 0;
