@@ -34,14 +34,6 @@ LIBRARY_PATHS=
 INCLUDES= include $(HOME)/include
 OBJ_FILES=
 
-ifeq ($(SCRYPT_DIR), "")
-$(error SCRYPT_DIR not defined)
-else
-INCLUDES += "$(SCRYPT_DIR)"
-LIBRARY_PATHS += "$(SCRYPT_DIR)/lib"
-LDLIBS += -lcrypto
-OBJ_FILES += $(foreach o, libcperciva/alg/sha256.o libcperciva/cpusupport/cpusupport_x86_aesni.o libcperciva/cpusupport/cpusupport_x86_sse2.o libcperciva/crypto/crypto_aes.o libcperciva/crypto/crypto_aesctr.o libcperciva/crypto/crypto_entropy.o libcperciva/util/asprintf.o libcperciva/util/entropy.o libcperciva/util/insecure_memzero.o libcperciva/util/readpass.o libcperciva/util/warnp.o lib/crypto/crypto_scrypt.o lib/crypto/crypto_scrypt_smix.o lib/scryptenc/scryptenc.o lib/scryptenc/scryptenc_cpuperf.o lib/util/memlimit.o libcperciva_aesni.a libscrypt_sse2.a, "$(SCRYPT_DIR)/$(o)")
-endif
 ifneq ($(OPENCV_DIR), "")
 INCLUDES += $(OPENCV_DIR)/include/opencv4
 LIBRARY_PATHS += $(OPENCV_DIR)/lib
@@ -82,12 +74,6 @@ CPPFLAGS = -Wall -fstack-usage bpcs.cpp
 
 
 
-# Ensures that the object files have been created
-init-scrypt = ("")
-#(cd "$(SCRYPT_DIR)" && ./configure && make && cd -)
-
-
-
 docs:
 	pandoc -s -t man doc/bpcs.md -o doc/bpcs.1
 	pandoc -s -t man doc/bpcs-v.md -o doc/bpcs-v.1
@@ -121,7 +107,6 @@ release-stats:
 
 
 release-archive:
-	
 	REPO_TMP_FP="/tmp/bpcs.release-archive"
 	
 	git rev-list --tags --no-walk --oneline >> "/tmp/git-hist.txt"
