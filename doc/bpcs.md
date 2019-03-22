@@ -8,22 +8,22 @@ bpcs - embed/extract message files(s) to/from vessel PNG image(s)
 
 # SYNOPSIS
 
-bpcs [*options*] *threshold* *vessel_image_1* ...
+bpcs [*options*] -- *threshold* *vessel_image_1* ...
 
 # DESCRIPTION
 
-Efficient steganographic tool using the BPCS method.
+Efficient steganographic tool using the BPCS method, using generic PNG images.
 
 # ARGUMENTS
 
 *threshold*
-:   Integer between 1 and 56 (inclusive). Values between 50 and 56 are highly recommended.
-    Grids with complexity greater than this number are overwritten with message data.
-    Higher values (up to 112) can be used, but 56 is the limit of what is guaranteed to be embeddable.
+:   Integer between 0 and 6 (inclusive).
 
 *vessel_image_path(s)*
 :   File path(s) of images that transport the message data.
-
+    
+    These must be PNG images with 3 channels and a bit depth of 8.
+    
     If **-m** is specified, these images are used to create images that contain the message data. If not, message data is read from these images.
 
     The vessel images are used in series, in the order they are specified. When the message files are exhausted, any remaining vessel images are ignored.
@@ -80,8 +80,18 @@ In descending order of usefulness.
 `(mkfifo dummy.pipe && bpcs 51 foo.png > dummy.pipe && bpcs -m dummy.pipe -o '{fname}' 51 foo.png)& typed-piper dummy.pipe`
 :   This will extract the embedded contents of foo.png, pipe it to dummy.pipe, whereupon it will be opened by the 'typed-piper' text editor and available for editing. Upon saving, the edited contents will be piped back to dummy.pipe, and embedded back into foo.png, overwriting it.
 
+# COMMON MISTAKES
+
+`Using a 'bad' PNG`
+:   No resources are wasted in checking/correcting PNG inputs. This expects 'good' PNG inputs. If there is a question about the 'quality' of PNGs, run image-magick or similar on the PNGs, remembering to **-alpha remove**.
+
+`Not wrapping the key in quotation marks`
+:   Spaces may exist within this key
+
 # BUGS
-No known bugs.
+Cannot read files embedded by systems with a different endianness.
+
+Bad behaviour, including silent failure, for incorrect usage is not considered a bug, so long as it immediately exits with an error exit code.
 
 # ROADMAP
 
