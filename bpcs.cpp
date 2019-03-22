@@ -32,6 +32,8 @@ static const std::string NULLSTR = "[NULL]";
     uint whichbyte = 0;
     uint_fast64_t gridlimit = 0;
     
+    uint_fast16_t n_bins = 10;
+    uint_fast8_t n_binchars = 200;
     
     // Fancy loggers
     static CompskyLogger mylog("bpcs", std::cout);
@@ -471,7 +473,14 @@ void BPCSStreamBuf::load_next_img(){
     
     #ifdef TESTS
         assert(bit_depth == N_BITPLANES);
-        assert(colour_type == PNG_COLOR_TYPE_RGB);
+        if (colour_type != PNG_COLOR_TYPE_RGB){
+            #ifdef DEBUG
+            mylog.set_verbosity(0);
+            mylog << "colour_type: " << +colour_type << " != " << +PNG_COLOR_TYPE_RGB << std::endl;
+            mylog << "These are bits - probably 2 for COLOR, 4 for ALPHA, i.e. 6 for 4 channel image" << std::endl;
+            #endif
+            abort();
+        }
     #endif
     
     #ifdef EMBEDDOR
@@ -793,7 +802,7 @@ void BPCSStreamBuf::set_next_grid(){
     
     // If we are here, we have exhausted all images!
     #ifdef DEBUG
-        print_histogram(this->complexities, 10, 200);
+        print_histogram(this->complexities, n_bins, n_binchars);
         this->print_state();
         std::cerr << "Ran out of complex grids (either too much data to embed, or missing files when extracting" << std::endl;
     #endif
@@ -1014,13 +1023,10 @@ int main(const int argc, char *argv[]){
     bool embedding = false;
     std::vector<char*> msg_fps;
     #endif
-    bool extracting = false;
-    // bool editing = false; // Use named_pipe_in != NULL
     
     uint_fast8_t n_msg_fps = 0;
     
     char* out_fmt = NULL;
-    char* named_pipe_in = NULL;
     
     std::string out_fp;
     
@@ -1034,9 +1040,6 @@ int main(const int argc, char *argv[]){
         os1.set_dt_fmt("");
         
         char* log_fmt = "[%T] ";
-        
-        uint_fast16_t n_bins = 10;
-        uint_fast8_t n_binchars = 200;
     #else
         bool verbose = false;
     #endif
@@ -1053,8 +1056,6 @@ int main(const int argc, char *argv[]){
     while (true) {
         // Find opts, until reach arg that does not begin with '-'
         arg = argv[++i];
-        if (arg[0] != '-')
-            break;
         
         second_character = arg[1];
         
@@ -1088,8 +1089,6 @@ int main(const int argc, char *argv[]){
             case 'o': out_fmt = nextarg; goto continue_argloop;
             // --out-fmt
             // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
-            case 'p': named_pipe_in = nextarg; goto continue_argloop;
-            // Path of named input pipe to listen to after having piped extracted message to to output pipe. Sets mode to `editing`
             case '-':
                 switch(arg[2]){
                     #ifdef DEBUG
