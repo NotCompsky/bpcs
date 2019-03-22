@@ -70,7 +70,8 @@ CC = g++
 RELEASEFLAGS += -fira-loop-pressure
 endif
 
-CPPFLAGS = -Wall -fstack-usage bpcs.cpp
+CPPFLAGS_ = -Wall -fstack-usage
+CPPFLAGS = $(CPPFLAGS_) bpcs.cpp
 
 
 
@@ -175,5 +176,5 @@ minsrc:
 	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(EXTPATH)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
 	
 	
-	$(CC) $(CPPFLAGS) $(EXEPATH)_macros.cpp -o $(BUILD_DIR)/bpcs-min_$(V)   $(STD_PARAMS) $(RELEASEFLAGS)
-	$(CC) $(CPPFLAGS) $(EXTPATH)_macros.cpp -o $(BUILD_DIR)/bpcs-e-min_$(V) $(STD_PARAMS) $(RELEASEFLAGS)
+	$(CC) $(CPPFLAGS_) $(EXEPATH)_macros.cpp -o $(BUILD_DIR)/bpcs-min_$(V)   $(STD_PARAMS) $(RELEASEFLAGS)
+	$(CC) $(CPPFLAGS_) $(EXTPATH)_macros.cpp -o $(BUILD_DIR)/bpcs-e-min_$(V) $(STD_PARAMS) $(RELEASEFLAGS)
