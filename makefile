@@ -131,6 +131,7 @@ compare:
 minsrc:
 	$(CC) $(CPPFLAGS) -o $(EXEPATH)_macros.cpp -E
 	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(EXEPATH)_macros_
+	cat bpcs.cpp | grep '#define ' >> $(EXEPATH)_macros_
 	cat -s $(EXEPATH)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(EXEPATH)_macros_
 	mv $(EXEPATH)_macros_ $(EXEPATH)_macros.cpp
 	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1$1/' $(EXEPATH)_macros.cpp # Regex works in Kate, not sed...
@@ -153,6 +154,7 @@ minsrc:
 	
 	$(CC) $(CPPFLAGS) -o $(EXTPATH)_macros.cpp -E -DEMBEDDOR
 	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(EXTPATH)_macros_
+	cat bpcs.cpp | grep '#define ' >> $(EXTPATH)_macros_
 	cat -s $(EXTPATH)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(EXTPATH)_macros_
 	mv $(EXTPATH)_macros_ $(EXTPATH)_macros.cpp
 	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1$1/' $(EXTPATH)_macros.cpp # Regex works in Kate, not sed...
