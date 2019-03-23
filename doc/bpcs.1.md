@@ -121,4 +121,4 @@ Bug reports/fixes, performance improvements/suggestions, documentation improveme
 Repository is found at https://github.com/NotCompsky/bpcs
 
 # SEE ALSO
-steghide(1), outguess(1)
+bpcs(3), steghide(1), outguess(1)
