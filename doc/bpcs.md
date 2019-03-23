@@ -8,14 +8,14 @@ bpcs - embed/extract data stream to/from vessel PNG image(s)
 
 # SYNOPSIS
 
-bpcs [-o] *threshold* *vessel_image_1* ...
+bpcs [*-o* *fmt*] *threshold* *vessel_image_1* ...
 
 # USAGE
 
 bpcs *threshold* *vessel_image_1* ... | [*operations_on_data_stream*] | bpcs-fmt [*options*]
 :   Extracting
 
-N=$(bpcs *vessel_image_1* ... | wc --bytes) && bpcs-fmt [*options*] -N $N -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [-o] *threshold* *vessel_image_1* ...
+N=$(bpcs *vessel_image_1* ... | wc --bytes) && bpcs-fmt [*options*] -N $N -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [*-o* *fmt*] *threshold* *vessel_image_1* ...
 :   Embedding
 
 # DESCRIPTION
@@ -38,7 +38,7 @@ Efficient steganographic tool using the BPCS method, using generic PNG images.
 
 # OPTIONS
 
--o *format*
+-o *fmt*
 :   Format of output files (using {curly braces} string substitution).
 
     This is the format of the transporting images created from embedding the messages into the vessels, formatted using the vessel image file paths.

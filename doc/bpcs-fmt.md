@@ -8,7 +8,7 @@ bpcs-fmt - format data piped to/from bpcs
 
 # SYNOPSIS
 
-bpcs-fmt [*-v*] [*-N*] [*-o*] [*options*]
+bpcs-fmt [*-v*] [*-N* *n*] [*-o* *fmt*] [*options*]
 
 # DESCRIPTION
 
@@ -21,11 +21,11 @@ As the formatting is seperate from the embedding/extracting, any stream operatio
 -v
 :   Verbose mode. Prints paths of files written. Should generally not be used when piping extracted output.
 
--N *number*
+-N *n*
 :   Exact number of bytes to write (representing the total capacity of the vessel images).
     **If this option is not set, you will not be able to tell if bpcs ran out of capacity for the data, nor will the final vessel be written.**
 
--o *format*
+-o *fmt*
 :   Format of output files (using {curly braces} string substitution).
 
     This flag sets the mode to 'extracting to disk', and streams the extracted contents to output files to paths formed using the content file paths.
