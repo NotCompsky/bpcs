@@ -249,7 +249,7 @@ class BPCSStreamBuf {
     char* out_fmt = NULL;
     #endif
     
-    uchar sgetc();
+    std::array<uchar, 8> get();
     
     #ifdef DEBUG
         std::vector<uint8_t> complexities;
@@ -258,7 +258,7 @@ class BPCSStreamBuf {
     void load_next_img(); // Init
     
     #ifdef EMBEDDOR
-    void sputc(uchar c);
+    void put(std::array<uchar, 8>);
     void save_im(); // End
     #endif
   private:
@@ -272,7 +272,6 @@ class BPCSStreamBuf {
 
     const uint8_t min_complexity;
     
-    uint8_t gridbitindx; // Count of bits already read/written, modulo 64 (i.e. the index in the grid we are writing/reading the byte to/from)
     uint8_t conjmap_indx;
     // To reserve the first grid of every 64 complex grids in order to write conjugation map
     // Note that the first bit of this map is for its own conjugation state
@@ -510,7 +509,6 @@ void BPCSStreamBuf::load_next_img(){
     #endif
     
     this->channel_n = 0;
-    this->gridbitindx = 0;
     
     #ifdef EMBEDDOR
     if (this->embedding){
@@ -572,7 +570,7 @@ void BPCSStreamBuf::load_next_img(){
     if (!this->embedding){
     #endif
         if (this->img_n == 0){
-            // If false, this function is being called from within sgetc()
+            // If false, this function is being called from within get()
             
             if (this->conjgrid.val[0])
                 this->conjugate_grid();
@@ -782,7 +780,7 @@ void BPCSStreamBuf::set_next_grid(){
     }
     
     // If we are here, we have exhausted all images!
-    // This is not necessarily alarming - this termination is used rather than returning status values for each sgetc() call.
+    // This is not necessarily alarming - this termination is used rather than returning status values for each get() call.
     #ifdef DEBUG
         print_histogram(this->complexities, n_bins, n_binchars);
         mylog.set_verbosity(0);
@@ -801,60 +799,49 @@ void BPCSStreamBuf::set_next_grid(){
     this->set_next_grid();
 }
 
-uchar BPCSStreamBuf::sgetc(){
-    uchar c = 0;
-    for (uint_fast8_t i=0; i<8; ++i){
-        c |= this->grid.val[8*this->gridbitindx +i] << i;
-    }
+std::array<uchar, 8> BPCSStreamBuf::get(){
+    std::array<uchar, 8> out;
+    for (uint_fast8_t j=0; j<8; ++j)
+        for (uint_fast8_t i=0; i<8; ++i){
+            out[j] |= this->grid.val[8*j +i] << i;
+        }
     
-    if (++this->gridbitindx == 8){
-        this->set_next_grid();
-        
-        if (this->conjgrid.val[this->conjmap_indx++])
-            this->conjugate_grid();
-        
-        this->gridbitindx = 0;
-    }
-    return c;
+    this->set_next_grid();
+    
+    if (this->conjgrid.val[this->conjmap_indx++])
+        this->conjugate_grid();
+    
+    return out;
 }
 
 #ifdef EMBEDDOR
-void BPCSStreamBuf::sputc(uchar c){
-    for (uint_fast8_t i=0; i<8; ++i){
-        this->grid.val[8*this->gridbitindx +i] = c & 1;
-        c = c >> 1;
-    }
-    
-    if (++this->gridbitindx == 8){
-        #ifdef DEBUG
-            mylog.set_verbosity(8);
-            mylog.set_cl('B');
-            mylog << "Last grid (pre-conj)" << "\n";
-            mylog.set_cl(0);
-            mylog << this->grid << std::endl;
-        #endif
-        if (this->get_grid_complexity(this->grid) < this->min_complexity){
-            this->conjugate_grid();
-            this->conjgrid.val[this->conjmap_indx] = 1;
-        } else {
-            this->conjgrid.val[this->conjmap_indx] = 0;
+void BPCSStreamBuf::put(std::array<uchar, 8> in){
+    for (uint_fast8_t j=0; j<8; ++j)
+        for (uint_fast8_t i=0; i<8; ++i){
+            this->grid.val[8*j +i] = in[j] & 1;
+            in[j] = in[j] >> 1;
         }
-        ++this->conjmap_indx;
-        
-        cv::Mat(this->grid).copyTo(this->grid_orig);
-        this->set_next_grid();
-        
-        this->gridbitindx = 0;
+    
+    #ifdef DEBUG
+        mylog.set_verbosity(8);
+        mylog.set_cl('B');
+        mylog << "Last grid (pre-conj)" << "\n";
+        mylog.set_cl(0);
+        mylog << this->grid << std::endl;
+    #endif
+    if (this->get_grid_complexity(this->grid) < this->min_complexity){
+        this->conjugate_grid();
+        this->conjgrid.val[this->conjmap_indx] = 1;
+    } else {
+        this->conjgrid.val[this->conjmap_indx] = 0;
     }
+    ++this->conjmap_indx;
+    
+    cv::Mat(this->grid).copyTo(this->grid_orig);
+    this->set_next_grid();
 }
 
 void BPCSStreamBuf::save_im(){
-    // Called either when we've exhausted this->im_mat's last channel, or when we've reached the end of embedding
-    // Ensure last grid is saved
-    // TODO: Value of char inserted by sputc would ideally be randomised
-    while ((this->gridbitindx != 8) && (this->gridbitindx != 0))
-        this->sputc(0);
-    
     for (uint8_t i=this->conjmap_indx; i<63; ++i)
         // This will only occur when reached the end of all data being encoded
         this->conjgrid.val[i] = 0;
@@ -1025,23 +1012,26 @@ int main(const int argc, char* argv[]){
                               );
     bpcs_stream.load_next_img(); // Init
     
-    uchar c;
+    std::array<uchar, 8> arr;
+    // Using std::array rather than C-style array to allow direct copying
+    // arr is the same size as a pointer (8 bytes), so perhaps copying directly is more performative.
 #ifdef EMBEDDOR
   if (!embedding){
 #else
     do {
-        c = bpcs_stream.sgetc();
-        write(STDOUT_FILENO, &c, 1);
+        arr = bpcs_stream.get();
+        write(STDOUT_FILENO, &arr, 8);
     } while (bpcs_stream.not_exhausted);
 #endif
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
   } else {
-    while(read(STDIN_FILENO, &c, 1) == 1){
+    read(STDIN_FILENO, &arr, 8);
+    do {
         // read() returns the number of bytes written
-        bpcs_stream.sputc(c);
-    }
+        bpcs_stream.put(arr);
+    } while (read(STDIN_FILENO, &arr, 8) == 8);
     bpcs_stream.save_im();
   }
 #endif
