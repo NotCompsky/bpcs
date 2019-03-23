@@ -2,9 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <png.h>
-#include <sys/stat.h> // for stat
-#include <string> // for std::stoi (stof already defined elsewhere)
-#include <sodium.h> // /crypto_secretstream_xchacha20poly1305.h> // libsodium for cryption (-lsodium)
+#include <unistd.h> // for STD(IN|OUT)_FILENO
 
 #ifdef DEBUG
     #include <compsky/logger.hpp> // for CompskyLogger
@@ -43,16 +41,7 @@ typedef cv::Matx<uchar, 7, 8> Matx78uc;
 #endif
 
 
-
-inline uint_fast64_t get_charp_len(char* chrp){
-    uint_fast64_t i = 0;
-    while (*(chrp++) != 0)
-        ++i;
-    return i;
-}
-
-
-
+#ifdef EMBEDDOR
 std::string format_out_fp(char* out_fmt, char* fp){
     // WARNING: Requires absolute paths?
     std::string basename;
@@ -126,7 +115,7 @@ std::string format_out_fp(char* out_fmt, char* fp){
     }
     return result;
 }
-
+#endif
 
 
 /*
@@ -418,7 +407,7 @@ void BPCSStreamBuf::load_next_img(){
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
     
-    
+    assert(this->img_n != this->img_fps.size());
     
     /* Load PNG file into array */
     FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
@@ -555,6 +544,7 @@ void BPCSStreamBuf::load_next_img(){
     
     // Get conjugation grid
     this->set_next_grid();
+    // WARNING! Setting next grid (twice!) before incrementing img_n means that images which contain fewer than two complex bit grids will cause an infinite loop.
     
     #ifdef EMBEDDOR
     if (this->embedding){
@@ -794,12 +784,13 @@ void BPCSStreamBuf::set_next_grid(){
     }
     
     // If we are here, we have exhausted all images!
+    // This is not necessarily alarming - this termination is used rather than returning status values for each sgetc() call.
     #ifdef DEBUG
         print_histogram(this->complexities, n_bins, n_binchars);
         this->print_state();
-        std::cerr << "Ran out of complex grids (either too much data to embed, or missing files when extracting" << std::endl;
+        std::cerr << "Exhausted all vessel images" << std::endl;
     #endif
-    abort();
+    exit(0);
     
     try_again:
     this->set_next_grid();
@@ -1004,280 +995,61 @@ void BPCSStreamBuf::save_im(){
 #endif
 
 
-
-
-
-
-
-
-
-int main(const int argc, char *argv[]){
-    #ifdef EMBEDDOR
-    bool embedding = false;
-    std::vector<char*> msg_fps;
-    #endif
+int main(const int argc, char* argv[]){
+    uint8_t i = 0;
+#ifdef EMBEDDOR
+    const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
     
-    uint_fast8_t n_msg_fps = 0;
+    char* out_fmt;
     
-    char* out_fmt = NULL;
-    
-    std::string out_fp;
+    if (embedding){
+        ++i;
+        out_fmt = argv[++i];
+    } else
+        out_fmt = NULL;
+#endif
     
     #ifdef DEBUG
         int verbosity = 3;
         
-        mylog1.set_level(0);
-        
-        os1.set_level(0);
-        os1.set_verbosity(1);
-        os1.set_dt_fmt("");
-        
-        char* log_fmt = "[%T] ";
-    #else
-        bool verbose = false;
-    #endif
-    int i = 0;
-    
-    
-    /* Argument parser */
-    char* arg;
-    char* nextarg;
-    #ifdef EMBEDDOR
-    std::vector<char*> nextlist;
-    #endif
-    char second_character;
-    while (true) {
-        // Find opts, until reach arg that does not begin with '-'
-        arg = argv[++i];
-        
-        second_character = arg[1];
-        
-        /* Bool flags */
-        
-        switch(second_character){
-            #ifdef DEBUG
-            case 'v': ++verbosity; goto continue_argloop;
-            case 'q': --verbosity; goto continue_argloop;
-            case '-':
-                switch(arg[2]){
-                    case 'o':
-                        // --os1
-                        // outstream - not formatted CompskyLogger
-                        os1.set_verbosity(0); goto continue_argloop;
-                    default:
-                        break;
-                }
-            #else
-            case 'v': verbose = true; goto continue_argloop;
-            // --verbose
-            // If writing to disk, print output filepath
-            #endif
-        }
-        
-        /* Value flags */
-        
-        nextarg = argv[++i];
-        
-        switch(second_character){
-            case 'o': out_fmt = nextarg; goto continue_argloop;
-            // --out-fmt
-            // Format of output file path(s) - substitutions being fp, dir, fname, basename, ext. Sets mode to `extracting` if msg_fps not supplied.
-            case '-':
-                switch(arg[2]){
-                    #ifdef DEBUG
-                    case 'b':
-                        switch(arg[3]){
-                            case 'i':
-                                switch(arg[4]){
-                                    case 'n':
-                                        switch(arg[5]){
-                                            case 'c':
-                                                // --binchars
-                                                // Total number of `#` characters printed out in histogram totals
-                                                n_binchars = std::stoi(nextarg);
-                                                goto continue_argloop;
-                                            case 's':
-                                                // --bins
-                                                // Number of histogram bins
-                                                n_bins = std::stoi(nextarg);
-                                                goto continue_argloop;
-                                            default:
-                                                goto invalid_argument;
-                                        }
-                                    default: goto invalid_argument;
-                                }
-                            case 'y':
-                                // --bytelimit
-                                // Exit after encountering SGETPUTC_MAX bytes
-                                SGETPUTC_MAX = std::stoi(nextarg);
-                                goto continue_argloop;
-                            default: goto invalid_argument;
-                        }
-                    case 'c':
-                        switch(arg[3]){
-                            case 'o':
-                                // --conjlimit
-                                // Limit of conjugation grids
-                                MAX_CONJ_GRIDS = std::stoi(nextarg);
-                                goto continue_argloop;
-                            default: goto invalid_argument;
-                        }
-                    case 'g':
-                        switch(arg[3]){
-                            case 'r':
-                                // --gridlimit
-                                // Quit after having moved through `gridlimit` grids
-                                gridlimit = std::stoi(nextarg);
-                                goto continue_argloop;
-                            default: goto invalid_argument;
-                        }
-                    case 'l':
-                        switch(arg[3]){
-                            case 'o':
-                                switch(arg[4]){
-                                    case 'g':
-                                        switch(arg[5]){
-                                            case '-':
-                                                // --log-fmt
-                                                // Format of information prepended to each log line. Examples: `[%T] `, `[%F %T] `
-                                                log_fmt = nextarg;
-                                                goto continue_argloop;
-                                            case '1':
-                                                mylog1.set_level(std::stoi(nextarg)); goto continue_argloop;
-                                            default:
-                                                goto invalid_argument;
-                                        }
-                                    default:
-                                        goto invalid_argument;
-                                }
-                            default:
-                                goto invalid_argument;
-                        }
-                    #endif
-                    case 0:
-                        goto stop_parsing_opts;
-                    default: goto invalid_argument;
-                }
-            #ifdef EMBEDDOR
-            case 'm': break;
-            #endif
-            default: goto invalid_argument;
-        }
-        
-        /* List flags */
-        #ifdef EMBEDDOR
-        nextlist.clear();
-        while (nextarg[0] != '-'){
-            nextlist.push_back(nextarg);
-            nextarg = argv[++i];
-        }
-        --i;
-        
-        if (second_character == 'm'){
-            // File path(s) of message file(s) to embed. Sets mode to `embedding`
-            n_msg_fps = nextlist.size();
-            embedding = true;
-            msg_fps = nextlist;
-            continue;
-        }
-        #endif
-        
-        invalid_argument:
-        #ifdef DEBUG
-            std::cerr << "Invalid argument: " << arg << std::endl;
-            return 1;
-        #else
-            abort();
-        #endif
-        
-        continue_argloop:
-        continue;
-    }
-    
-    stop_parsing_opts:
-    
-    #ifdef DEBUG
-        if (verbosity < 0)
-            verbosity = 0;
-        else if (verbosity > 9)
-            verbosity = 9;
-        mylog.set_level(verbosity);
-        
-        mylog1.set_level(verbosity);
-        
-        mylog.set_dt_fmt(log_fmt);
-        mylog1.set_dt_fmt(log_fmt);
-        
-        mylog.set_verbosity(4);
-        mylog.set_cl('b');
-        mylog << "Verbosity " << +verbosity << std::endl;
-        
-        mylog.set_verbosity(3);
-        mylog.set_cl('g');
-        if (n_msg_fps != 0)
-            mylog << "Embedding";
-        else
-            mylog << "Extracting to ";
-    #endif
-    if (out_fmt == NULL){
-        if (n_msg_fps != 0){
-            #ifdef DEBUG
-                std::cerr << "Must specify --out-fmt if embedding --msg files" << std::endl;
-            #endif
-            return 1;
-        }
-        #ifdef DEBUG
-            mylog << "display";
-        #endif
-    }
-    #ifdef DEBUG
-        else {
-            if (n_msg_fps == 0){
-                mylog << "file";
+        while (++i < argc){
+            if      (argv[i][2] == 0 && argv[i][1] == 'v' && argv[i][0] == '-')
+                ++verbosity;
+            else if (argv[i][2] == 0 && argv[i][1] == 'q' && argv[i][0] == '-')
+                --verbosity;
+            else {
+                --i;
+                break;
             }
         }
-        mylog << std::endl;
         
-        mylog.set_verbosity(5);
-        mylog.set_cl(0);
-        mylog << "min_complexity: " << +argv[i] << std::endl;
+        if (verbosity < 0)
+            verbosity = 0;
+        else if (verbosity > 10)
+            verbosity = 10;
+        
+        mylog.set_level(verbosity);
     #endif
-    const uint8_t min_complexity = 50 + (argv[i++][0] -48);
-    // Minimum bitplane complexity
+    
+    const uint8_t min_complexity = 50 + (argv[++i][0] -48);
+    #ifdef DEBUG
+    if (!(50 <= min_complexity && min_complexity <= 56)){
+        mylog.set_verbosity(0);
+        mylog << "E: invalid min_complexity" << std::endl;
+        mylog << "min_complexity:\t" << +min_complexity << std::endl;
+        mylog.set_verbosity(1);
+        mylog << "i:\t" << +i << std::endl;
+        mylog << "argv[i]:\t" << argv[i] << std::endl;
+    }
+    #else
     assert(50 <= min_complexity && min_complexity <= 56);
+    #endif
     
     std::vector<char*> img_fps;
     // File path(s) of input image file(s)
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-    #endif
-    while (i < argc) {
-        img_fps.push_back(argv[i++]);
-        #ifdef DEBUG
-            mylog << argv[i -1] << std::endl;
-        #endif
+    while (++i < argc){
+        img_fps.push_back(argv[i]);
     };
-    
-    
-    
-    
-    if (sodium_init() == -1) {
-        #ifdef DEBUG
-            mylog.set_verbosity(0);
-            mylog.set_cl('r');
-            mylog << "libsodium init fail" << std::endl;
-        #endif
-        return 1;
-    }
-    
-    #ifdef DEBUG
-        mylog.set_verbosity(4);
-        mylog << "sizeof(BPCSStreamBuf) == " << +sizeof(BPCSStreamBuf) << std::endl;
-    #else
-        #ifdef RELEASE_STATS
-            std::cout << "sizeof(BPCSStreamBuf) == " << +sizeof(BPCSStreamBuf) << std::endl;
-        #endif
-    #endif
     
     BPCSStreamBuf bpcs_stream(min_complexity, img_fps
                               #ifdef EMBEDDOR
@@ -1287,141 +1059,24 @@ int main(const int argc, char *argv[]){
                               );
     bpcs_stream.load_next_img(); // Init
     
-    uint_fast64_t j;
-    uint_fast64_t n_msg_bytes;
-    
-    #ifdef EMBEDDOR
-    char* fp;
-    struct stat stat_buf;
-    
-    if (embedding){
-        FILE* msg_file;
-        for (i=0; i<n_msg_fps; ++i){
-            fp = msg_fps[i];
-            // At start, and between embedded messages, is a 64-bit integer telling us the size of the next embedded message
-            // The first 32+ bits will almost certainly be 0 - but this will not aid decryption of the rest of the contents (assuming we are using an encryption method that is resistant to known-plaintext attack)
-            
-            n_msg_bytes = get_charp_len(fp);
-            
-            #ifdef DEBUG
-                mylog.set_verbosity(3);
-                mylog.set_cl('g');
-                mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
-            #endif
-            for (j=0; j<8; ++j)
-                bpcs_stream.sputc((n_msg_bytes >> (64 -8 -8*j)) & 255);
-            for (j=0; j<n_msg_bytes; ++j)
-                bpcs_stream.sputc((uchar)fp[j]);
-            
-            if (stat(fp, &stat_buf) == -1){
-                #ifdef DEBUG
-                    mylog.set_verbosity(0);
-                    mylog.set_cl('r');
-                    mylog << "No such file:  " << fp << std::endl;
-                #endif
-                return 1;
-            }
-            n_msg_bytes = stat_buf.st_size;
-            #ifdef DEBUG
-                mylog.set_verbosity(5);
-                mylog.set_cl(0);
-                mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
-            #endif
-            
-            for (j=0; j<8; ++j)
-                bpcs_stream.sputc((n_msg_bytes >> (64 -8 -8*j)) & 255);
-            msg_file = fopen(fp, "rb");
-            for (j=0; j<n_msg_bytes; ++j){
-                // WARNING: Assumes there are exactly n_msg_bytes
-                bpcs_stream.sputc(getc(msg_file));
-                #ifdef DEBUG
-                    if (whichbyte > gridlimit -10){
-                        mylog.set_verbosity(5);
-                        mylog.set_cl(0);
-                        mylog << "byte #" << +j << std::endl;
-                    }
-                #endif
-            }
-            fclose(msg_file);
-        }
-        // After all messages, signal end with signalled size of 0
-        for (j=0; j<8; ++j)
-            bpcs_stream.sputc(0);
-        #ifdef DEBUG
-            print_histogram(bpcs_stream.complexities, 10, 200);
-        #endif
-        bpcs_stream.save_im();
-    } else {
-    #endif
-        std::string fp_str;
-        for (i=0; true; ++i) {
-            n_msg_bytes = 0;
-            for (j=0; j<8; ++j){
-                n_msg_bytes = n_msg_bytes << 8;
-                n_msg_bytes |= bpcs_stream.sgetc();
-            }
-            #ifdef DEBUG
-                mylog.set_verbosity(3);
-                mylog.set_cl('g');
-                mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
-            #endif
-            
-            if (n_msg_bytes == 0){
-                // Reached end of embedded datas
-                #ifdef DEBUG
-                    mylog.set_verbosity(0);
-                    mylog.set_cl('r');
-                    mylog << "n_msg_bytes = 0";
-                    mylog.set_cl(0);
-                    mylog << std::endl;
-                #endif
-                return 0;
-            }
-            
-            if (i & 1){
-                // First block of data is original file path, second is file contents
-                if (out_fmt != NULL){
-                    #ifdef DEBUG
-                        mylog.set_verbosity(3);
-                        mylog << "Writing extracted file to `" << fp_str << "`" << std::endl;
-                    #endif
-                    #ifdef TESTS
-                        assert(fp_str != "");
-                    #endif
-                    std::ofstream of(fp_str);
-                    for (j=0; j<n_msg_bytes; ++j)
-                        of.put(bpcs_stream.sgetc());
-                    of.close();
-                    #ifndef DEBUG
-                        if (verbose)
-                            std::cout << fp_str << std::endl;
-                    #endif
-                } else {
-                    // Stream to anonymous pipe
-                    for (j=0; j<n_msg_bytes; ++j)
-                        std::cout << bpcs_stream.sgetc();
-                }
-            } else {
-                fp_str = "";
-                for (j=0; j<n_msg_bytes; ++j){
-                    fp_str += bpcs_stream.sgetc();
-                }
-                #ifdef DEBUG
-                    mylog.set_verbosity(3);
-                    mylog.set_cl('g');
-                    mylog << "Original fp: " << fp_str << std::endl;
-                #endif
-                if (out_fmt != NULL){
-                    fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str());
-                    #ifdef DEBUG
-                        mylog.set_verbosity(3);
-                        mylog.set_cl('g');
-                        mylog << "Formatted fp: " << fp_str << std::endl;
-                    #endif
-                }
-            }
-        }
-    #ifdef EMBEDDOR
+    uchar c;
+#ifdef EMBEDDOR
+  if (!embedding){
+#else
+    do {
+        c = bpcs_stream.sgetc();
+    } while (write(STDOUT_FILENO, &c, 1) == 1);
+    // write() returns the number of bytes written
+#endif
+#ifdef EMBEDDOR
+  // if (!embedding){
+  //     ...
+  } else {
+    while(read(STDIN_FILENO, &c, 1) == 1){
+        // read() returns the number of bytes written
+        bpcs_stream.sputc(c);
     }
-    #endif
+    bpcs_stream.save_im();
+  }
+#endif
 }

@@ -21,6 +21,9 @@ endif
 EXEPATH = $(BUILD_DIR)/bpcs_$(V)
 EXTPATH = $(BUILD_DIR)/bpcs-e_$(V)
 EXVPATH = $(BUILD_DIR)/bpcs-v_$(V)
+FMTPATH = $(BUILD_DIR)/bpcs-fmt_$(V)
+FMEPATH = $(BUILD_DIR)/bpcs-fmt-e_$(V)
+FMVPATH = $(BUILD_DIR)/bpcs-fmt-v_$(V)
 
 
 DEBUGFLAGS = -DDEBUG -DTESTS
@@ -78,11 +81,13 @@ CPPFLAGS = $(CPPFLAGS_) bpcs.cpp
 docs:
 	pandoc -s -t man doc/bpcs.md -o doc/bpcs.1
 	pandoc -s -t man doc/bpcs-v.md -o doc/bpcs-v.1
+	pandoc -s -t man doc/bpcs-fmt.md -o doc/bpcs-fmt.1
 	cat README.md | sed -r 's~\[[^]]+\]\(doc/([a-z-]+)\.md\)\.?~`\1(1)`~g' | pandoc -s -t man -o doc/bpcs-doc.1
 
 
 debug:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
+	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 
 release:
 	$(CC) $(CPPFLAGS) -o $(EXEPATH)_   $(STD_PARAMS) $(RELEASEFLAGS)
@@ -90,6 +95,11 @@ release:
 	strip $(STRIP_ARGS) $(EXEPATH)_
 	strip $(STRIP_ARGS) $(EXTPATH)_
 
+fmt:
+	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMEPATH)_  $(STD_PARAMS) $(RELEASEFLAGS)
+	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMTPATH)_  $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
+	strip $(STRIP_ARGS) $(FMEPATH)_
+	strip $(STRIP_ARGS) $(FMTPATH)_
 
 
 profile:
