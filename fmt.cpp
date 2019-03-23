@@ -194,7 +194,7 @@ int main(const int argc, char *argv[]){
             // The first 32+ bits will almost certainly be 0 - but this will not aid decryption of the rest of the contents (assuming we are using an encryption method that is resistant to known-plaintext attack)
             
             n_msg_bytes = get_charp_len(fp);
-            bytes_written += n_msg_bytes;
+            bytes_written += 8 + n_msg_bytes;
             
             #ifdef DEBUG
                 mylog.set_verbosity(3);
@@ -216,7 +216,7 @@ int main(const int argc, char *argv[]){
                 return 1;
             }
             n_msg_bytes = stat_buf.st_size;
-            bytes_written += n_msg_bytes;
+            bytes_written += 8 + n_msg_bytes;
             #ifdef DEBUG
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
