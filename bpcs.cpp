@@ -790,7 +790,11 @@ void BPCSStreamBuf::set_next_grid(){
         this->print_state();
         std::cerr << "Exhausted all vessel images" << std::endl;
     #endif
-    exit(0);
+    
+    if (this->extracting)
+        exit(0);
+    else
+        abort();
     
     try_again:
     this->set_next_grid();
