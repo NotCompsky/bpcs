@@ -147,6 +147,7 @@ release-archive:
 
 compare:
 	$(foreach cc, $(CCs), $(call RELEASE_BPCS,$(cc)))
+	$(foreach cc, $(CCs), $(call RELEASE_FMT,$(cc)))
 
 
 
