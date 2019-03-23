@@ -80,11 +80,11 @@ endif
 CPPFLAGS = $(CPPFLAGS_) bpcs.cpp
 
 
+define DOC
+	pandoc -s -t man doc/$(1).md -o doc/$(1)
 
 docs:
-	pandoc -s -t man doc/bpcs.md -o doc/bpcs.1
-	pandoc -s -t man doc/bpcs-v.md -o doc/bpcs-v.1
-	pandoc -s -t man doc/bpcs-fmt.md -o doc/bpcs-fmt.1
+	$(foreach basename, bpcs.1 bpcs.3 bpcs-v.1 bpcs-fmt.1, $(call DOC,$(basename)))
 	cat README.md | sed -r 's~\[[^]]+\]\(doc/([a-z-]+)\.md\)\.?~`\1(1)`~g' | pandoc -s -t man -o doc/bpcs-doc.1
 
 
