@@ -82,6 +82,8 @@ CPPFLAGS = $(CPPFLAGS_) bpcs.cpp
 
 define DOC
 	pandoc -s -t man doc/$(1).md -o doc/$(1)
+	
+endef
 
 docs:
 	$(foreach basename, bpcs.1 bpcs.3 bpcs-v.1 bpcs-fmt.1, $(call DOC,$(basename)))
