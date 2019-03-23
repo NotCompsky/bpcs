@@ -65,15 +65,18 @@ STRIP_ARGS = --strip-unneeded -R .comment -R .note -R .gnu.version -R .note.ABI-
 # .note.ABI-tag stores info on which systems compatible with. May prevent executable from running on FreeBSD or OS with Linux emulation support
 # .rodata stores OpenCV error messages, "basic_string::_M_construct null not valid.total() == 0 || data != NULL./usr/local/include/opencv2/core/mat.inl.hpp.Step must be a multiple of esz1...png.list.size() != 0.[NULL].stof.r.Mat.Mat."
 
+CPPFLAGS_ = -Wall
+
+
 CCs = g++-6 g++-7 g++-8 clang++
 
 
 ifeq ($(CC), cc)
 CC = g++
 RELEASEFLAGS += -fira-loop-pressure
+CPPFLAGS_ += -fstack-usage
 endif
 
-CPPFLAGS_ = -Wall -fstack-usage
 CPPFLAGS = $(CPPFLAGS_) bpcs.cpp
 
 
@@ -89,11 +92,18 @@ debug:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 
+
+define RELEASE
+	$(1) $(CPPFLAGS) -o $(EXEPATH)_$(1)_   $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
+	$(1) $(CPPFLAGS) -o $(EXTPATH)_$(1)_   $(STD_PARAMS) $(RELEASEFLAGS)
+	strip $(STRIP_ARGS) $(EXEPATH)_$(1)_
+	strip $(STRIP_ARGS) $(EXTPATH)_$(1)_
+	
+endef
+
+
 release:
-	$(CC) $(CPPFLAGS) -o $(EXEPATH)_   $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
-	$(CC) $(CPPFLAGS) -o $(EXTPATH)_   $(STD_PARAMS) $(RELEASEFLAGS)
-	strip $(STRIP_ARGS) $(EXEPATH)_
-	strip $(STRIP_ARGS) $(EXTPATH)_
+	$(call RELEASE,$(CC))
 
 fmt:
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMEPATH)_  $(STD_PARAMS) $(RELEASEFLAGS)
@@ -128,57 +138,36 @@ release-archive:
 
 
 compare:
-	$(foreach cc, $(CCs), $(cc) $(EXEPATH)_$(cc)_ $(STD_PARAMS) $(RELEASEFLAGS); strip $(STRIP_ARGS) $(EXEPATH)_$(cc);)
+	$(foreach cc, $(CCs), $(call RELEASE,$(cc)))
 
 
 
+
+define MINSRC
+	$(CC) $(CPPFLAGS) -o $(1)_macros.cpp -E $(2)
+	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(1)_macros_
+	cat bpcs.cpp | grep '#define ' >> $(1)_macros_
+	cat -s $(1)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(1)_macros_
+	mv $(1)_macros_ $(1)_macros.cpp
+	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/' $(1)_macros.cpp # Regex works in Kate, not sed...
+	sed -i -r 's/\{\n\n/{\n/' $(1)_macros.cpp # same
+	perl -p0e 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/g' -i $(1)_macros.cpp
+	perl -p0e 's/\{\n *\n/{\n/g' -i $(1)_macros.cpp
+	perl -p0e 's/\n(\n *\})/\1/g' -i $(1)_macros.cpp
+	perl -p0e 's/\)\n\n/)\n/g' -i $(1)_macros.cpp
+	perl -p0e 's/(==) \n *([^ ]+)\n *\)/\1 \2)/g' -i $(1)_macros.cpp
+	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(1)_macros.cpp # Remove brackets from multiline scopes
+	perl -p0e 's/\n\n+/\n/g' -i $(1)_macros.cpp # Remove excess lines
+	perl -p0e 's/\(\n    (.+)\n\)/(\1)/g' -i $(1)_macros.cpp # Move functions with single parameter to single line
+	perl -p0e 's/\n *(\n *[}])/\1/g' -i $(1)_macros.cpp # Remove lines before }
+	perl -p0e 's~/\*([^/]\*|/[^\*])*\*/~~g' -i $(1)_macros.cpp # Remove comments
+	perl -p0e 's~//[^\n]*~~g' -i $(1)_macros.cpp # Remove comments
+	perl -p0e 's/case \n *([0-9]+)\n *:\n/case \1:/g' -i $(1)_macros.cpp # Remove excess lines created when compiler expands definitions such as CV_8U
+	perl -p0e 's/,\n *([^ \n])/, \1/g' -i $(1)_macros.cpp # Remove excess lines created when macros change number of elements in a list
+	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(1)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
+	
+endef
 
 minsrc:
-	$(CC) $(CPPFLAGS) -o $(EXEPATH)_macros.cpp -E -DEMBEDDOR
-	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(EXEPATH)_macros_
-	cat bpcs.cpp | grep '#define ' >> $(EXEPATH)_macros_
-	cat -s $(EXEPATH)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(EXEPATH)_macros_
-	mv $(EXEPATH)_macros_ $(EXEPATH)_macros.cpp
-	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1$1/' $(EXEPATH)_macros.cpp # Regex works in Kate, not sed...
-	sed -i -r 's/\{\n\n/{\n/' $(EXEPATH)_macros.cpp # same
-	perl -p0e 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/g' -i $(EXEPATH)_macros.cpp
-	perl -p0e 's/\{\n *\n/{\n/g' -i $(EXEPATH)_macros.cpp
-	perl -p0e 's/\n(\n *\})/\1/g' -i $(EXEPATH)_macros.cpp
-	perl -p0e 's/\)\n\n/)\n/g' -i $(EXEPATH)_macros.cpp
-	perl -p0e 's/(==) \n *([^ ]+)\n *\)/\1 \2)/g' -i $(EXEPATH)_macros.cpp
-	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(EXEPATH)_macros.cpp # Remove brackets from multiline scopes
-	perl -p0e 's/\n\n+/\n/g' -i $(EXEPATH)_macros.cpp # Remove excess lines
-	perl -p0e 's/\(\n    (.+)\n\)/(\1)/g' -i $(EXEPATH)_macros.cpp # Move functions with single parameter to single line
-	perl -p0e 's/\n *(\n *[}])/\1/g' -i $(EXEPATH)_macros.cpp # Remove lines before }
-	perl -p0e 's~/\*([^/]\*|/[^\*])*\*/~~g' -i $(EXEPATH)_macros.cpp # Remove comments
-	perl -p0e 's~//[^\n]*~~g' -i $(EXEPATH)_macros.cpp # Remove comments
-	perl -p0e 's/case \n *([0-9]+)\n *:\n/case \1:/g' -i $(EXEPATH)_macros.cpp # Remove excess lines created when compiler expands definitions such as CV_8U
-	perl -p0e 's/,\n *([^ \n])/, \1/g' -i $(EXEPATH)_macros.cpp # Remove excess lines created when macros change number of elements in a list
-	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(EXEPATH)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
-	
-	
-	$(CC) $(CPPFLAGS) -o $(EXTPATH)_macros.cpp -E
-	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(EXTPATH)_macros_
-	cat bpcs.cpp | grep '#define ' >> $(EXTPATH)_macros_
-	cat -s $(EXTPATH)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(EXTPATH)_macros_
-	mv $(EXTPATH)_macros_ $(EXTPATH)_macros.cpp
-	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1$1/' $(EXTPATH)_macros.cpp # Regex works in Kate, not sed...
-	sed -i -r 's/\{\n\n/{\n/' $(EXTPATH)_macros.cpp # same
-	perl -p0e 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/g' -i $(EXTPATH)_macros.cpp
-	perl -p0e 's/\{\n *\n/{\n/g' -i $(EXTPATH)_macros.cpp
-	perl -p0e 's/\n(\n *\})/\1/g' -i $(EXTPATH)_macros.cpp
-	perl -p0e 's/\)\n\n/)\n/g' -i $(EXTPATH)_macros.cpp
-	perl -p0e 's/(==) \n *([^ ]+)\n *\)/\1 \2)/g' -i $(EXTPATH)_macros.cpp
-	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(EXTPATH)_macros.cpp # Remove brackets from multiline scopes
-	perl -p0e 's/\n\n+/\n/g' -i $(EXTPATH)_macros.cpp # Remove excess lines
-	perl -p0e 's/\(\n    (.+)\n\)/(\1)/g' -i $(EXTPATH)_macros.cpp # Move functions with single parameter to single line
-	perl -p0e 's/\n *(\n *[}])/\1/g' -i $(EXTPATH)_macros.cpp # Remove lines before }
-	perl -p0e 's~/\*([^/]\*|/[^\*])*\*/~~g' -i $(EXTPATH)_macros.cpp # Remove comments
-	perl -p0e 's~//[^\n]*~~g' -i $(EXTPATH)_macros.cpp # Remove comments
-	perl -p0e 's/case \n *([0-9]+)\n *:\n/case \1:/g' -i $(EXTPATH)_macros.cpp # Remove excess lines created when compiler expands definitions such as CV_8U
-	perl -p0e 's/,\n *([^ \n])/, \1/g' -i $(EXTPATH)_macros.cpp # Remove excess lines created when macros change number of elements in a list
-	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(EXTPATH)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
-	
-	
-	$(CC) $(CPPFLAGS_) $(EXEPATH)_macros.cpp -o $(BUILD_DIR)/bpcs-min_$(V)   $(STD_PARAMS) $(RELEASEFLAGS)
-	$(CC) $(CPPFLAGS_) $(EXTPATH)_macros.cpp -o $(BUILD_DIR)/bpcs-e-min_$(V) $(STD_PARAMS) $(RELEASEFLAGS)
+	$(call MINSRC,$(EXEPATH),-DEMBEDDOR)
+	$(call MINSRC,$(EXTPATH),)
