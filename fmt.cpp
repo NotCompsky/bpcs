@@ -201,10 +201,7 @@ int main(const int argc, char *argv[]){
                 mylog.set_cl('g');
                 mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
             #endif
-            for (j=0; j<8; ++j){
-                c = (n_msg_bytes >> (64 -8 -8*j)) & 255;
-                write(STDOUT_FILENO, &c, 1);
-            }
+            write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
             for (j=0; j<n_msg_bytes; ++j){
                 c = (uchar)fp[j];
                 write(STDOUT_FILENO, &c, 1);
@@ -226,10 +223,7 @@ int main(const int argc, char *argv[]){
                 mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
             #endif
             
-            for (j=0; j<8; ++j){
-                c = (n_msg_bytes >> (64 -8 -8*j)) & 255;
-                write(STDOUT_FILENO, &c, 1);
-            }
+            write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
             msg_file = fopen(fp, "rb");
             for (j=0; j<n_msg_bytes; ++j){
                 // WARNING: Assumes there are exactly n_msg_bytes
@@ -256,12 +250,7 @@ int main(const int argc, char *argv[]){
     #endif
         std::string fp_str;
         for (i=0; true; ++i) {
-            n_msg_bytes = 0;
-            for (j=0; j<8; ++j){
-                n_msg_bytes = n_msg_bytes << 8;
-                read(STDIN_FILENO, &c, 1);
-                n_msg_bytes |= c;
-            }
+            read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
             #ifdef DEBUG
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
