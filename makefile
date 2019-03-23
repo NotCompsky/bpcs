@@ -156,27 +156,29 @@ compare:
 
 
 define MINSRC
-	$(CC) $(CPPFLAGS) -o $(1)_macros.cpp -E $(2)
+	$(CC) $(CPPFLAGS) -o /tmp/$(1)_macros.cpp -E $(2)
 	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(1)_macros_
 	cat bpcs.cpp | grep '#define ' >> $(1)_macros_
-	cat -s $(1)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(1)_macros_
-	mv $(1)_macros_ $(1)_macros.cpp
-	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/' $(1)_macros.cpp # Regex works in Kate, not sed...
-	sed -i -r 's/\{\n\n/{\n/' $(1)_macros.cpp # same
-	perl -p0e 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/g' -i $(1)_macros.cpp
-	perl -p0e 's/\{\n *\n/{\n/g' -i $(1)_macros.cpp
-	perl -p0e 's/\n(\n *\})/\1/g' -i $(1)_macros.cpp
-	perl -p0e 's/\)\n\n/)\n/g' -i $(1)_macros.cpp
-	perl -p0e 's/(==) \n *([^ ]+)\n *\)/\1 \2)/g' -i $(1)_macros.cpp
-	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(1)_macros.cpp # Remove brackets from multiline scopes
-	perl -p0e 's/\n\n+/\n/g' -i $(1)_macros.cpp # Remove excess lines
-	perl -p0e 's/\(\n    (.+)\n\)/(\1)/g' -i $(1)_macros.cpp # Move functions with single parameter to single line
-	perl -p0e 's/\n *(\n *[}])/\1/g' -i $(1)_macros.cpp # Remove lines before }
-	perl -p0e 's~/\*([^/]\*|/[^\*])*\*/~~g' -i $(1)_macros.cpp # Remove comments
-	perl -p0e 's~//[^\n]*~~g' -i $(1)_macros.cpp # Remove comments
-	perl -p0e 's/case \n *([0-9]+)\n *:\n/case \1:/g' -i $(1)_macros.cpp # Remove excess lines created when compiler expands definitions such as CV_8U
-	perl -p0e 's/,\n *([^ \n])/, \1/g' -i $(1)_macros.cpp # Remove excess lines created when macros change number of elements in a list
-	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(1)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
+	cat -s /tmp/$(1)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(1)_macros_
+	mv $(1)_macros_ /tmp/$(1)_macros.cpp
+	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/' /tmp/$(1)_macros.cpp # Regex works in Kate, not sed...
+	sed -i -r 's/\{\n\n/{\n/' /tmp/$(1)_macros.cpp # same
+	perl -p0e 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/g' -i /tmp/$(1)_macros.cpp
+	perl -p0e 's/\{\n *\n/{\n/g' -i /tmp/$(1)_macros.cpp
+	perl -p0e 's/\n(\n *\})/\1/g' -i /tmp/$(1)_macros.cpp
+	perl -p0e 's/\)\n\n/)\n/g' -i /tmp/$(1)_macros.cpp
+	perl -p0e 's/(==) \n *([^ ]+)\n *\)/\1 \2)/g' -i /tmp/$(1)_macros.cpp
+	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i /tmp/$(1)_macros.cpp # Remove brackets from multiline scopes
+	perl -p0e 's/\n\n+/\n/g' -i /tmp/$(1)_macros.cpp # Remove excess lines
+	perl -p0e 's/\(\n    (.+)\n\)/(\1)/g' -i /tmp/$(1)_macros.cpp # Move functions with single parameter to single line
+	perl -p0e 's/\n *(\n *[}])/\1/g' -i /tmp/$(1)_macros.cpp # Remove lines before }
+	perl -p0e 's~/\*([^/]\*|/[^\*])*\*/~~g' -i /tmp/$(1)_macros.cpp # Remove comments
+	perl -p0e 's~//[^\n]*~~g' -i /tmp/$(1)_macros.cpp # Remove comments
+	perl -p0e 's/case \n *([0-9]+)\n *:\n/case \1:/g' -i /tmp/$(1)_macros.cpp # Remove excess lines created when compiler expands definitions such as CV_8U
+	perl -p0e 's/,\n *([^ \n])/, \1/g' -i /tmp/$(1)_macros.cpp # Remove excess lines created when macros change number of elements in a list
+	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i /tmp/$(1)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
+	
+	mv /tmp/$(1)_macros.cpp $(1)_macros.cpp
 	
 endef
 
