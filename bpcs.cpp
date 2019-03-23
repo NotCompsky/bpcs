@@ -815,51 +815,12 @@ uchar BPCSStreamBuf::sgetc(){
         
         this->gridbitindx = 0;
     }
-    
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-        mylog.set_cl('p');
-        mylog << "sgetc #" << +(++sgetputc_count) << ": " << +c << " (";
-        if (sgetputc_count == SGETPUTC_MAX){
-            mylog.set_verbosity(0);
-            mylog << "Reached SGETPUTC_MAX " << +SGETPUTC_MAX << std::endl;
-            abort();
-        } else if (sgetputc_count == SGETPUTC_MAX -120){
-            mylog.set_level(10);
-        }
-        if (c == '\n')
-            mylog << "\\n";
-        else if (c == '\r')
-            mylog << "\\r";
-        else
-            mylog << c;
-        mylog << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjmap_indx << "\t(x,y,bitplane,ch) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << ", " << +this->channel_n << std::endl;
-    #endif
     return c;
 }
 
 #ifdef EMBEDDOR
 void BPCSStreamBuf::sputc(uchar c){
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-        mylog.set_cl('p');
-        mylog << "sputc #" << +(++sgetputc_count) << ": " << +c << " (" << c << ") at (gridbitindx, conjmap_indx) " << +this->gridbitindx << ", " << +this->conjmap_indx << "\t(x,y,bitplane) = " << +this->x << ", " << +this->y << ", " << +this->bitplane_n << std::endl;
-        if (sgetputc_count == SGETPUTC_MAX){
-            mylog.set_verbosity(0);
-            mylog << "Reached SGETPUTC_MAX " << +SGETPUTC_MAX << std::endl;
-            abort();
-        } else if (sgetputc_count == SGETPUTC_MAX -120){
-            mylog.set_level(10);
-        }
-        mylog.set_verbosity(5);
-        mylog.set_cl(0);
-        mylog << "sputc " << +c << " bits ";
-    #endif
     for (uint_fast8_t i=0; i<8; ++i){
-        #ifdef DEBUG
-            mylog.set_cl('B');
-            mylog << +(c & 1);
-        #endif
         this->grid.val[8*this->gridbitindx +i] = c & 1;
         c = c >> 1;
     }
