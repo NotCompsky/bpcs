@@ -789,8 +789,10 @@ void BPCSStreamBuf::set_next_grid(){
         mylog << "Exhausted all vessel images" << std::endl;
     #endif
     #ifdef EMBEDDOR
-    if (this->embedding)
+    if (this->embedding){
         this->save_im();
+        exit(0);
+    }
     #endif
     not_exhausted = false;
     return;
