@@ -239,7 +239,7 @@ int main(const int argc, char *argv[]){
             fclose(msg_file);
         }
         // After all messages, signal end with signalled size of 0
-        uchar eight_zeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        const uchar eight_zeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         write(STDOUT_FILENO, eight_zeros, 8);
         if (bytes_written+8 > bytes_max){
             #ifdef DEBUG
@@ -248,10 +248,10 @@ int main(const int argc, char *argv[]){
             #endif
             abort();
         }
-        for (j=bytes_written+8; j<bytes_max; j+=8)
+        for (j=bytes_written+8; j<bytes_max; ++j)
             // Pad with zeros
             // It doesn't matter if we add too many zeros - bpcs will ignore excess data
-            write(STDOUT_FILENO, eight_zeros, 8);
+            write(STDOUT_FILENO, eight_zeros, 1);
     } else {
     #endif
         std::string fp_str;
