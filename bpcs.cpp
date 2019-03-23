@@ -237,12 +237,15 @@ class BPCSStreamBuf {
                   , char* outfmt
                 #endif
                 ):
+    not_exhausted(true),
     #ifdef EMBEDDOR
         embedding(emb), out_fmt(outfmt),
     #endif
     x(0), y(0), min_complexity(min_complexity), img_n(0), img_fps(img_fps)
     {}
     
+    
+    bool not_exhausted;
     
     #ifdef EMBEDDOR
     const bool embedding;
@@ -794,7 +797,8 @@ void BPCSStreamBuf::set_next_grid(){
     if (this->embedding)
         this->save_im();
     #endif
-    exit(0);
+    not_exhausted = false;
+    return;
     
     try_again:
     this->set_next_grid();
@@ -1069,8 +1073,8 @@ int main(const int argc, char* argv[]){
 #else
     do {
         c = bpcs_stream.sgetc();
-    } while (write(STDOUT_FILENO, &c, 1) == 1);
-    // write() returns the number of bytes written
+        write(STDOUT_FILENO, &c, 1);
+    } while (bpcs_stream.not_exhausted);
 #endif
 #ifdef EMBEDDOR
   // if (!embedding){
