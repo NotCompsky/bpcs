@@ -29,9 +29,6 @@ typedef cv::Matx<uchar, 7, 8> Matx78uc;
     static CompskyLogger mylog("bpcs", std::cout);
     static CompskyLogger mylog1("bpcs1", std::cout);
     
-    // Plain loggers
-    static CompskyLogger os1("", std::cout);
-    
     
     uint MAX_CONJ_GRIDS = 0;
     uint conj_grids_found = 0;
@@ -736,8 +733,6 @@ void BPCSStreamBuf::set_next_grid(){
                 this->x = i;
                 this->y = j;
                 #ifdef DEBUG
-                    os1 << +this->x << "\t" << +this->y << std::endl;
-                    
                     ++this->n_complex_grids_found;
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
