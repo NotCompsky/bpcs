@@ -108,6 +108,7 @@ define RELEASE_FMT
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMTPATH)_  $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
 	strip $(STRIP_ARGS) $(FMEPATH)_
 	strip $(STRIP_ARGS) $(FMTPATH)_
+	
 endef
 
 
