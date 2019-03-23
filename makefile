@@ -90,8 +90,8 @@ debug:
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 
 release:
-	$(CC) $(CPPFLAGS) -o $(EXEPATH)_   $(STD_PARAMS) $(RELEASEFLAGS)
-	$(CC) $(CPPFLAGS) -o $(EXTPATH)_   $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
+	$(CC) $(CPPFLAGS) -o $(EXEPATH)_   $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
+	$(CC) $(CPPFLAGS) -o $(EXTPATH)_   $(STD_PARAMS) $(RELEASEFLAGS)
 	strip $(STRIP_ARGS) $(EXEPATH)_
 	strip $(STRIP_ARGS) $(EXTPATH)_
 
@@ -108,12 +108,6 @@ profile:
 release-profiled:
 	$(CC) $(CPPFLAGS) -o $(EXEPATH)      $(STD_PARAMS) $(RELEASEFLAGS) -fprofile-use -fprofile-correction
 	strip $(STRIP_ARGS) $(EXEPATH)
-
-release-stats:
-	$(CC) $(CPPFLAGS) -o $(EXEPATH)_rs   $(STD_PARAMS) $(RELEASEFLAGS) -DRELEASE_STATS
-	$(CC) $(CPPFLAGS) -o $(EXTPATH)_rs   $(STD_PARAMS) $(RELEASEFLAGS) -DRELEASE_STATS -DEMBEDDOR
-	strip $(STRIP_ARGS) $(EXEPATH)_rs
-	strip $(STRIP_ARGS) $(EXTPATH)_rs
 
 
 
@@ -140,7 +134,7 @@ compare:
 
 
 minsrc:
-	$(CC) $(CPPFLAGS) -o $(EXEPATH)_macros.cpp -E
+	$(CC) $(CPPFLAGS) -o $(EXEPATH)_macros.cpp -E -DEMBEDDOR
 	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(EXEPATH)_macros_
 	cat bpcs.cpp | grep '#define ' >> $(EXEPATH)_macros_
 	cat -s $(EXEPATH)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(EXEPATH)_macros_
@@ -163,7 +157,7 @@ minsrc:
 	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i $(EXEPATH)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
 	
 	
-	$(CC) $(CPPFLAGS) -o $(EXTPATH)_macros.cpp -E -DEMBEDDOR
+	$(CC) $(CPPFLAGS) -o $(EXTPATH)_macros.cpp -E
 	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(EXTPATH)_macros_
 	cat bpcs.cpp | grep '#define ' >> $(EXTPATH)_macros_
 	cat -s $(EXTPATH)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(EXTPATH)_macros_
