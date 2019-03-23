@@ -787,14 +787,14 @@ void BPCSStreamBuf::set_next_grid(){
     // This is not necessarily alarming - this termination is used rather than returning status values for each sgetc() call.
     #ifdef DEBUG
         print_histogram(this->complexities, n_bins, n_binchars);
-        this->print_state();
-        std::cerr << "Exhausted all vessel images" << std::endl;
+        mylog.set_verbosity(0);
+        mylog << "Exhausted all vessel images" << std::endl;
     #endif
-    
-    if (this->extracting)
-        exit(0);
-    else
-        abort();
+    #ifdef EMBEDDOR
+    if (this->embedding)
+        this->save_im();
+    #endif
+    exit(0);
     
     try_again:
     this->set_next_grid();

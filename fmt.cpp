@@ -107,6 +107,8 @@ int main(const int argc, char *argv[]){
     #ifdef EMBEDDOR
     bool embedding = false;
     std::vector<char*> msg_fps;
+    uint64_t bytes_max;
+    uint64_t bytes_written = 0;
     #endif
     
     uint8_t n_msg_fps = 0;
@@ -129,6 +131,12 @@ int main(const int argc, char *argv[]){
             ++verbosity;
             ++i;
         }
+        #ifdef EMBEDDOR
+        if (argv[i][2] == 0 && argv[i][1] == 'N' && argv[i][0] == '-'){
+            bytes_max = std::stoi(argv[++i]);
+            ++i;
+        }
+        #endif
         if (argv[i][2] == 0 && argv[i][0] == '-'){
             if (argv[i][1] == 'o'){
                 out_fmt = argv[++i];
@@ -186,6 +194,7 @@ int main(const int argc, char *argv[]){
             // The first 32+ bits will almost certainly be 0 - but this will not aid decryption of the rest of the contents (assuming we are using an encryption method that is resistant to known-plaintext attack)
             
             n_msg_bytes = get_charp_len(fp);
+            bytes_written += n_msg_bytes;
             
             #ifdef DEBUG
                 mylog.set_verbosity(3);
@@ -210,6 +219,7 @@ int main(const int argc, char *argv[]){
                 return 1;
             }
             n_msg_bytes = stat_buf.st_size;
+            bytes_written += n_msg_bytes;
             #ifdef DEBUG
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
@@ -231,6 +241,17 @@ int main(const int argc, char *argv[]){
         // After all messages, signal end with signalled size of 0
         uchar eight_zeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         write(STDOUT_FILENO, eight_zeros, 8);
+        if (bytes_written+8 > bytes_max){
+            #ifdef DEBUG
+                mylog.set_verbosity(0);
+                mylog << "Too many bytes to encode" << std::endl;
+            #endif
+            abort();
+        }
+        for (j=bytes_written+8; j<bytes_max; j+=8)
+            // Pad with zeros
+            // It doesn't matter if we add too many zeros - bpcs will ignore excess data
+            write(STDOUT_FILENO, eight_zeros, 8);
     } else {
     #endif
         std::string fp_str;

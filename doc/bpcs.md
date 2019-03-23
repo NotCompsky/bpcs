@@ -12,11 +12,16 @@ bpcs [-o] *threshold* *vessel_image_1* ...
 
 # USAGE
 
-bpcs-fmt [*options*] -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [-o] *threshold* *vessel_image_1* ...
-:   Embedding
-
 bpcs *threshold* *vessel_image_1* ... | [*operations_on_data_stream*] | bpcs-fmt [*options*]
 :   Extracting
+
+bpcs-fmt [*options*] -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [-o] *threshold* *vessel_image_1* ...
+:   Embedding (Minimal)
+
+N=$(bpcs *vessel_image_1* ... | wc --bytes) && bpcs-fmt [*options*] -N $N -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [-o] *threshold* *vessel_image_1* ...
+:   Embedding (Full)
+    Overwrites all complex grids of vessel images with data.
+    If the *operations_on_data_stream* produce output that is sensitive about its size - for instance, encryption that will error out if it encounters junk bytes when decrypting - use this to 
 
 # DESCRIPTION
 
