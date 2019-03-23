@@ -262,8 +262,8 @@ class BPCSStreamBuf {
     void save_im(); // End
     #endif
   private:
-    uint64_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
-    uint64_t y;
+    int32_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
+    int32_t y;
     
     #ifdef DEBUG
         uint_fast64_t n_grids;
