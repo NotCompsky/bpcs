@@ -1020,19 +1020,18 @@ int main(const int argc, char* argv[]){
 #else
     do {
         arr = bpcs_stream.get();
-        write(STDOUT_FILENO, &arr, 8);
+        write(STDOUT_FILENO, arr.data(), 8);
     } while (bpcs_stream.not_exhausted);
 #endif
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
   } else {
-    read(STDIN_FILENO, &arr, 8);
+    read(STDIN_FILENO, arr.data(), 8);
     do {
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
-    } while (read(STDIN_FILENO, &arr, 8) == 8);
-    bpcs_stream.save_im();
+    } while (read(STDIN_FILENO, arr.data(), 8) == 8);
   }
 #endif
 }
