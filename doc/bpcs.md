@@ -15,13 +15,8 @@ bpcs [-o] *threshold* *vessel_image_1* ...
 bpcs *threshold* *vessel_image_1* ... | [*operations_on_data_stream*] | bpcs-fmt [*options*]
 :   Extracting
 
-bpcs-fmt [*options*] -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [-o] *threshold* *vessel_image_1* ...
-:   Embedding (Minimal)
-
 N=$(bpcs *vessel_image_1* ... | wc --bytes) && bpcs-fmt [*options*] -N $N -m msg_file_1 ... | [*operations_on_data_stream*] | bpcs [-o] *threshold* *vessel_image_1* ...
-:   Embedding (Full)
-    Overwrites all complex grids of vessel images with data.
-    If the *operations_on_data_stream* produce output that is sensitive about its size - for instance, encryption that will error out if it encounters junk bytes when decrypting - use this to 
+:   Embedding
 
 # DESCRIPTION
 
@@ -65,8 +60,9 @@ In descending order of usefulness.
 `bpcs 1 foo1.png | bpcs-fmt -o '{fname}'`
 :   For each file content found embedded in foo1.png, extract it to the original file name (the name of the embedded file). If using foo.png from above, it would result in writing msg1.txt's contents to msg1.txt.
 
-`bpcs 1 foo1.png | openssl enc -e -aes-256-cbc -salt -d | bpcs-fmt -o '{fname}'`
+`bpcs 1 foo1.png | openssl enc -e -aes-256-cbc -salt -d 2>/dev/null | bpcs-fmt -o '{fname}'`
 :   Decrypts the data extracted from foo1.png and then, for each file content found, extract it to the original file name (the name of the embedded file). If using foo.png from above, it would result in writing msg1.txt's contents to msg1.txt.
+    We ignore openssl's stderr output, as it will most likely complain about junk data.
 
 `bpcs 1 foo1.png | bpcs-fmt > msg1.txt`
 :   Extract all the embedded file content of foo1.png, and pipe it to msg1.txt. Note that this does not include the embedded files' names. If using foo.png from above, it would have the same result as the previous command.
