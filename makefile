@@ -90,6 +90,9 @@ docs:
 	cat README.md | sed -r 's~\[[^]]+\]\(doc/([a-z-]+)\.md\)\.?~`\1(1)`~g' | pandoc -s -t man -o doc/bpcs-doc.1
 
 
+debug-main:
+	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
+
 debug:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
