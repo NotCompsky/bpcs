@@ -105,13 +105,15 @@ Tests show that one conjugation grid out of thousands is not set, leading to a r
 
 ## SECONDARY BUGS
 
+If vessel images contains fewer than 2 complex grids, program will loop and crash.
+
+## MISSING FEATURES
+
 Cannot read files embedded by systems with a different endianness.
 
-If vessel images must contain fewer than 2 complex grids, program will loop and crash.
+No 'cannot find message file' error - program writes first vessel image and exits.
 
 Due to extraction not terminating at the end of embedded data (instead waiting for termination signal), junk data of effectively random bytes will be appended to the end of the extracted data. This will cause certain operations on the extracted stream to fail if either the operation accepts only a limited subset of bytes - for example, base64 encoding - or the operation expects a specific length of data.
-
-No 'cannot find message file' error - program writes first vessel image and exits.
 
 # ROADMAP
 
