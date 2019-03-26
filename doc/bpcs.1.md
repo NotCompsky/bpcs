@@ -99,6 +99,12 @@ In descending order of usefulness.
 
 **Bad behaviour, including silent failure, for incorrect usage is not considered a bug, so long as it immediately exits with an error exit code.**
 
+## CRITICAL BUGS
+
+Tests show that one conjugation grid out of thousands is not set, leading to a run of 63 grids of 8 bytes which are not conjugated on extraction.
+
+## SECONDARY BUGS
+
 Cannot read files embedded by systems with a different endianness.
 
 Option parameters cannot begin with "-".
