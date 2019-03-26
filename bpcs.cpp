@@ -788,8 +788,7 @@ void BPCSStreamBuf::set_next_grid(){
     #endif
     #ifdef EMBEDDOR
     if (this->embedding){
-        this->save_im();
-        exit(0);
+        abort();
     }
     #endif
     not_exhausted = false;
@@ -1032,6 +1031,7 @@ int main(const int argc, char* argv[]){
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
     } while (read(STDIN_FILENO, arr.data(), 8) == 8);
+    bpcs_stream.save_im();
   }
 #endif
 }
