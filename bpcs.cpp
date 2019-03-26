@@ -239,6 +239,9 @@ class BPCSStreamBuf {
         embedding(emb), out_fmt(outfmt),
     #endif
     x(0), y(0), min_complexity(min_complexity), img_n(0), img_fps(img_fps)
+    #ifdef DEBUG
+        , n_complex_grids_found(0)
+    #endif
     {}
     
     
@@ -504,8 +507,6 @@ void BPCSStreamBuf::load_next_img(){
     #ifdef DEBUG
         mylog.set_verbosity(4);
         this->print_state();
-        this->complexities.clear();
-        this->n_complex_grids_found = 0;
     #endif
     
     this->channel_n = 0;
@@ -807,6 +808,10 @@ std::array<uchar, 8> BPCSStreamBuf::get(){
         }
     }
     
+    #ifdef DEBUG
+        sgetputc_count += 8;
+    #endif
+    
     this->set_next_grid();
     
     if (this->conjgrid.val[this->conjmap_indx++])
@@ -824,6 +829,7 @@ void BPCSStreamBuf::put(std::array<uchar, 8> in){
         }
     
     #ifdef DEBUG
+        sgetputc_count += 8;
         mylog.set_verbosity(8);
         mylog.set_cl('B');
         mylog << "Last grid (pre-conj)" << "\n";
