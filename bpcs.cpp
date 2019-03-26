@@ -800,10 +800,12 @@ void BPCSStreamBuf::set_next_grid(){
 
 std::array<uchar, 8> BPCSStreamBuf::get(){
     std::array<uchar, 8> out;
-    for (uint_fast8_t j=0; j<8; ++j)
+    for (uint_fast8_t j=0; j<8; ++j){
+        out[j] = 0;
         for (uint_fast8_t i=0; i<8; ++i){
             out[j] |= this->grid.val[8*j +i] << i;
         }
+    }
     
     this->set_next_grid();
     
@@ -1030,6 +1032,7 @@ int main(const int argc, char* argv[]){
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
     } while (read(STDIN_FILENO, arr.data(), 8) == 8);
+    bpcs_stream.put(arr);
     bpcs_stream.save_im();
   }
 #endif
