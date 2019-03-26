@@ -964,6 +964,7 @@ int main(const int argc, char* argv[]){
 #endif
     
     #ifdef DEBUG
+        bool print_content = true;
         int verbosity = 3;
         
         while (++i < argc){
@@ -971,6 +972,8 @@ int main(const int argc, char* argv[]){
                 ++verbosity;
             else if (argv[i][2] == 0 && argv[i][1] == 'q' && argv[i][0] == '-')
                 --verbosity;
+            else if (argv[i][2] == 0 && argv[i][1] == 'Q' && argv[i][0] == '-')
+                print_content = false;
             else {
                 --i;
                 break;
@@ -1021,7 +1024,10 @@ int main(const int argc, char* argv[]){
 #endif
     do {
         arr = bpcs_stream.get();
-        write(STDOUT_FILENO, arr.data(), 8);
+        #ifdef DEBUG
+            if (print_content)
+        #endif
+                write(STDOUT_FILENO, arr.data(), 8);
     } while (bpcs_stream.not_exhausted);
 #ifdef EMBEDDOR
   // if (!embedding){
