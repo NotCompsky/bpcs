@@ -96,6 +96,9 @@ In descending order of usefulness.
 :   Spaces may exist within this key
 
 # BUGS
+
+**Bad behaviour, including silent failure, for incorrect usage is not considered a bug, so long as it immediately exits with an error exit code.**
+
 Cannot read files embedded by systems with a different endianness.
 
 Option parameters cannot begin with "-".
@@ -104,7 +107,7 @@ If vessel images must contain fewer than 2 complex grids, program will loop and 
 
 Due to extraction not terminating at the end of embedded data (instead waiting for termination signal), junk data of effectively random bytes will be appended to the end of the extracted data. This will cause certain operations on the extracted stream to fail if either the operation accepts only a limited subset of bytes - for example, base64 encoding - or the operation expects a specific length of data.
 
-Bad behaviour, including silent failure, for incorrect usage is not considered a bug, so long as it immediately exits with an error exit code.
+No 'cannot find message file' error - program writes first vessel image and exits.
 
 # ROADMAP
 
@@ -113,6 +116,12 @@ This tool is still in active development.
 Performance improvements are always planned.
 
 Some lightweight features may be added.
+
+Backwards compatibility is not a priority at this time.
+
+## Examples of features that will not be added
+
+* QoL bloat such as checking for the existence of directories before writing output files
 
 # CONTRIBUTING
 
