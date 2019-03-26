@@ -177,6 +177,8 @@ define MINSRC
 	perl -p0e 's/case \n *([0-9]+)\n *:\n/case \1:/g' -i /tmp/$(1)_macros.cpp # Remove excess lines created when compiler expands definitions such as CV_8U
 	perl -p0e 's/,\n *([^ \n])/, \1/g' -i /tmp/$(1)_macros.cpp # Remove excess lines created when macros change number of elements in a list
 	perl -p0e 's/(^[v]|^v[^o]|^vo[^i]|^voi[^d]|^void[^ ].*)\{([^;}]+;)(\n *)\}\n/\1\2\3/g' -i /tmp/$(1)_macros.cpp # Remove brackets from multiline scopes (2nd pass)
+	perl -p0e 's/([^;{}])\n {8,}([^ ])/\1\2/g' -i /tmp/$(1)_macros.cpp
+	perl -p0e 's/(if \([^)]+\))([^ \n;{}])/\1 \2/g' -i /tmp/$(1)_macros.cpp
 	
 	mv /tmp/$(1)_macros.cpp $(1)_macros.cpp
 	
