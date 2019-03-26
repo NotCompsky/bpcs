@@ -1016,12 +1016,11 @@ int main(const int argc, char* argv[]){
     // arr is the same size as a pointer (8 bytes), so perhaps copying directly is more performative.
 #ifdef EMBEDDOR
   if (!embedding){
-#else
+#endif
     do {
         arr = bpcs_stream.get();
         write(STDOUT_FILENO, arr.data(), 8);
     } while (bpcs_stream.not_exhausted);
-#endif
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
