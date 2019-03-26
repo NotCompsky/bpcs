@@ -223,9 +223,10 @@ int main(const int argc, char *argv[]){
             fclose(msg_file);
         }
         // After all messages, signal end with signalled size of 0
-        const uchar eight_zeros[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-        write(STDOUT_FILENO, eight_zeros, 16);
-        // Some encryption methods require blocks of length 16 bytes, so this ensures that there is at least 8 zero bytes even if a final half-block is cut off.
+        const uchar zero[1] = {0};
+        for (uint8_t j=0; j<32; ++j)
+            write(STDOUT_FILENO, zero, 1);
+        // Some encryption methods require blocks of length 16 or 32 bytes, so this ensures that there is at least 8 zero bytes even if a final half-block is cut off.
     } else {
     #endif
         std::string fp_str;
