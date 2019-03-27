@@ -106,27 +106,17 @@ std::string format_out_fp(char* out_fmt, char* fp){
     
     for (char* it=out_fmt; *it; ++it){
         if (*it == '{'){
-            ++it;
-            if (*it == '{'){
-                result += '{';
-            } else if (*it == 'b'){
-                it += 8; // WARNING: Skipping avoids error checking.
-                result += basename;
-            } else if (*it == 'd'){
-                it += 3;
-                result += dir;
-            } else if (*it == 'e'){
-                it += 3;
-                result += ext;
-            } else if (*it == 'f'){
-                ++it;
-                if (*it == 'p'){
-                    it += 1;
-                    result += fp;
-                } else {
-                    it += 4;
-                    result += fname;
-                }
+            switch(*(++it)){
+                case '{': result+='{'; break;
+                case 'b': result+=basename; it+=8; break;
+                case 'd': result+=dir; it+=3; break;
+                case 'e': result+=ext; it+=3; break;
+                case 'f':
+                    switch(*(++it)){
+                        case 'p': it+=1; result+=fp; break;
+                        default: it+=4; result+=fname; break;
+                    }
+                    break;
             }
             continue;
         } else {
