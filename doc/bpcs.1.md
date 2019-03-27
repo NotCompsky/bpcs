@@ -101,7 +101,7 @@ In descending order of usefulness.
 
 ## CRITICAL BUGS
 
-Tests show that one conjugation grid out of thousands is not set, leading to a run of 63 grids of 8 bytes which are not conjugated on extraction.
+Error when writing conjugation grid if a vessel image's last set of 64 complex grids only contains one grid.
 
 ## SECONDARY BUGS
 
