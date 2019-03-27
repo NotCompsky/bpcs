@@ -8,7 +8,7 @@
     #define IS_POSIX
 #endif
 
-#ifdef DEBUG
+#ifndef NDEBUG
     #include <compsky/logger.hpp> // for CompskyLogger
 
     #ifdef IS_POSIX
@@ -26,7 +26,7 @@ typedef cv::Matx<uchar, 8, 7> Matx87uc;
 typedef cv::Matx<uchar, 7, 8> Matx78uc;
 
 
-#ifdef DEBUG
+#ifndef NDEBUG
     uint whichbyte = 0;
     uint_fast64_t gridlimit = 0;
     
@@ -47,7 +47,7 @@ typedef cv::Matx<uchar, 7, 8> Matx78uc;
 
 
 void handler(int sgnl){
-  #if defined (DEBUG) && defined (IS_POSIX)
+  #if (!defined (NDEBUG)) && defined (IS_POSIX)
     void* arr[10];
     
     size_t size = backtrace(arr, 10);
@@ -147,7 +147,7 @@ inline void cv_div2(cv::Mat& arr, cv::Mat& dest){
 }
 
 inline void convert_to_cgc(cv::Mat &arr){
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(5);
         mylog.set_cl(0);
         mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==";
@@ -155,7 +155,7 @@ inline void convert_to_cgc(cv::Mat &arr){
     cv::Mat dest;
     cv_div2(arr, dest);
     cv::bitwise_xor(arr, dest, arr);
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog << +cv::sum(arr)[0] << ")" << std::endl;
     #endif
 }
@@ -173,7 +173,7 @@ static const Matx88uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 
  * Display statistics
  */
 
-#ifdef DEBUG
+#ifndef NDEBUG
 void print_histogram(std::vector<uint8_t> &complexities, uint_fast16_t n_bins, uint_fast16_t n_binchars){
     std::sort(std::begin(complexities), std::end(complexities));
     uint_fast64_t len_complexities = complexities.size();
@@ -260,7 +260,7 @@ class BPCSStreamBuf {
         embedding(emb), out_fmt(outfmt),
     #endif
     x(0), y(0), min_complexity(min_complexity), img_n(0), img_fps(img_fps)
-    #ifdef DEBUG
+    #ifndef NDEBUG
         , n_complex_grids_found(0)
     #endif
     {}
@@ -275,7 +275,7 @@ class BPCSStreamBuf {
     
     std::array<uchar, 8> get();
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         std::vector<uint8_t> complexities;
     #endif
     
@@ -289,7 +289,7 @@ class BPCSStreamBuf {
     int32_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
     int32_t y;
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         uint_fast64_t n_grids;
         uint_fast64_t n_complex_grids_found;
     #endif
@@ -357,12 +357,12 @@ class BPCSStreamBuf {
     inline uint8_t get_grid_complexity(Matx88uc&);
     inline uint8_t get_grid_complexity(cv::Mat&);
     inline void conjugate_grid();
-    #ifdef DEBUG
+    #ifndef NDEBUG
         void print_state();
     #endif
 };
 
-#ifdef DEBUG
+#ifndef NDEBUG
 void BPCSStreamBuf::print_state(){
     mylog.set_cl(0);
     mylog << "embedding: " << +this->embedding << std::endl;
@@ -400,7 +400,7 @@ inline uint8_t BPCSStreamBuf::get_grid_complexity(cv::Mat &arr){
 inline void BPCSStreamBuf::conjugate_grid(){
     cv::bitwise_xor(this->grid, chequerboard, this->grid);
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
         mylog << "<*" << +this->conjmap_indx << "(" << +(this->x -8) << ", " << +this->y << ")>" << std::endl;
@@ -425,7 +425,7 @@ void BPCSStreamBuf::load_next_img(){
     if (this->embedding && this->img_n != 0)
         this->save_im();
     #endif
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
@@ -440,7 +440,7 @@ void BPCSStreamBuf::load_next_img(){
     
     fread(png_sig, 1, 8, png_file);
     if (!png_check_sig(png_sig, 8)){
-        #ifdef DEBUG
+        #ifndef NDEBUG
         std::cerr << "Bad signature in file `" << this->img_fps[this->img_n] << "`" << std::endl;
         #endif
         handler(60);
@@ -480,7 +480,7 @@ void BPCSStreamBuf::load_next_img(){
     #ifdef TESTS
         assert(bit_depth == N_BITPLANES);
         if (colour_type != PNG_COLOR_TYPE_RGB){
-            #ifdef DEBUG
+            #ifndef NDEBUG
             mylog.set_verbosity(0);
             mylog << "colour_type: " << +colour_type << " != " << +PNG_COLOR_TYPE_RGB << std::endl;
             mylog << "These are bits - probably 2 for COLOR, 4 for ALPHA, i.e. 6 for 4 channel image" << std::endl;
@@ -526,7 +526,7 @@ void BPCSStreamBuf::load_next_img(){
     cv::split(this->im_mat, this->channel_byteplanes);
     #endif
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(4);
         this->print_state();
     #endif
@@ -632,7 +632,7 @@ void BPCSStreamBuf::assert_conjmap_set(){
     
     abort_w_info:
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
     mylog.set_verbosity(1);
     this->print_state();
     #endif
@@ -651,7 +651,7 @@ void BPCSStreamBuf::write_conjugation_map(){
         this->assert_conjmap_set();
     #endif
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(6);
         mylog.set_cl('p');
         mylog << "Conjgrid orig" << "\n";
@@ -674,7 +674,7 @@ void BPCSStreamBuf::write_conjugation_map(){
         assert(cv::sum(this->conjgrid_orig)[0] < 65);
     #endif
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(6);
         mylog.set_cl(0);
         mylog << "Written conjugation map" << "\n" << this->conjgrid_orig << std::endl;
@@ -683,7 +683,7 @@ void BPCSStreamBuf::write_conjugation_map(){
 #endif
 
 void BPCSStreamBuf::set_next_grid(){
-    #ifdef DEBUG
+    #ifndef NDEBUG
     if (++whichbyte == gridlimit){
         mylog << std::endl;
         throw std::runtime_error("Reached gridlimit");
@@ -697,7 +697,7 @@ void BPCSStreamBuf::set_next_grid(){
         // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
         // The old such grid must have the conjugation map emptied into it
         
-        #ifdef DEBUG
+        #ifndef NDEBUG
             if (++conj_grids_found == MAX_CONJ_GRIDS)
                 throw std::runtime_error("Found maximum number of conj grids");
         #endif
@@ -719,7 +719,7 @@ void BPCSStreamBuf::set_next_grid(){
             
             memcpy(this->conjgrid.val, this->grid.val, 64);
             
-            #ifdef DEBUG
+            #ifndef NDEBUG
                 for (uint_fast8_t k=0; k<63; ++k){
                     mylog.set_verbosity(5);
                     mylog.set_cl(0);
@@ -743,7 +743,7 @@ void BPCSStreamBuf::set_next_grid(){
             
             complexity = this->get_grid_complexity(this->grid_orig);
             
-            #ifdef DEBUG
+            #ifndef NDEBUG
                 this->complexities.push_back(complexity);
             #endif
             
@@ -754,7 +754,7 @@ void BPCSStreamBuf::set_next_grid(){
                 this->grid_orig.copyTo(this->grid);
                 this->x = i;
                 this->y = j;
-                #ifdef DEBUG
+                #ifndef NDEBUG
                     ++this->n_complex_grids_found;
                     mylog.set_verbosity(7);
                     mylog.set_cl('B');
@@ -772,7 +772,7 @@ void BPCSStreamBuf::set_next_grid(){
     this->x = 0;
     this->y = 0;
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(4);
         mylog.set_cl('b');
         mylog << "Exhausted bitplane" << std::endl;
@@ -805,7 +805,7 @@ void BPCSStreamBuf::set_next_grid(){
     
     // If we are here, we have exhausted all images!
     // This is not necessarily alarming - this termination is used rather than returning status values for each get() call.
-    #ifdef DEBUG
+    #ifndef NDEBUG
         print_histogram(this->complexities, n_bins, n_binchars);
         mylog.set_verbosity(0);
         mylog << "Exhausted all vessel images" << std::endl;
@@ -831,7 +831,7 @@ std::array<uchar, 8> BPCSStreamBuf::get(){
         }
     }
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         sgetputc_count += 8;
     #endif
     
@@ -851,7 +851,7 @@ void BPCSStreamBuf::put(std::array<uchar, 8> in){
             in[j] = in[j] >> 1;
         }
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         sgetputc_count += 8;
         mylog.set_verbosity(8);
         mylog.set_cl('B');
@@ -878,7 +878,7 @@ void BPCSStreamBuf::save_im(){
     
     this->write_conjugation_map();
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(4);
         mylog.set_cl('b');
         mylog << "UnXORing " << +N_CHANNELS << " channels of depth " << +N_BITPLANES << std::endl;
@@ -910,7 +910,7 @@ void BPCSStreamBuf::save_im(){
     
     std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1]);
     cv::merge(this->channel_byteplanes, this->im_mat);
-    #ifdef DEBUG
+    #ifndef NDEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
         mylog << "Saving to  `" << out_fp << "`" << std::endl;
@@ -985,7 +985,7 @@ int main(const int argc, char* argv[]){
         out_fmt = NULL;
 #endif
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         bool print_content = true;
         int verbosity = 3;
         
@@ -1013,7 +1013,7 @@ int main(const int argc, char* argv[]){
     #endif
     
     const uint8_t min_complexity = 50 + (argv[++i][0] -48);
-    #ifdef DEBUG
+    #ifndef NDEBUG
     if (!(50 <= min_complexity && min_complexity <= 56)){
         mylog.set_verbosity(0);
         mylog << "E: invalid min_complexity" << std::endl;
@@ -1048,7 +1048,7 @@ int main(const int argc, char* argv[]){
 #endif
     do {
         arr = bpcs_stream.get();
-        #ifdef DEBUG
+        #ifndef NDEBUG
             if (print_content)
         #endif
                 write(STDOUT_FILENO, arr.data(), 8);

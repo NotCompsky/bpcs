@@ -8,7 +8,7 @@
 typedef uint8_t uchar;
 
 
-#ifdef DEBUG
+#ifndef NDEBUG
     #include <iostream> // for std::cout, std::endl
     #include <compsky/logger.hpp> // for CompskyLogger
     
@@ -115,7 +115,7 @@ int main(const int argc, char *argv[]){
     
     std::string out_fp;
     
-    #ifdef DEBUG
+    #ifndef NDEBUG
         int verbosity = 3;
         
         char* log_fmt = "[%T] ";
@@ -146,7 +146,7 @@ int main(const int argc, char *argv[]){
         };
         #endif
     }
-    #ifdef DEBUG
+    #ifndef NDEBUG
         if (verbosity < 0)
             verbosity = 0;
         else if (verbosity > 9)
@@ -187,7 +187,7 @@ int main(const int argc, char *argv[]){
             
             n_msg_bytes = get_charp_len(fp);
             
-            #ifdef DEBUG
+            #ifndef NDEBUG
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
                 mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
@@ -199,7 +199,7 @@ int main(const int argc, char *argv[]){
             }
             
             if (stat(fp, &stat_buf) == -1){
-                #ifdef DEBUG
+                #ifndef NDEBUG
                     mylog.set_verbosity(0);
                     mylog.set_cl('r');
                     mylog << "No such file:  " << fp << std::endl;
@@ -207,7 +207,7 @@ int main(const int argc, char *argv[]){
                 return 1;
             }
             n_msg_bytes = stat_buf.st_size;
-            #ifdef DEBUG
+            #ifndef NDEBUG
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
                 mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
@@ -232,7 +232,7 @@ int main(const int argc, char *argv[]){
         std::string fp_str;
         for (i=0; true; ++i) {
             read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
-            #ifdef DEBUG
+            #ifndef NDEBUG
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
                 mylog << "n_msg_bytes " << +n_msg_bytes << std::endl;
@@ -240,7 +240,7 @@ int main(const int argc, char *argv[]){
             
             if (n_msg_bytes == 0){
                 // Reached end of embedded datas
-                #ifdef DEBUG
+                #ifndef NDEBUG
                     mylog.set_verbosity(0);
                     mylog.set_cl('r');
                     mylog << "n_msg_bytes = 0";
@@ -253,7 +253,7 @@ int main(const int argc, char *argv[]){
             if (i & 1){
                 // First block of data is original file path, second is file contents
                 if (out_fmt != NULL){
-                    #ifdef DEBUG
+                    #ifndef NDEBUG
                         mylog.set_verbosity(3);
                         mylog << "Writing extracted file to `" << fp_str << "`" << std::endl;
                     #endif
@@ -266,7 +266,7 @@ int main(const int argc, char *argv[]){
                         fwrite(&c, 1, 1, of);
                     }
                     fclose(of);
-                    #ifndef DEBUG
+                    #ifnndef NDEBUG
                         if (verbosity)
                             write(STDOUT_FILENO, fp_str.c_str(), fp_str.size());
                     #endif
@@ -283,14 +283,14 @@ int main(const int argc, char *argv[]){
                     read(STDIN_FILENO, &c, 1);
                     fp_str += c;
                 }
-                #ifdef DEBUG
+                #ifndef NDEBUG
                     mylog.set_verbosity(3);
                     mylog.set_cl('g');
                     mylog << "Original fp: " << fp_str << std::endl;
                 #endif
                 if (out_fmt != NULL){
                     fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str());
-                    #ifdef DEBUG
+                    #ifndef NDEBUG
                         mylog.set_verbosity(3);
                         mylog.set_cl('g');
                         mylog << "Formatted fp: " << fp_str << std::endl;
