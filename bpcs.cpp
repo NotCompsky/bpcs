@@ -975,17 +975,19 @@ int main(const int argc, char* argv[]){
         int verbosity = 3;
         
         while (++i < argc){
-            if      (argv[i][2] == 0 && argv[i][1] == 'v' && argv[i][0] == '-')
-                ++verbosity;
-            else if (argv[i][2] == 0 && argv[i][1] == 'q' && argv[i][0] == '-')
-                --verbosity;
-            else if (argv[i][2] == 0 && argv[i][1] == 'Q' && argv[i][0] == '-')
-                print_content = false;
-            else {
+            if (argv[i][0] == '-' && argv[i][2] == 0){
+                switch(argv[i][1]){
+                    case 'v': ++verbosity; break;
+                    case 'q': --verbosity; break;
+                    case 'Q': print_content=false; break;
+                    default: --i; goto end_args;
+                }
+            } else {
                 --i;
-                break;
+                goto end_args;
             }
         }
+        end_args:
         
         if (verbosity < 0)
             verbosity = 0;
