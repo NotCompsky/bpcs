@@ -26,7 +26,7 @@ FMEPATH = $(BUILD_DIR)/bpcs-fmt-e_$(V)
 FMVPATH = $(BUILD_DIR)/bpcs-fmt-v_$(V)
 
 
-DEBUGFLAGS = -DDEBUG -DTESTS
+DEBUGFLAGS = -DDEBUG -DTESTS -rdynamic
 TINYFLAGS = -ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--build-id=none -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden
 NODEBUGFLAGS = -DNDEBUG -fno-exceptions -DARGS_NOEXCEPT
 RELEASEFLAGS = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -flto -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
