@@ -107,6 +107,8 @@ Error when writing conjugation grid if a vessel image's last set of 64 complex g
 
 If vessel images contains fewer than 2 complex grids, program will loop and crash.
 
+If a vessel image has 1 modulo 64 complex grids, the last grid will be a perfect chequerboard.
+
 ## MISSING FEATURES
 
 Cannot read files embedded by systems with a different endianness.
