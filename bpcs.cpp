@@ -43,6 +43,8 @@ typedef cv::Matx<uchar, 7, 8> Matx78uc;
     
     uint_fast64_t SGETPUTC_MAX = 0;
     uint_fast64_t sgetputc_count = 0;
+    
+    bool ignore_errors = false;
 #endif
 
 
@@ -638,6 +640,8 @@ void BPCSStreamBuf::assert_conjmap_set(){
     #ifndef NDEBUG
     mylog.set_verbosity(1);
     this->print_state();
+    
+    if (!ignore_errors)
     #endif
     
     handler(222);
@@ -998,6 +1002,7 @@ int main(const int16_t argc, char* argv[]){
                     case 'v': ++verbosity; break;
                     case 'q': --verbosity; break;
                     case 'Q': print_content=false; break;
+                    case 'i': ignore_errors=true; break;
                     default: --i; goto end_args;
                 }
             } else {
