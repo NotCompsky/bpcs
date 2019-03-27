@@ -430,9 +430,9 @@ void BPCSStreamBuf::load_next_img(){
         mylog.set_cl('g');
         mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
-    
+  #ifdef TESTS
     assert(this->img_n != this->img_fps.size());
-    
+  #endif
     /* Load PNG file into array */
     FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
     
@@ -1022,7 +1022,7 @@ int main(const int argc, char* argv[]){
         mylog << "i:\t" << +i << std::endl;
         mylog << "argv[i]:\t" << argv[i] << std::endl;
     }
-    #else
+    #else if defined(TESTS)
     assert(50 <= min_complexity && min_complexity <= 56);
     #endif
     
