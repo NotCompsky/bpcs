@@ -1,6 +1,6 @@
 % BPCS(3) BPCS User Manual
 % NotCompsky
-% 23 March 2019
+% 27 March 2019
 
 # NAME
 
@@ -41,22 +41,9 @@ bpcs_stream.load_next_img(); // Initialise bpcs_stream for reading/writing
 
 See the bpcs program for example usage.
 
-# BUGS
-No known bugs.
+# MISC
 
-# ROADMAP
-
-This tool is still in active development.
-
-Performance improvements are always planned.
-
-Some lightweight features may be added.
-
-# CONTRIBUTING
-
-Bug reports/fixes, performance improvements/suggestions, documentation improvements (such as translations), etc. welcomed.
-
-Repository is found at https://github.com/NotCompsky/bpcs
+See bpcs(1) for other sections including bugs, roadmap, contributing.
 
 # SEE ALSO
 bpcs(1)
