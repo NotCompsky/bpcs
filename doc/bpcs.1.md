@@ -129,6 +129,25 @@ Backwards compatibility is not a priority at this time.
 
 * QoL bloat such as checking for the existence of directories before writing output files
 
+# RETURN CODES
+
+| Value | Meaning |
+| ----- | ------- |
+| 0 | Success |
+| 4 | Memory error |
+| 5 | Cannot write to file |
+| 10 | Bitplane is empty (has no columns) |
+| 60 | Incorrect vessel image format error: Bad signature in file |
+| 61 | Incorrect vessel image format error: Non-RGB type |
+| 64 | png_write_image failed |
+| 65 | png_write_end failed |
+| 66 | png_create_write_struct failed |
+| 67 | png_create_info_struct failed |
+| 68 | png_init_io failed |
+| 69 | Misc libpng error |
+| 222 | Conjugation map not set |
+| 255 | Exhausted all vessel images before exhausting input |
+
 # CONTRIBUTING
 
 Bug reports/fixes, performance improvements/suggestions, documentation improvements (such as translations), etc. welcomed.

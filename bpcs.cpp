@@ -4,10 +4,18 @@
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 
-#ifdef DEBUG
-    #include <compsky/logger.hpp> // for CompskyLogger
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+    #define IS_POSIX
 #endif
 
+#ifdef DEBUG
+    #include <compsky/logger.hpp> // for CompskyLogger
+
+    #ifdef IS_POSIX
+        #include <execinfo.h> // for printing stack trace
+    #endif
+
+#endif
 
 #define N_BITPLANES 8
 #define N_CHANNELS 3
@@ -36,6 +44,19 @@ typedef cv::Matx<uchar, 7, 8> Matx78uc;
     uint_fast64_t SGETPUTC_MAX = 0;
     uint_fast64_t sgetputc_count = 0;
 #endif
+
+
+void handler(int sgnl){
+  #if defined (DEBUG) && defined (IS_POSIX)
+    void* arr[10];
+    
+    size_t size = backtrace(arr, 10);
+    
+    fprintf(stderr, "E(%d):\n", sgnl);
+    backtrace_symbols_fd(arr, size, STDERR_FILENO);
+  #endif
+    exit(sgnl);
+}
 
 
 #ifdef EMBEDDOR
@@ -422,26 +443,26 @@ void BPCSStreamBuf::load_next_img(){
         #ifdef DEBUG
         std::cerr << "Bad signature in file `" << this->img_fps[this->img_n] << "`" << std::endl;
         #endif
-        abort();
+        handler(60);
     }
     
     auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     
     if (!png_ptr)
         // Could not allocate memory
-        abort();
+        handler(4);
   
     auto png_info_ptr = png_create_info_struct(png_ptr);
     
     if (!png_info_ptr){
         png_destroy_read_struct(&png_ptr, NULL, NULL);
-        abort();
+        handler(69);
     }
     
     /* ERROR - incorrect use of incomplete type
     if (setjmp(png_ptr->jmpbuf)){
         png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
-        abort();
+        handler(1);
     }
     */
     
@@ -464,7 +485,7 @@ void BPCSStreamBuf::load_next_img(){
             mylog << "colour_type: " << +colour_type << " != " << +PNG_COLOR_TYPE_RGB << std::endl;
             mylog << "These are bits - probably 2 for COLOR, 4 for ALPHA, i.e. 6 for 4 channel image" << std::endl;
             #endif
-            abort();
+            handler(61);
         }
     #endif
     
@@ -484,7 +505,7 @@ void BPCSStreamBuf::load_next_img(){
     
     if ((this->img_data = (uchar*)malloc(rowbytes*h)) == NULL){
         png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
-        abort();
+        handler(4);
     }
     
     uchar* row_ptrs[h];
@@ -616,7 +637,7 @@ void BPCSStreamBuf::assert_conjmap_set(){
     this->print_state();
     #endif
     
-    abort();
+    handler(222);
 }
 #endif
 #endif
@@ -791,7 +812,7 @@ void BPCSStreamBuf::set_next_grid(){
     #endif
     #ifdef EMBEDDOR
     if (this->embedding){
-        abort();
+        handler(255);
     }
     #endif
     not_exhausted = false;
@@ -874,9 +895,9 @@ void BPCSStreamBuf::save_im(){
         do {
             --k;
             #ifdef TESTS
-                if (!this->bitplanes[k].cols){
+                if (this->bitplanes[k].cols == 0){
                     std::cerr << "bitplane " << +k << " is empty" << std::endl;
-                    abort();
+                    handler(10);
                 }
             #endif
             cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
@@ -902,32 +923,27 @@ void BPCSStreamBuf::save_im(){
     
     #ifdef TESTS
     if (!png_file){
-        std::cerr << "Cannot write to file" << std::endl;
-        abort();
+        handler(5);
     }
     if (!png_ptr){
-        std::cerr << "png_create_write_struct failed" << std::endl;
-        abort();
+        handler(66);
     }
     #endif
     
     auto png_info_ptr = png_create_info_struct(png_ptr);
     
     if (!png_info_ptr){
-        std::cerr << "png_create_info_struct failed" << std::endl;
-        abort();
+        handler(67);
     }
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        std::cerr << "png_init_io failed" << std::endl;
-        abort();
+        handler(68);
     }
     
     png_init_io(png_ptr, png_file);
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        std::cerr << "png_set_IHDR failed" << std::endl;
-        abort();
+        handler(69);
     }
     
     png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
@@ -937,8 +953,7 @@ void BPCSStreamBuf::save_im(){
     png_write_info(png_ptr, png_info_ptr);
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        std::cerr << "png_write_image failed" << std::endl;
-        abort();
+        handler(64);
     }
     
     uchar* row_ptrs[this->im_mat.rows];
@@ -948,8 +963,7 @@ void BPCSStreamBuf::save_im(){
     png_write_image(png_ptr, row_ptrs);
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        std::cerr << "png_write_end failed" << std::endl;
-        abort();
+        handler(65);
     }
     
     png_write_end(png_ptr, NULL);
