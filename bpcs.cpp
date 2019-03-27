@@ -707,7 +707,15 @@ void BPCSStreamBuf::set_next_grid(){
         
         this->conjmap_indx = 0;
         
+        int16_t img_n_orig = this->img_n;
         this->set_next_grid();
+        if (this->img_n != img_n_orig){
+            // Moved on to the next vessel image
+          #ifdef DEBUG
+            mylog.set_verbosity(3);
+            mylog << "Changed vessel images while setting new conjmap" << std::endl;
+          #endif
+        }
         
         #ifdef EMBEDDOR
         if (this->embedding){
