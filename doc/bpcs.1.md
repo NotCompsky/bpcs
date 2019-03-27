@@ -101,7 +101,7 @@ In descending order of usefulness.
 
 ## CRITICAL BUGS
 
-
+Extraction completely broken (appears to be incorrect conjugations).
 
 ## SECONDARY BUGS
 
