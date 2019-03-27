@@ -1022,7 +1022,7 @@ int main(const int argc, char* argv[]){
         mylog << "i:\t" << +i << std::endl;
         mylog << "argv[i]:\t" << argv[i] << std::endl;
     }
-    #else if defined(TESTS)
+    #elif defined(TESTS)
     assert(50 <= min_complexity && min_complexity <= 56);
     #endif
     
