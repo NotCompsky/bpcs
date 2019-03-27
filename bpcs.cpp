@@ -611,6 +611,7 @@ void BPCSStreamBuf::assert_conjmap_set(){
     abort_w_info:
     
     #ifdef DEBUG
+    mylog.set_verbosity(1);
     this->print_state();
     #endif
     
