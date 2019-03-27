@@ -705,7 +705,7 @@ void BPCSStreamBuf::set_next_grid(){
             mylog.set_verbosity(3);
             mylog << "Changed vessel images while setting new conjmap" << std::endl;
           #endif
-        }
+        } else 
         
         #ifdef EMBEDDOR
         if (this->embedding){
@@ -877,13 +877,11 @@ void BPCSStreamBuf::put(std::array<uchar, 8> in){
 }
 
 void BPCSStreamBuf::save_im(){
-    if (this->conjmap_indx != 0){
-        for (uint8_t i=this->conjmap_indx; i<63; ++i)
-            // This will only occur when reached the end of all data being encoded
-            this->conjgrid.val[i] = 0;
-        
-        this->write_conjugation_map();
-    }
+    for (uint8_t i=this->conjmap_indx; i<63; ++i)
+        // This will only occur when reached the end of all data being encoded
+        this->conjgrid.val[i] = 0;
+    
+    this->write_conjugation_map();
     
     #ifdef DEBUG
         mylog.set_verbosity(4);

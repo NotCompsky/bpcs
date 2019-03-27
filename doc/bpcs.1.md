@@ -101,7 +101,7 @@ In descending order of usefulness.
 
 ## CRITICAL BUGS
 
-Error when writing conjugation grid if a vessel image's last set of 64 complex grids only contains one grid.
+
 
 ## SECONDARY BUGS
 
