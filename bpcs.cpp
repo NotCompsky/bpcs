@@ -426,10 +426,6 @@ void BPCSStreamBuf::load_next_channel(){
 }
 
 void BPCSStreamBuf::load_next_img(){
-    #ifdef EMBEDDOR
-    if (this->embedding && this->img_n != 0)
-        this->save_im();
-    #endif
     #ifndef NDEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
@@ -805,6 +801,10 @@ void BPCSStreamBuf::set_next_grid(){
     
     // If we are here, we have exhausted the image
     if (img_n < this->n_imgs){
+#ifdef EMBEDDOR
+        if (this->embedding)
+            this->save_im();
+#endif
         this->load_next_img();
         this->conjmap_indx = 0; // i.e. decrement
         return;
