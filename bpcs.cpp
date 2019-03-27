@@ -351,6 +351,7 @@ void BPCSStreamBuf::print_state(){
     mylog << "n_channels: " << +N_CHANNELS << std::endl;
     mylog << "n_complex_grids_found: " << +n_complex_grids_found << std::endl;
     mylog << "sgetputc_count: " << +sgetputc_count << std::endl;
+    mylog << "conjmap_indx: " << +this->conjmap_indx << std::endl;
 }
 #endif
 
