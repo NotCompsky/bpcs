@@ -253,7 +253,7 @@ class BPCSStreamBuf {
     #ifdef EMBEDDOR
         embedding(emb), out_fmt(outfmt),
     #endif
-    x(0), y(0), min_complexity(min_complexity), img_n(img_n), n_imgs(n_imgs), img_fps(im_fps)
+    x(0), y(0), min_complexity(min_complexity), img_n(img_n), img_n_offset(img_n), n_imgs(n_imgs), img_fps(im_fps)
     #ifdef DEBUG
         , n_complex_grids_found(0)
     #endif
@@ -297,6 +297,7 @@ class BPCSStreamBuf {
     uint8_t channel_n;
     uint8_t bitplane_n;
     
+    const int16_t img_n_offset;
     int16_t img_n;
     int16_t n_imgs;
     
@@ -583,7 +584,7 @@ void BPCSStreamBuf::load_next_img(){
     #ifdef EMBEDDOR
     if (!this->embedding){
     #endif
-        if (this->img_n == 0){
+        if (this->img_n == this->img_n_offset){
             // If false, this function is being called from within get()
             
             if (this->conjgrid.val[0])
