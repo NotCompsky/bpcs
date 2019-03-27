@@ -10,7 +10,24 @@ bpcs - embed/extract data stream to/from vessel PNG image(s)
 
 **#include \<bpcs/bpcs.h\>**
 
-**BPCSStreamBuf bpcs_stream(uint8_t *min_complexity*, std::vector\<char\*\>& *img_fps*, bool *embedding*, char\* *outfmt*);**
+**BPCSStreamBuf bpcs_stream(uint8_t *min_complexity*, int16_t *img_n*, int16_t *n_imgs*, char\*\* *img_fps*, bool *embedding*, char\* *out_fmt*);**
+
+# ARGUMENTS
+
+*min_complexity*
+:   Grids with complexity below this value are ignored
+
+*img_n*
+:   Index offset of img_fps
+
+*n_imgs*
+:   Number of elements of img_fps
+
+*embedding*
+:   If writing data to output vessel images
+
+*out_fmt*
+:   See **-o** option in bpcs(1)
 
 # USAGE
 

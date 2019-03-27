@@ -249,7 +249,9 @@ class BPCSStreamBuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const uint8_t min_complexity, std::vector<char*>& img_fps
+    BPCSStreamBuf(const uint8_t min_complexity, int16_t img_n, int16_t n_imgs, char** im_fps
+                // WARNING: img_fps is just argv which needs an index to skip the options
+                // Use double pointer rather than array of pointers due to constraints on constructor initialisation
                 #ifdef EMBEDDOR
                   , bool emb
                   , char* outfmt
@@ -259,7 +261,7 @@ class BPCSStreamBuf {
     #ifdef EMBEDDOR
         embedding(emb), out_fmt(outfmt),
     #endif
-    x(0), y(0), min_complexity(min_complexity), img_n(0), img_fps(img_fps)
+    x(0), y(0), min_complexity(min_complexity), img_n(img_n), n_imgs(n_imgs), img_fps(im_fps)
     #ifndef NDEBUG
         , n_complex_grids_found(0)
     #endif
@@ -303,9 +305,8 @@ class BPCSStreamBuf {
     uint8_t channel_n;
     uint8_t bitplane_n;
     
-    uint16_t img_n;
-    
-    const std::vector<char*> img_fps;
+    int16_t img_n;
+    int16_t n_imgs;
     
     #ifdef EMBEDDOR
     std::vector<cv::Mat> channel_byteplanes;
@@ -341,6 +342,8 @@ class BPCSStreamBuf {
     #ifdef EMBEDDOR
     png_color_16p png_bg;
     #endif
+    
+    char** img_fps;
     
     void set_next_grid();
     void load_next_bitplane();
@@ -428,10 +431,10 @@ void BPCSStreamBuf::load_next_img(){
     #ifndef NDEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
-        mylog << "Loading img " << +this->img_n << " of " << +this->img_fps.size() << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
+        mylog << "Loading img " << +this->img_n << " of " << +this->n_imgs << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
   #ifdef TESTS
-    assert(this->img_n != this->img_fps.size());
+    assert(this->img_n != this->n_imgs);
   #endif
     /* Load PNG file into array */
     FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
@@ -797,7 +800,7 @@ void BPCSStreamBuf::set_next_grid(){
     }
     
     // If we are here, we have exhausted the image
-    if (img_n < img_fps.size()){
+    if (img_n < this->n_imgs){
         this->load_next_img();
         this->conjmap_indx = 0; // i.e. decrement
         return;
@@ -971,8 +974,8 @@ void BPCSStreamBuf::save_im(){
 #endif
 
 
-int main(const int argc, char* argv[]){
-    uint8_t i = 0;
+int main(const int16_t argc, char* argv[]){
+    int16_t i = 0;
 #ifdef EMBEDDOR
     const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
     
@@ -1026,13 +1029,7 @@ int main(const int argc, char* argv[]){
     assert(50 <= min_complexity && min_complexity <= 56);
     #endif
     
-    std::vector<char*> img_fps;
-    // File path(s) of input image file(s)
-    while (++i < argc){
-        img_fps.push_back(argv[i]);
-    };
-    
-    BPCSStreamBuf bpcs_stream(min_complexity, img_fps
+    BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
                               #ifdef EMBEDDOR
                               , embedding
                               , out_fmt
