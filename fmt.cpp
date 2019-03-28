@@ -21,8 +21,8 @@ typedef uint8_t uchar;
 #endif
 
 
-inline uint_fast64_t get_charp_len(char* chrp){
-    uint_fast64_t i = 0;
+inline uint64_t get_charp_len(char* chrp){
+    uint64_t i = 0;
     while (*(chrp++) != 0)
         ++i;
     return i;
@@ -95,8 +95,8 @@ int main(const int argc, char *argv[]){
         mylog << std::endl;
     #endif
     
-    uint_fast64_t j;
-    uint_fast64_t n_msg_bytes;
+    uint64_t j;
+    uint64_t n_msg_bytes;
     
     uchar c;
     
@@ -156,7 +156,7 @@ int main(const int argc, char *argv[]){
     } else {
     #endif
         char* fp_str;
-        int32_t fp_str_length;
+        int fp_str_length;
         for (i=0; true; ++i) {
             read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
             #ifdef DEBUG

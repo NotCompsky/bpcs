@@ -178,7 +178,7 @@ class BPCSStreamBuf {
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
-    BPCSStreamBuf(const uint8_t min_complexity, int16_t img_n, int16_t n_imgs, char** im_fps
+    BPCSStreamBuf(const uint8_t min_complexity, int img_n, int n_imgs, char** im_fps
                 // WARNING: img_fps is just argv which needs an index to skip the options
                 // Use double pointer rather than array of pointers due to constraints on constructor initialisation
                 #ifdef EMBEDDOR
@@ -217,8 +217,8 @@ class BPCSStreamBuf {
     void save_im(); // End
     #endif
   private:
-    int32_t x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
-    int32_t y;
+    int x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
+    int y;
     
     #ifdef DEBUG
         uint_fast64_t n_grids;
@@ -234,9 +234,9 @@ class BPCSStreamBuf {
     uint8_t channel_n;
     uint8_t bitplane_n;
     
-    const int16_t img_n_offset;
-    int16_t img_n;
-    int16_t n_imgs;
+    const int img_n_offset;
+    int img_n;
+    int n_imgs;
     
     #ifdef EMBEDDOR
     std::vector<cv::Mat> channel_byteplanes;
@@ -635,7 +635,7 @@ void BPCSStreamBuf::set_next_grid(){
         
         this->conjmap_indx = 0;
         
-        int16_t img_n_orig = this->img_n;
+        int img_n_orig = this->img_n;
         this->set_next_grid();
         if (this->img_n != img_n_orig){
             // Moved on to the next vessel image
@@ -673,8 +673,8 @@ void BPCSStreamBuf::set_next_grid(){
     }
     
     uint8_t complexity;
-    int32_t i = this->x;
-    for (int32_t j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
+    int i = this->x;
+    for (int j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
         while (i <= this->im_mat.cols -8){
             cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
             
@@ -922,8 +922,8 @@ void BPCSStreamBuf::save_im(){
 #endif
 
 
-int main(const int16_t argc, char* argv[]){
-    int16_t i = 0;
+int main(const int argc, char* argv[]){
+    int i = 0;
 #ifdef EMBEDDOR
     const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
     
