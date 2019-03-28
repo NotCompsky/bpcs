@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <string>
 #include <sys/stat.h> // for stat
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
@@ -37,8 +36,6 @@ int main(const int argc, char *argv[]){
     uint8_t n_msg_fps = 0;
     
     char* out_fmt = NULL;
-    
-    std::string out_fp;
     
     #ifdef DEBUG
         int verbosity = 3;
