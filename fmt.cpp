@@ -1,12 +1,20 @@
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
+
+
+/* Not needed for GCC */
+#include <cstdio> // for FILE, fopen
+typedef unsigned char uchar;
+typedef __uint8_t uint8_t;
+typedef __int32_t int32_t;
+typedef __uint32_t uint32_t;
+typedef __uint64_t uint64_t;
+
+
 #include "utils.hpp" // for format_out_fp
 
 
-typedef uint8_t uchar;
-
-
-#ifdef EMBEDDING
+#ifdef EMBEDDOR
     #include <sys/stat.h> // for stat
 #endif
 #ifdef TESTS
@@ -19,7 +27,6 @@ typedef uint8_t uchar;
     // Fancy loggers
     static CompskyLogger mylog("bpcs", std::cout);
 #endif
-
 
 inline uint64_t get_charp_len(char* chrp){
     uint64_t i = 0;
