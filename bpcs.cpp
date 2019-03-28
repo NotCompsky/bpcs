@@ -708,8 +708,7 @@ void BPCSStreamBuf::set_next_grid(){
             mylog.set_verbosity(3);
             mylog << "Changed vessel images while setting new conjmap" << std::endl;
           #endif
-        } else 
-        
+        } else {
         #ifdef EMBEDDOR
         if (this->embedding){
             this->write_conjugation_map();
@@ -735,6 +734,7 @@ void BPCSStreamBuf::set_next_grid(){
         #ifdef EMBEDDOR
         }
         #endif
+        }
     }
     
     uint8_t complexity;
