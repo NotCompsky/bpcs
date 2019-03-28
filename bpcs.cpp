@@ -1,6 +1,4 @@
 #include <opencv2/core/core.hpp>
-#include <iostream>
-#include <fstream>
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 
@@ -9,12 +7,12 @@
 #endif
 
 #ifdef DEBUG
+    #include <iostream>
     #include <compsky/logger.hpp> // for CompskyLogger
 
     #ifdef IS_POSIX
         #include <execinfo.h> // for printing stack trace
     #endif
-
 #endif
 
 #ifdef EMBEDDOR
