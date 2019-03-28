@@ -3,6 +3,7 @@
 #include <sys/stat.h> // for stat
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
+#include "utils.hpp" // for format_out_fp
 
 
 typedef uint8_t uchar;
@@ -22,82 +23,6 @@ inline uint_fast64_t get_charp_len(char* chrp){
     while (*(chrp++) != 0)
         ++i;
     return i;
-}
-
-
-std::string format_out_fp(char* out_fmt, char* fp){
-    // TODO: Plop into seperate file to unify this with that of bpcs.cpp
-    // WARNING: Requires absolute paths?
-    std::string basename;
-    std::string dir = "";
-    std::string ext;
-    std::string fname;
-    std::string result = "";
-    
-    // Intermediates
-    std::string slashblock;
-    std::string dotblock;
-    bool dot_present = false;
-    
-    for (char* it=fp; *it; ++it){
-        if (*it == '/'){
-            dir += slashblock;
-            slashblock = "";
-            if (dot_present){
-                dir += '.' + dotblock;
-                dotblock = "";
-                dot_present = false;
-            }
-            continue;
-        }
-        if (*it == '.'){
-            if (dot_present){
-                slashblock += '.' + dotblock;
-                dotblock = "";
-            }
-            dot_present = true;
-            continue;
-        }
-        if (dot_present){
-            dotblock += *it;
-        } else {
-            slashblock += *it;
-        }
-    }
-    basename = slashblock;
-    ext = dotblock;
-    fname = slashblock + "." + dotblock;
-    
-    for (char* it=out_fmt; *it; ++it){
-        if (*it == '{'){
-            ++it;
-            if (*it == '{'){
-                result += '{';
-            } else if (*it == 'b'){
-                it += 8; // WARNING: Skipping avoids error checking.
-                result += basename;
-            } else if (*it == 'd'){
-                it += 3;
-                result += dir;
-            } else if (*it == 'e'){
-                it += 3;
-                result += ext;
-            } else if (*it == 'f'){
-                ++it;
-                if (*it == 'p'){
-                    it += 1;
-                    result += fp;
-                } else {
-                    it += 4;
-                    result += fname;
-                }
-            }
-            continue;
-        } else {
-            result += *it;
-        }
-    }
-    return result;
 }
 
 
