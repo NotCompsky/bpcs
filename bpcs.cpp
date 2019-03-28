@@ -43,6 +43,8 @@ typedef cv::Matx<uchar, 7, 8> Matx78uc;
     
     uint_fast64_t SGETPUTC_MAX = 0;
     uint_fast64_t sgetputc_count = 0;
+    uint64_t SGETPUTC_FROM = (uint64_t)~0; // Set all bits to 1, i.e. maximal value
+    uint64_t SGETPUTC_TO = (uint64_t)~0;
     
     bool ignore_errors = false;
 #endif
@@ -839,6 +841,10 @@ std::array<uchar, 8> BPCSStreamBuf::get(){
     
     #ifdef DEBUG
         sgetputc_count += 8;
+        if (sgetputc_count >= SGETPUTC_TO)
+            handler(0);
+        else if (sgetputc_count >= SGETPUTC_FROM)
+            mylog.set_level(10);
     #endif
     
     this->set_next_grid();
@@ -859,6 +865,10 @@ void BPCSStreamBuf::put(std::array<uchar, 8> in){
     
     #ifdef DEBUG
         sgetputc_count += 8;
+        if (sgetputc_count >= SGETPUTC_TO)
+            handler(0);
+        else if (sgetputc_count >= SGETPUTC_FROM)
+            mylog.set_level(10);
         mylog.set_verbosity(8);
         mylog.set_cl('B');
         mylog << "Last grid (pre-conj)" << "\n";
@@ -998,6 +1008,8 @@ int main(const int16_t argc, char* argv[]){
         while (++i < argc){
             if (argv[i][0] == '-' && argv[i][2] == 0){
                 switch(argv[i][1]){
+                    case 'f': SGETPUTC_FROM=std::stoi(argv[++i]); break;
+                    case 't': SGETPUTC_TO=std::stoi(argv[++i]); break;
                     case 'v': ++verbosity; break;
                     case 'q': --verbosity; break;
                     case 'Q': print_content=false; break;

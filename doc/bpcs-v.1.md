@@ -10,29 +10,21 @@ bpcs-v - bpcs debug build
 
 Same as bpcs
 
+# EXAMPLES
+
+`bpcs-v -Q -f 114975 -t 115975 1 /tmp/vsl/*.png`
+:   Debug the extraction process from byte 114975 to byte 115975
+
 # ADDITIONAL OPTIONS
 
---binchars *n*
-:   Total number of '#' characters printed out in histogram totals
+-f *n*
+:   Maximum debug output starting from byte number *n*
 
---bins *n*
-:   Number of histogram bins
+-t *n*
+:   Exit after byte number *n*
 
---bytelimit *n*
-:   Exit after encountering *n* bytes
-
---conjlimit *n*
-:   Exit after encountering *n* conjugation grids
-
---gridlimit *n*
-:   Exit after encountering *n* complex grids
-
---log-fmt *fmt*
-:   Datetime format of log.
-    Examples: `[%T] `, `[%F %T] `
-
---log1
-:   Enable the `log1` log output stream
+-Q
+:   Do not pipe extraction output to stdout
 
 -q
 :   Decrease verbosity.
@@ -41,4 +33,4 @@ Same as bpcs
 :   Increase verbosity.
 
 # SEE ALSO
-bpcs(1) 
+bpcs(1)
