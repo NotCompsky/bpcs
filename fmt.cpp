@@ -1,5 +1,3 @@
-#include <assert.h>
-#include <sys/stat.h> // for stat
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
 #include "utils.hpp" // for format_out_fp
@@ -8,6 +6,12 @@
 typedef uint8_t uchar;
 
 
+#ifdef EMBEDDING
+    #include <sys/stat.h> // for stat
+#endif
+#ifdef TESTS
+    #include <assert.h>
+#endif
 #ifdef DEBUG
     #include <iostream> // for std::cout, std::endl
     #include <compsky/logger.hpp> // for CompskyLogger
