@@ -154,7 +154,8 @@ int main(const int argc, char *argv[]){
         // Some encryption methods require blocks of length 16 or 32 bytes, so this ensures that there is at least 8 zero bytes even if a final half-block is cut off.
     } else {
     #endif
-        std::string fp_str;
+        char* fp_str;
+        int32_t fp_str_length;
         for (i=0; true; ++i) {
             read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
             #ifdef DEBUG
@@ -183,9 +184,9 @@ int main(const int argc, char *argv[]){
                         mylog << "Writing extracted file to `" << fp_str << "`" << std::endl;
                     #endif
                     #ifdef TESTS
-                        assert(fp_str != "");
+                        assert(fp_str[0] != 0);
                     #endif
-                    FILE* of = fopen(fp_str.c_str(), "rb");
+                    FILE* of = fopen(fp_str, "rb");
                     for (j=0; j<n_msg_bytes; ++j){
                         read(STDIN_FILENO, &c, 1);
                         fwrite(&c, 1, 1, of);
@@ -193,7 +194,7 @@ int main(const int argc, char *argv[]){
                     fclose(of);
                     #ifdef DEBUG
                         if (verbosity)
-                            write(STDOUT_FILENO, fp_str.c_str(), fp_str.size());
+                            write(STDOUT_FILENO, fp_str, fp_str_length);
                     #endif
                 } else {
                     // Stream to anonymous pipe
@@ -203,18 +204,15 @@ int main(const int argc, char *argv[]){
                     }
                 }
             } else {
-                fp_str = "";
-                for (j=0; j<n_msg_bytes; ++j){
-                    read(STDIN_FILENO, &c, 1);
-                    fp_str += c;
-                }
+                read(STDIN_FILENO, fp_str, n_msg_bytes);
+                fp_str[n_msg_bytes] = 0;
                 #ifdef DEBUG
                     mylog.set_verbosity(3);
                     mylog.set_cl('g');
                     mylog << "Original fp: " << fp_str << std::endl;
                 #endif
                 if (out_fmt != NULL){
-                    fp_str = format_out_fp(out_fmt, (char*)fp_str.c_str());
+                    fp_str_length = format_out_fp(out_fmt, &fp_str);
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
                         mylog.set_cl('g');

@@ -1,63 +1,96 @@
-std::string format_out_fp(char* out_fmt, char* fp){
+#include <cstring> // for memcpy
+#ifdef DEBUG_LAZY
+    #include <iostream>
+#endif
+
+int32_t format_out_fp(char* out_fmt, char** fp){
     // WARNING: Requires absolute paths?
-    std::string basename;
-    std::string dir = "";
-    std::string ext;
-    std::string fname;
-    std::string result = "";
     
-    // Intermediates
-    std::string slashblock;
-    std::string dotblock;
-    bool dot_present = false;
+    int32_t dir_length = 0;
+    int32_t indx_dot = 0;
+    int32_t i = 0;
     
-    for (char* it=fp; *it; ++it){
-        if (*it == '/'){
-            dir += slashblock;
-            slashblock = "";
-            if (dot_present){
-                dir += '.' + dotblock;
-                dotblock = "";
-                dot_present = false;
-            }
-            continue;
-        }
-        if (*it == '.'){
-            if (dot_present){
-                slashblock += '.' + dotblock;
-                dotblock = "";
-            }
-            dot_present = true;
-            continue;
-        }
-        if (dot_present){
-            dotblock += *it;
-        } else {
-            slashblock += *it;
+    for (char* it=*fp; true; ++it, ++i){
+        switch(*it){
+            case '/': dir_length=i; break;
+            case '.': indx_dot=i; break;
+            case 0: goto forbreak;
         }
     }
-    basename = slashblock;
-    ext = dotblock;
-    fname = slashblock + "." + dotblock;
+    forbreak:
     
-    for (char* it=out_fmt; *it; ++it){
+    --i;
+    
+    int32_t basename_length;
+    int32_t ext_length = i - indx_dot;
+    int32_t fname_length = i - dir_length;
+    int32_t fp_length = i + 1;
+    
+    if (ext_length > 0){
+        basename_length = indx_dot - dir_length - 1;
+    } else {
+        basename_length = i - dir_length - 1;
+        ext_length = 0;
+    }
+    
+    int32_t result_length = 0;
+    
+    for (char* it=out_fmt; *it!=0; ++it){
         if (*it == '{'){
             switch(*(++it)){
-                case '{': result+='{'; break;
-                case 'b': result+=basename; it+=8; break;
-                case 'd': result+=dir; it+=3; break;
-                case 'e': result+=ext; it+=3; break;
+                case '{': result_length+=1; break;
+                case 'b': result_length+=basename_length; it+=8; break;
+                case 'd': result_length+=dir_length; it+=3; break;
+                case 'e': result_length+=ext_length; it+=3; break;
                 case 'f':
                     switch(*(++it)){
-                        case 'p': it+=1; result+=fp; break;
-                        default: it+=4; result+=fname; break;
+                        case 'p': result_length+=fp_length; it+=1; break;
+                        default: result_length+=fname_length; it+=4; break;
                     }
                     break;
             }
-            continue;
+#ifdef TESTS
+            assert(*(it -1) == '}');
+#endif
         } else {
-            result += *it;
+            result_length += 1;
         }
     }
-    return result;
+    ++result_length; // terminating 0
+    
+#ifdef DEBUG_LAZY
+    std::cout << "result_length:\t" << +result_length << std::endl;
+    std::cout << "basename_length:\t" << +basename_length << std::endl;
+    std::cout << "dir_length:\t" << +dir_length << std::endl;
+    std::cout << "ext_length:\t" << +ext_length << std::endl;
+    std::cout << "fname_length:\t" << +fname_length << std::endl;
+    std::cout << "fp_length:\t" << +fp_length << std::endl;
+#endif
+    
+    char* result = new char[result_length];
+    
+    int32_t j = 0;
+    for (char* it=out_fmt;  *it!=0;  ++it){
+        if (*it == '{'){
+            switch(*(++it)){
+                case '{': result[j]='{';                                                                    it+=1; break;
+                case 'b': memcpy(result + j, *fp + dir_length + 1, basename_length);    j+=basename_length; it+=8; break;
+                case 'd': memcpy(result + j, *fp, dir_length);                          j+=dir_length;      it+=3; break;
+                case 'e': memcpy(result + j, *fp + indx_dot + 1, ext_length);           j+=ext_length;      it+=3; break;
+                case 'f':
+                    switch(*(++it)){
+                        case 'p': memcpy(result + j, *fp, fp_length);                   j+=fp_length;       it+=1; break;
+                        default: memcpy(result + j, *fp + dir_length +1, fname_length); j+=fname_length;    it+=4; break;
+                    }
+                    break;
+            }
+        } else {
+            result[j] = *it;
+            ++j;
+        }
+    }
+    
+    *fp = result;
+    
+    return result_length;
 }

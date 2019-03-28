@@ -861,17 +861,17 @@ void BPCSStreamBuf::save_im(){
         } while (j-- != 0);
     } while (i-- != 0);
     
-    std::string out_fp = format_out_fp(this->out_fmt, this->img_fps[this->img_n -1]);
+    format_out_fp(this->out_fmt, &this->img_fps[this->img_n -1]);
     cv::merge(this->channel_byteplanes, this->im_mat);
     #ifdef DEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
-        mylog << "Saving to  `" << out_fp << "`" << std::endl;
+        mylog << "Saving to  `" << this->img_fps[this->img_n -1] << "`" << std::endl;
     #endif
     
     
     
-    FILE* png_file = fopen(out_fp.c_str(), "wb");
+    FILE* png_file = fopen(this->img_fps[this->img_n -1], "wb");
     auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     
     #ifdef TESTS
