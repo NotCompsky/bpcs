@@ -60,11 +60,21 @@ int32_t format_out_fp(char* out_fmt, char** fp){
     
 #ifdef DEBUG_LAZY
     std::cout << "result_length:\t" << +result_length << std::endl;
-    std::cout << "basename_length:\t" << +basename_length << std::endl;
-    std::cout << "dir_length:\t" << +dir_length << std::endl;
-    std::cout << "ext_length:\t" << +ext_length << std::endl;
-    std::cout << "fname_length:\t" << +fname_length << std::endl;
-    std::cout << "fp_length:\t" << +fp_length << std::endl;
+    char basename[basename_length+1];
+    memcpy(basename, *fp + dir_length + 1, basename_length);
+    std::cout << "basename_length:\t" << +basename_length << "\t" << basename << std::endl;
+    char dir[dir_length+1];
+    memcpy(dir, *fp, dir_length);
+    std::cout << "dir_length:\t" << +dir_length << "\t" << dir << std::endl;
+    char ext[ext_length+1];
+    memcpy(ext, *fp + indx_dot + 1, ext_length);
+    std::cout << "ext_length:\t" << +ext_length << "\t" << ext << std::endl;
+    char fname[fname_length+1];
+    memcpy(fname, *fp + dir_length +1, fname_length);
+    std::cout << "fname_length:\t" << +fname_length << "\t" << fname << std::endl;
+    char effpee[fp_length+1];
+    memcpy(effpee, *fp, fp_length);
+    std::cout << "fp_length:\t" << +fp_length << "\t" << effpee << std::endl;
 #endif
     
     char* result = new char[result_length];
