@@ -254,7 +254,7 @@ class BPCSStreamBuf {
     cv::Mat bitplane;
     
     #ifdef EMBEDDOR
-    cv::Mat bitplanes[32 * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
+    cv::Mat bitplanes[N_BITPLANES * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
     #endif
     
     uchar* img_data;
@@ -383,10 +383,20 @@ void BPCSStreamBuf::load_next_img(){
     
     uint32_t w;
     uint32_t h;
+  #ifdef TESTS
     int32_t bit_depth;
     int32_t colour_type;
+  #endif
     
-    png_get_IHDR(png_ptr, png_info_ptr, &w, &h, &bit_depth, &colour_type, NULL, NULL, NULL);
+    png_get_IHDR(
+        png_ptr, png_info_ptr, &w, &h
+      #ifdef TESTS
+        , &bit_depth, &colour_type
+      #else
+        , nullptr, nullptr
+      #endif
+        , NULL, NULL, NULL
+    );
     
     #ifdef TESTS
         assert(bit_depth == N_BITPLANES);
