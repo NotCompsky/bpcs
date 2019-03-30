@@ -50,7 +50,7 @@ int32_t format_out_fp(char* out_fmt, char** fp){
                     break;
             }
 #ifdef TESTS
-            assert(*(it -1) == '}');
+            assert(*it == '}');
 #endif
         } else {
             result_length += 1;
