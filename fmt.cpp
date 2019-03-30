@@ -180,7 +180,6 @@ int main(const int argc, char *argv[]){
     } else {
     #endif
         char* fp_str;
-        int fp_str_length;
         for (i=0; true; ++i) {
             read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
             #ifdef DEBUG
@@ -251,19 +250,16 @@ int main(const int argc, char *argv[]){
                 // NOTE: fp_str will be NULL on error
                 read(STDIN_FILENO, fp_str, n_msg_bytes);
                 #ifdef DEBUG
-                    char fp_str_terminated[n_msg_bytes+1];
-                    memcpy(fp_str_terminated, fp_str, n_msg_bytes);
-                    fp_str_terminated[n_msg_bytes] = 0;
                     mylog.set_verbosity(3);
                     mylog.set_cl('g');
-                    mylog << "Original fp: " << (char*)fp_str_terminated << std::endl;
+                    mylog << "Original fp: " << fp_str << std::endl;
                 #endif
                 if (out_fmt != NULL){
-                    fp_str_length = format_out_fp(out_fmt, &fp_str, n_msg_bytes);
+                    format_out_fp(out_fmt, &fp_str, n_msg_bytes);
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
                         mylog.set_cl('g');
-                        mylog << "Formatted fp: " << (char*)fp_str_terminated << std::endl;
+                        mylog << "Formatted fp: " << fp_str << std::endl;
                     #endif
                 }
             }
