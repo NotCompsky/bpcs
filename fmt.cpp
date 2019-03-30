@@ -180,6 +180,9 @@ int main(const int argc, char *argv[]){
     } else {
     #endif
         char* fp_str;
+        
+        int fd = STDOUT_FILENO;
+        
         for (i=0; true; ++i) {
             read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
             #ifdef DEBUG
@@ -222,9 +225,10 @@ int main(const int argc, char *argv[]){
                     #ifdef TESTS
                         assert(fp_str[0] != 0);
                     #endif
-                    int fd = open(fp_str, O_WRONLY);
-                    dup2(fd, STDOUT_FILENO);
                     close(fd);
+                    // Closes STDOUT_FILENO the first time it is called
+                    fd = open(fp_str, O_WRONLY);
+                    dup2(fd, STDOUT_FILENO);
                 }
                 // Stream to anonymous pipe
                 for (j=0; j<n_msg_bytes; ++j){
