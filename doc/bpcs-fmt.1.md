@@ -21,6 +21,9 @@ As the formatting is seperate from the embedding/extracting, any stream operatio
 -v
 :   Verbose mode. Prints paths of files written. Should generally not be used when piping extracted output.
 
+-Q
+:   Do not pipe extraction output to stdout
+
 -o *fmt*
 :   Format of output files (using {curly braces} string substitution).
 

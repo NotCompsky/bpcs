@@ -1,3 +1,4 @@
+#include <cstdlib> // for malloc, free
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
 
@@ -49,6 +50,8 @@ int main(const int argc, char *argv[]){
     char* out_fmt = NULL;
     
     #ifdef DEBUG
+        bool print_content = true;
+        
         int verbosity = 3;
         
         char* log_fmt = "[%T] ";
@@ -63,14 +66,15 @@ int main(const int argc, char *argv[]){
             ++i;
         }
         if (argv[i][2] == 0 && argv[i][0] == '-'){
-            if (argv[i][1] == 'o'){
-                out_fmt = argv[++i];
+            switch(argv[i][1]){
+                case 'o': out_fmt=argv[++i]; break;
+              #ifdef EMBEDDOR
+                case 'm': embedding=true; break;
+              #endif
+              #ifdef DEBUG
+                case 'Q': print_content=false; break;
+              #endif
             }
-            #ifdef EMBEDDOR
-            else if (argv[i][1] == 'm'){
-                embedding = true;
-            }
-            #endif
         }
         #ifdef EMBEDDOR
         while (++i < argc){
@@ -124,10 +128,14 @@ int main(const int argc, char *argv[]){
                 mylog.set_verbosity(3);
                 mylog.set_cl('g');
                 mylog << "Reading msg `" << fp << "` (" << +(i+1) << "/" << +n_msg_fps << ") of size " << +n_msg_bytes << std::endl;
+                if (print_content)
             #endif
             write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
             for (j=0; j<n_msg_bytes; ++j){
                 c = (uchar)fp[j];
+              #ifdef DEBUG
+                if (print_content)
+              #endif
                 write(STDOUT_FILENO, &c, 1);
             }
             
@@ -144,6 +152,8 @@ int main(const int argc, char *argv[]){
                 mylog.set_verbosity(5);
                 mylog.set_cl(0);
                 mylog << "n_msg_bytes (contents): " << +n_msg_bytes << std::endl;
+                
+                if (print_content)
             #endif
             
             write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
@@ -151,6 +161,9 @@ int main(const int argc, char *argv[]){
             for (j=0; j<n_msg_bytes; ++j){
                 // WARNING: Assumes there are exactly n_msg_bytes
                 c = getc(msg_file);
+              #ifdef DEBUG
+                if (print_content)
+              #endif
                 write(STDOUT_FILENO, &c, 1);
             }
             fclose(msg_file);
@@ -158,6 +171,9 @@ int main(const int argc, char *argv[]){
         // After all messages, signal end with signalled size of 0
         const uchar zero[1] = {0};
         for (uint8_t j=0; j<32; ++j)
+          #ifdef DEBUG
+            if (print_content)
+          #endif
             write(STDOUT_FILENO, zero, 1);
         // Some encryption methods require blocks of length 16 or 32 bytes, so this ensures that there is at least 8 zero bytes even if a final half-block is cut off.
     } else {
@@ -186,6 +202,18 @@ int main(const int argc, char *argv[]){
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
+              #ifdef TESTS
+                if (n_msg_bytes > 1099511627780){
+                    // ~2**40
+                  #ifdef DEBUG
+                    mylog.set_verbosity(0);
+                    mylog.set_cl('r');
+                    mylog << "File unusually large" << std::endl;
+                  #endif
+                    free(fp_str);
+                    return 1;
+                }
+              #endif
                 if (out_fmt != NULL){
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
@@ -208,23 +236,41 @@ int main(const int argc, char *argv[]){
                     // Stream to anonymous pipe
                     for (j=0; j<n_msg_bytes; ++j){
                         read(STDIN_FILENO, &c, 1);
+                      #ifdef DEBUG
+                        if (print_content)
+                      #endif
                         write(STDOUT_FILENO, &c, 1);
                     }
                 }
+                free(fp_str);
             } else {
+              #ifdef TESTS
+                if (n_msg_bytes > 1024){
+                  #ifdef DEBUG
+                    mylog.set_verbosity(0);
+                    mylog.set_cl('r');
+                    mylog << "File path unusually long" << std::endl;
+                  #endif
+                    exit(1);
+                }
+              #endif
+                fp_str = (char*)malloc(n_msg_bytes);
+                // NOTE: fp_str will be NULL on error
                 read(STDIN_FILENO, fp_str, n_msg_bytes);
-                fp_str[n_msg_bytes] = 0;
                 #ifdef DEBUG
+                    char fp_str_terminated[n_msg_bytes+1];
+                    memcpy(fp_str_terminated, fp_str, n_msg_bytes);
+                    fp_str_terminated[n_msg_bytes] = 0;
                     mylog.set_verbosity(3);
                     mylog.set_cl('g');
-                    mylog << "Original fp: " << fp_str << std::endl;
+                    mylog << "Original fp: " << (char*)fp_str_terminated << std::endl;
                 #endif
                 if (out_fmt != NULL){
-                    fp_str_length = format_out_fp(out_fmt, &fp_str);
+                    fp_str_length = format_out_fp(out_fmt, &fp_str, n_msg_bytes);
                     #ifdef DEBUG
                         mylog.set_verbosity(3);
                         mylog.set_cl('g');
-                        mylog << "Formatted fp: " << fp_str << std::endl;
+                        mylog << "Formatted fp: " << (char*)fp_str_terminated << std::endl;
                     #endif
                 }
             }
