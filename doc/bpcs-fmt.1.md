@@ -39,7 +39,7 @@ As the formatting is seperate from the embedding/extracting, any stream operatio
 
 # BUGS
 
-**-o** option does not redirect output from stdout to file.
+No known bugs.
 
 # SEE ALSO
 bpcs(1)

@@ -181,7 +181,7 @@ int main(const int argc, char *argv[]){
     #endif
         char* fp_str;
         
-        int fd = STDOUT_FILENO;
+        FILE* fout = stdout;
         
         for (i=0; true; ++i) {
             read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
@@ -225,10 +225,8 @@ int main(const int argc, char *argv[]){
                     #ifdef TESTS
                         assert(fp_str[0] != 0);
                     #endif
-                    close(fd);
-                    // Closes STDOUT_FILENO the first time it is called
-                    fd = open(fp_str, O_WRONLY);
-                    dup2(fd, STDOUT_FILENO);
+                    fflush(fout);
+                    fout = fopen(fp_str, "w");
                 }
                 // Stream to anonymous pipe
                 for (j=0; j<n_msg_bytes; ++j){
@@ -236,8 +234,14 @@ int main(const int argc, char *argv[]){
                     #ifdef DEBUG
                     if (print_content)
                     #endif
-                    write(STDOUT_FILENO, &c, 1);
+                    fwrite(&c, 1, 1, fout);
                 }
+              #ifdef DEBUG
+                fout = stdout;
+                // mylog output must be sent to stdout
+              #endif
+                fclose(fout);
+                // Placed here, it ensures that stdout is not fclosed
                 free(fp_str);
             } else {
               #ifdef TESTS
