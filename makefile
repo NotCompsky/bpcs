@@ -93,6 +93,9 @@ docs:
 debug-main:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 
+debug-fmt:
+	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
+
 debug:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
