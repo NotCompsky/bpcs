@@ -26,7 +26,8 @@ int32_t format_out_fp(char* out_fmt, char** fp){
     int32_t fname_length = i - dir_length;
     int32_t fp_length = i + 1;
     
-    if (ext_length > 0){
+    if (indx_dot > dir_length){
+        // If last '.' appears after last '/'
         basename_length = indx_dot - dir_length - 1;
     } else {
         basename_length = i - dir_length - 1;
@@ -62,18 +63,23 @@ int32_t format_out_fp(char* out_fmt, char** fp){
     std::cout << "result_length:\t" << +result_length << std::endl;
     char basename[basename_length+1];
     memcpy(basename, *fp + dir_length + 1, basename_length);
+    basename[basename_length] = 0;
     std::cout << "basename_length:\t" << +basename_length << "\t" << basename << std::endl;
     char dir[dir_length+1];
     memcpy(dir, *fp, dir_length);
+    dir[dir_length] = 0;
     std::cout << "dir_length:\t" << +dir_length << "\t" << dir << std::endl;
     char ext[ext_length+1];
     memcpy(ext, *fp + indx_dot + 1, ext_length);
+    ext[ext_length] = 0;
     std::cout << "ext_length:\t" << +ext_length << "\t" << ext << std::endl;
     char fname[fname_length+1];
     memcpy(fname, *fp + dir_length +1, fname_length);
+    fname[fname_length] = 0;
     std::cout << "fname_length:\t" << +fname_length << "\t" << fname << std::endl;
     char effpee[fp_length+1];
     memcpy(effpee, *fp, fp_length);
+    effpee[fp_length] = 0;
     std::cout << "fp_length:\t" << +fp_length << "\t" << effpee << std::endl;
 #endif
     
@@ -99,6 +105,8 @@ int32_t format_out_fp(char* out_fmt, char** fp){
             ++j;
         }
     }
+    
+    result[result_length - 1] = 0;
     
     *fp = result;
     
