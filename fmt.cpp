@@ -1,4 +1,5 @@
 #include <cstdlib> // for malloc, free
+#include <fcntl.h> // for open, O_WRONLY
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
 
@@ -222,25 +223,17 @@ int main(const int argc, char *argv[]){
                     #ifdef TESTS
                         assert(fp_str[0] != 0);
                     #endif
-                    FILE* of = fopen(fp_str, "rb");
-                    for (j=0; j<n_msg_bytes; ++j){
-                        read(STDIN_FILENO, &c, 1);
-                        fwrite(&c, 1, 1, of);
-                    }
-                    fclose(of);
+                    int fd = open(fp_str, O_WRONLY);
+                    dup2(fd, STDOUT_FILENO);
+                    close(fd);
+                }
+                // Stream to anonymous pipe
+                for (j=0; j<n_msg_bytes; ++j){
+                    read(STDIN_FILENO, &c, 1);
                     #ifdef DEBUG
-                        if (verbosity)
-                            write(STDOUT_FILENO, fp_str, fp_str_length);
+                    if (print_content)
                     #endif
-                } else {
-                    // Stream to anonymous pipe
-                    for (j=0; j<n_msg_bytes; ++j){
-                        read(STDIN_FILENO, &c, 1);
-                      #ifdef DEBUG
-                        if (print_content)
-                      #endif
-                        write(STDOUT_FILENO, &c, 1);
-                    }
+                    write(STDOUT_FILENO, &c, 1);
                 }
                 free(fp_str);
             } else {
