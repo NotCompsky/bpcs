@@ -276,6 +276,7 @@ class BPCSStreamBuf {
     char** img_fps;
     
     void set_next_grid();
+    void set_next_gridgroup();
     void load_next_bitplane();
     void load_next_channel();
     
@@ -613,6 +614,55 @@ void BPCSStreamBuf::write_conjugation_map(){
 }
 #endif
 
+void BPCSStreamBuf::set_next_gridgroup(){
+    // First grid in every 64 is reserved for conjugation map
+    // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
+    // The old such grid must have the conjugation map emptied into it
+    
+    #ifdef DEBUG
+        if (++conj_grids_found == MAX_CONJ_GRIDS)
+            throw std::runtime_error("Found maximum number of conj grids");
+    #endif
+    
+    this->conjmap_indx = 0;
+    
+    int img_n_orig = this->img_n;
+    this->set_next_grid();
+    if (this->img_n != img_n_orig){
+        // Moved on to the next vessel image
+        #ifdef DEBUG
+        mylog.set_verbosity(3);
+        mylog << "Changed vessel images while setting new conjmap" << std::endl;
+        #endif
+    } else {
+      #ifdef EMBEDDOR
+        if (this->embedding){
+            this->write_conjugation_map();
+            this->conjgrid_orig = this->grid_orig;
+        } else {
+      #endif
+            if (this->grid.val[63] != 0)
+                // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
+                // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
+                this->conjugate_grid();
+            
+            memcpy(this->conjgrid.val, this->grid.val, 64);
+            
+          #ifdef DEBUG
+                for (uint_fast8_t k=0; k<63; ++k){
+                    mylog.set_verbosity(5);
+                    mylog.set_cl(0);
+                    mylog << +this->conjgrid.val[k];
+                }
+                mylog << std::endl;
+                mylog << "\n" << this->grid << std::endl;
+          #endif
+      #ifdef EMBEDDOR
+        }
+      #endif
+    }
+}
+
 void BPCSStreamBuf::set_next_grid(){
     #ifdef DEBUG
     if (++whichbyte == gridlimit){
@@ -623,53 +673,8 @@ void BPCSStreamBuf::set_next_grid(){
     mylog.set_cl(0);
     mylog << "conjmap_indx " << +this->conjmap_indx << std::endl; // tmp
     #endif
-    if (this->conjmap_indx == 63){ 
-        // First grid in every 64 is reserved for conjugation map
-        // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
-        // The old such grid must have the conjugation map emptied into it
-        
-        #ifdef DEBUG
-            if (++conj_grids_found == MAX_CONJ_GRIDS)
-                throw std::runtime_error("Found maximum number of conj grids");
-        #endif
-        
-        this->conjmap_indx = 0;
-        
-        int img_n_orig = this->img_n;
-        this->set_next_grid();
-        if (this->img_n != img_n_orig){
-            // Moved on to the next vessel image
-          #ifdef DEBUG
-            mylog.set_verbosity(3);
-            mylog << "Changed vessel images while setting new conjmap" << std::endl;
-          #endif
-        } else {
-        #ifdef EMBEDDOR
-        if (this->embedding){
-            this->write_conjugation_map();
-            this->conjgrid_orig = this->grid_orig;
-        } else {
-        #endif
-            if (this->grid.val[63] != 0)
-                // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
-                // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
-                this->conjugate_grid();
-            
-            memcpy(this->conjgrid.val, this->grid.val, 64);
-            
-            #ifdef DEBUG
-                for (uint_fast8_t k=0; k<63; ++k){
-                    mylog.set_verbosity(5);
-                    mylog.set_cl(0);
-                    mylog << +this->conjgrid.val[k];
-                }
-                mylog << std::endl;
-                mylog << "\n" << this->grid << std::endl;
-            #endif
-        #ifdef EMBEDDOR
-        }
-        #endif
-        }
+    if (this->conjmap_indx == 63){
+        this->set_next_gridgroup();
     }
     
     uint8_t complexity;
