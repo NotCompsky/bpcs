@@ -196,7 +196,7 @@ int32_t format_out_fp(char* out_fmt, char** fp, uint64_t fp_length){
     for (char* it=out_fmt;  *it!=0;  ++it){
         if (*it == '{'){
             switch(*(++it)){
-                case '{': result[j]='{';                                                                    it+=1; break;
+                case '{': result[j]='{';                                                                    it+=0; break;
                 case 'b': memcpy(result + j, *fp + dir_length + 1, basename_length);    j+=basename_length; it+=8; break;
                 case 'd': memcpy(result + j, *fp, dir_length);                          j+=dir_length;      it+=3; break;
                 case 'e': memcpy(result + j, *fp + indx_dot + 1, ext_length);           j+=ext_length;      it+=3; break;
