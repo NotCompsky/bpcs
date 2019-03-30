@@ -37,5 +37,9 @@ As the formatting is seperate from the embedding/extracting, any stream operatio
     Sets mode to 'embedding'.
     **-o** and **-m** are mutually exclusive.
 
+# BUGS
+
+**-o** option does not redirect output from stdout to file.
+
 # SEE ALSO
 bpcs(1)
