@@ -119,14 +119,15 @@ int32_t format_out_fp(char* out_fmt, char** fp, uint64_t fp_length){
     
     int32_t dir_length = 0;
     int32_t indx_dot = 0;
-    int32_t i = fp_length - 1;
+    int32_t i = 0; // eventual value will be fp_length - 1
     
-    for (uint64_t j=0; j<fp_length; ++j){
-        switch(*fp[j]){
+    for (char* it=*fp; i<fp_length; ++i){
+        switch(*(it++)){
             case '/': dir_length=i; break;
             case '.': indx_dot=i; break;
         }
     }
+    --i;
     
     int32_t basename_length;
     int32_t ext_length = i - indx_dot;
