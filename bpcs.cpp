@@ -23,9 +23,9 @@
 #define N_CHANNELS 3
 
 
-typedef cv::Matx<uchar, 8, 8> Matx88uc;
-typedef cv::Matx<uchar, 8, 7> Matx87uc;
-typedef cv::Matx<uchar, 7, 8> Matx78uc;
+typedef cv::Matx<uchar, 9, 9> Matx99uc;
+typedef cv::Matx<uchar, 9, 8> Matx98uc;
+typedef cv::Matx<uchar, 8, 9> Matx89uc;
 
 
 #ifdef DEBUG
@@ -94,7 +94,7 @@ inline void convert_to_cgc(cv::Mat &arr){
 /*
  * Initialise chequerboard
  */
-static const Matx88uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1};
+static const Matx99uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
 
 
 
@@ -204,7 +204,7 @@ class BPCSStreamBuf {
     char* out_fmt = NULL;
     #endif
     
-    std::array<uchar, 8> get();
+    std::array<uchar, 10> get();
     
     #ifdef DEBUG
         std::vector<uint8_t> complexities;
@@ -213,7 +213,7 @@ class BPCSStreamBuf {
     void load_next_img(); // Init
     
     #ifdef EMBEDDOR
-    void put(std::array<uchar, 8>);
+    void put(std::array<uchar, 10>);
     void save_im(); // End
     #endif
   private:
@@ -227,10 +227,6 @@ class BPCSStreamBuf {
 
     const uint8_t min_complexity;
     
-    uint8_t conjmap_indx;
-    // To reserve the first grid of every 64 complex grids in order to write conjugation map
-    // Note that the first bit of this map is for its own conjugation state
-    
     uint8_t channel_n;
     uint8_t bitplane_n;
     
@@ -243,22 +239,17 @@ class BPCSStreamBuf {
     #endif
     cv::Mat channel;
     
-    Matx88uc grid{8, 8, CV_8UC1};
-    Matx88uc conjgrid{8, 8, CV_8UC1};
+    Matx99uc grid{9, 9, CV_8UC1};
     
-    Matx87uc xor_adj_mat1{8, 7, CV_8UC1};
-    Matx78uc xor_adj_mat2{7, 8, CV_8UC1};
+    Matx98uc xor_adj_mat1{9, 8, CV_8UC1};
+    Matx89uc xor_adj_mat2{8, 9, CV_8UC1};
     
-    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(7, 8)};
-    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(7, 8)};
-    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(8, 7)};
-    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(8, 7)};
+    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(8, 9)};
+    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(8, 9)};
+    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(9, 8)};
+    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(9, 8)};
     
-    cv::Mat grid_orig{8, 8, CV_8UC1};
-    
-    #ifdef EMBEDDOR
-    cv::Mat conjgrid_orig{8, 8, CV_8UC1};
-    #endif
+    cv::Mat grid_orig{9, 9, CV_8UC1};
     
     cv::Mat bitplane;
     
@@ -276,19 +267,10 @@ class BPCSStreamBuf {
     char** img_fps;
     
     void set_next_grid();
-    void set_next_gridgroup();
     void load_next_bitplane();
     void load_next_channel();
     
-    #ifdef EMBEDDOR
-    void write_conjugation_map();
-    #ifdef TESTS
-    void unset_conjmap();
-    void assert_conjmap_set();
-    #endif
-    #endif
-    
-    inline uint8_t get_grid_complexity(Matx88uc&);
+    inline uint8_t get_grid_complexity(Matx99uc&);
     inline uint8_t get_grid_complexity(cv::Mat&);
     inline void conjugate_grid();
     #ifdef DEBUG
@@ -306,16 +288,15 @@ void BPCSStreamBuf::print_state(){
     mylog << "n_channels: " << +N_CHANNELS << std::endl;
     mylog << "n_complex_grids_found: " << +n_complex_grids_found << std::endl;
     mylog << "sgetputc_count: " << +sgetputc_count << std::endl;
-    mylog << "conjmap_indx: " << +this->conjmap_indx << std::endl;
 }
 #endif
 
-inline uint8_t BPCSStreamBuf::get_grid_complexity(Matx88uc &arr){
+inline uint8_t BPCSStreamBuf::get_grid_complexity(Matx99uc &arr){
     uint8_t sum = 0;
-    cv::bitwise_xor(arr.get_minor<7,8>(1,0), arr.get_minor<7,8>(0,0), this->xor_adj_mat2);
+    cv::bitwise_xor(arr.get_minor<8,9>(1,0), arr.get_minor<8,9>(0,0), this->xor_adj_mat2);
     sum += cv::sum(this->xor_adj_mat2)[0];
     
-    cv::bitwise_xor(arr.get_minor<8,7>(0,1), arr.get_minor<8,7>(0,0), this->xor_adj_mat1);
+    cv::bitwise_xor(arr.get_minor<9,8>(0,1), arr.get_minor<9,8>(0,0), this->xor_adj_mat1);
     sum += cv::sum(this->xor_adj_mat1)[0];
     
     return sum;
@@ -337,7 +318,7 @@ inline void BPCSStreamBuf::conjugate_grid(){
     #ifdef DEBUG
         mylog.set_verbosity(5);
         mylog.set_cl('p');
-        mylog << "<*" << +this->conjmap_indx << "(" << +(this->x -8) << ", " << +this->y << ")>" << std::endl;
+        mylog << "<*(" << +(this->x -9) << ", " << +this->y << ")>" << std::endl;
         mylog << this->grid << std::endl;
     #endif
 }
@@ -485,39 +466,10 @@ void BPCSStreamBuf::load_next_img(){
         this->load_next_channel();
     #ifdef EMBEDDOR
     }
-    
-    #ifdef TESTS
-        this->unset_conjmap();
-    #endif
-    #endif
-    
-    this->conjmap_indx = 0;
-    
-    // Get conjugation grid
-    this->set_next_grid();
-    // WARNING! Setting next grid (twice!) before incrementing img_n means that images which contain fewer than two complex bit grids will cause an infinite loop.
-    
-    #ifdef EMBEDDOR
-    if (this->embedding){
-        this->conjgrid_orig = this->grid_orig;
-    } else {
-    #endif
-        if (this->grid.val[63] != 0)
-            // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
-            // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
-            this->conjugate_grid();
-        
-        memcpy(this->conjgrid.val, this->grid.val, 64);
-    #ifdef EMBEDDOR
-    }
     #endif
     
     // Get first data grid
     this->set_next_grid();
-    
-    #ifdef TESTS
-    assert(this->conjmap_indx == 0);
-    #endif
     
     #ifdef EMBEDDOR
     if (!this->embedding){
@@ -525,12 +477,8 @@ void BPCSStreamBuf::load_next_img(){
         if (this->img_n == this->img_n_offset){
             // If false, this function is being called from within get()
             
-            if (this->conjgrid.val[0])
+            if (this->grid.val[80])
                 this->conjugate_grid();
-            
-            this->conjmap_indx = 1;
-            // Must be 1 for extracting, and 0 for embedding
-            // It denotes the index of the *next* complex grid when extracting, but the index of the *current* grid when embedding.
         }
     #ifdef EMBEDDOR
     }
@@ -539,149 +487,19 @@ void BPCSStreamBuf::load_next_img(){
     ++this->img_n;
 }
 
-
-#ifdef EMBEDDOR
-#ifdef TESTS
-void BPCSStreamBuf::unset_conjmap(){
-    for (uint8_t i=0; i<64; ++i)
-        this->conjgrid.val[i] = 2;
-}
-void BPCSStreamBuf::assert_conjmap_set(){
-    for (uint8_t i=0; i<63; ++i){
-        if (this->conjgrid.val[i] == 2){
-            std::cerr << "conjmap[" << +i << "] was not set\n" << this->conjgrid << std::endl;
-            goto abort_w_info;
-        }
-    }
-    if (this->conjgrid.val[63] != 2){
-        std::cerr << "conjmap[63] was set\n" << this->conjgrid << std::endl;
-        goto abort_w_info;
-    }
-    
-    return;
-    
-    abort_w_info:
-    
-    #ifdef DEBUG
-    mylog.set_verbosity(1);
-    this->print_state();
-    
-    if (!ignore_errors)
-    #endif
-    
-    handler(222);
-}
-#endif
-#endif
-
-
-#ifdef EMBEDDOR
-void BPCSStreamBuf::write_conjugation_map(){
-    uint8_t complexity;
-    
-    #ifdef TESTS
-        this->assert_conjmap_set();
-    #endif
-    
-    #ifdef DEBUG
-        mylog.set_verbosity(6);
-        mylog.set_cl('p');
-        mylog << "Conjgrid orig" << "\n";
-        mylog.set_verbosity(6);
-        mylog.set_cl(0);
-        mylog << this->conjgrid << "\n";
-    #endif
-    
-    this->conjgrid.val[63] = 0;
-    
-    complexity = this->get_grid_complexity(this->conjgrid);
-    
-    if (complexity < this->min_complexity)
-        cv::bitwise_xor(this->conjgrid, chequerboard, this->conjgrid); // i.e. conjugate
-    
-    cv::Mat(this->conjgrid).copyTo(this->conjgrid_orig);
-    
-    #ifdef TESTS
-        this->unset_conjmap();
-        assert(cv::sum(this->conjgrid_orig)[0] < 65);
-    #endif
-    
-    #ifdef DEBUG
-        mylog.set_verbosity(6);
-        mylog.set_cl(0);
-        mylog << "Written conjugation map" << "\n" << this->conjgrid_orig << std::endl;
-    #endif
-}
-#endif
-
-void BPCSStreamBuf::set_next_gridgroup(){
-    // First grid in every 64 is reserved for conjugation map
-    // The next grid starts the next series of 64 complex grids, and should therefore be reserved to contain its conjugation map
-    // The old such grid must have the conjugation map emptied into it
-    
-    #ifdef DEBUG
-        if (++conj_grids_found == MAX_CONJ_GRIDS)
-            throw std::runtime_error("Found maximum number of conj grids");
-    #endif
-    
-    this->conjmap_indx = 0;
-    
-    int img_n_orig = this->img_n;
-    this->set_next_grid();
-    if (this->img_n != img_n_orig){
-        // Moved on to the next vessel image
-        #ifdef DEBUG
-        mylog.set_verbosity(3);
-        mylog << "Changed vessel images while setting new conjmap" << std::endl;
-        #endif
-    } else {
-      #ifdef EMBEDDOR
-        if (this->embedding){
-            this->write_conjugation_map();
-            this->conjgrid_orig = this->grid_orig;
-        } else {
-      #endif
-            if (this->grid.val[63] != 0)
-                // Since this is the conjugation map grid, it contains its own conjugation status in its last bit
-                // TODO: Have each conjgrid store the conjugation bit of the next conjgrid
-                this->conjugate_grid();
-            
-            memcpy(this->conjgrid.val, this->grid.val, 64);
-            
-          #ifdef DEBUG
-                for (uint_fast8_t k=0; k<63; ++k){
-                    mylog.set_verbosity(5);
-                    mylog.set_cl(0);
-                    mylog << +this->conjgrid.val[k];
-                }
-                mylog << std::endl;
-                mylog << "\n" << this->grid << std::endl;
-          #endif
-      #ifdef EMBEDDOR
-        }
-      #endif
-    }
-}
-
 void BPCSStreamBuf::set_next_grid(){
     #ifdef DEBUG
     if (++whichbyte == gridlimit){
         mylog << std::endl;
         throw std::runtime_error("Reached gridlimit");
     }
-    mylog.set_verbosity(5);
-    mylog.set_cl(0);
-    mylog << "conjmap_indx " << +this->conjmap_indx << std::endl; // tmp
     #endif
-    if (this->conjmap_indx == 63){
-        this->set_next_gridgroup();
-    }
     
     uint8_t complexity;
     int i = this->x;
-    for (int j=this->y;  j <= this->im_mat.rows -8;  j+=8, i=0){
-        while (i <= this->im_mat.cols -8){
-            cv::Rect grid_shape(cv::Point(i, j), cv::Size(8, 8));
+    for (int j=this->y;  j <= this->im_mat.rows -9;  j+=9, i=0){
+        while (i <= this->im_mat.cols -9){
+            cv::Rect grid_shape(cv::Point(i, j), cv::Size(9, 9));
             
             this->grid_orig = this->bitplane(grid_shape);
             
@@ -691,7 +509,7 @@ void BPCSStreamBuf::set_next_grid(){
                 this->complexities.push_back(complexity);
             #endif
             
-            i += 8;
+            i += 9;
             
             if (complexity >= this->min_complexity){
                 this->grid_orig = this->bitplane(grid_shape);
@@ -747,7 +565,6 @@ void BPCSStreamBuf::set_next_grid(){
             this->save_im();
 #endif
         this->load_next_img();
-        this->conjmap_indx = 0; // i.e. decrement
         return;
     }
     
@@ -770,9 +587,9 @@ void BPCSStreamBuf::set_next_grid(){
     this->set_next_grid();
 }
 
-std::array<uchar, 8> BPCSStreamBuf::get(){
-    std::array<uchar, 8> out;
-    for (uint_fast8_t j=0; j<8; ++j){
+std::array<uchar, 10> BPCSStreamBuf::get(){
+    std::array<uchar, 10> out;
+    for (uint_fast8_t j=0; j<10; ++j){
         out[j] = 0;
         for (uint_fast8_t i=0; i<8; ++i){
             out[j] |= this->grid.val[8*j +i] << i;
@@ -780,7 +597,7 @@ std::array<uchar, 8> BPCSStreamBuf::get(){
     }
     
     #ifdef DEBUG
-        sgetputc_count += 8;
+        sgetputc_count += 10;
         if (sgetputc_count >= SGETPUTC_TO)
             handler(0);
         else if (sgetputc_count >= SGETPUTC_FROM)
@@ -789,22 +606,24 @@ std::array<uchar, 8> BPCSStreamBuf::get(){
     
     this->set_next_grid();
     
-    if (this->conjgrid.val[this->conjmap_indx++])
+    if (this->grid.val[80] != 0)
         this->conjugate_grid();
     
     return out;
 }
 
 #ifdef EMBEDDOR
-void BPCSStreamBuf::put(std::array<uchar, 8> in){
-    for (uint_fast8_t j=0; j<8; ++j)
+void BPCSStreamBuf::put(std::array<uchar, 10> in){
+    for (uint_fast8_t j=0; j<10; ++j)
         for (uint_fast8_t i=0; i<8; ++i){
             this->grid.val[8*j +i] = in[j] & 1;
             in[j] = in[j] >> 1;
         }
     
+    this->grid.val[80] = 0;
+    
     #ifdef DEBUG
-        sgetputc_count += 8;
+        sgetputc_count += 10;
         if (sgetputc_count >= SGETPUTC_TO)
             handler(0);
         else if (sgetputc_count >= SGETPUTC_FROM)
@@ -815,25 +634,14 @@ void BPCSStreamBuf::put(std::array<uchar, 8> in){
         mylog.set_cl(0);
         mylog << this->grid << std::endl;
     #endif
-    if (this->get_grid_complexity(this->grid) < this->min_complexity){
+    if (this->get_grid_complexity(this->grid) < this->min_complexity)
         this->conjugate_grid();
-        this->conjgrid.val[this->conjmap_indx] = 1;
-    } else {
-        this->conjgrid.val[this->conjmap_indx] = 0;
-    }
-    ++this->conjmap_indx;
     
     cv::Mat(this->grid).copyTo(this->grid_orig);
     this->set_next_grid();
 }
 
 void BPCSStreamBuf::save_im(){
-    for (uint8_t i=this->conjmap_indx; i<63; ++i)
-        // This will only occur when reached the end of all data being encoded
-        this->conjgrid.val[i] = 0;
-    
-    this->write_conjugation_map();
-    
     #ifdef DEBUG
         mylog.set_verbosity(4);
         mylog.set_cl('b');
@@ -993,7 +801,7 @@ int main(const int argc, char* argv[]){
                               );
     bpcs_stream.load_next_img(); // Init
     
-    std::array<uchar, 8> arr;
+    std::array<uchar, 10> arr;
     // Using std::array rather than C-style array to allow direct copying
     // arr is the same size as a pointer (8 bytes), so perhaps copying directly is more performative.
 #ifdef EMBEDDOR
@@ -1004,17 +812,17 @@ int main(const int argc, char* argv[]){
         #ifdef DEBUG
             if (print_content)
         #endif
-                write(STDOUT_FILENO, arr.data(), 8);
+                write(STDOUT_FILENO, arr.data(), 10);
     } while (bpcs_stream.not_exhausted);
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
   } else {
-    read(STDIN_FILENO, arr.data(), 8);
+    read(STDIN_FILENO, arr.data(), 10);
     do {
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
-    } while (read(STDIN_FILENO, arr.data(), 8) == 8);
+    } while (read(STDIN_FILENO, arr.data(), 10) == 10);
     bpcs_stream.put(arr);
     bpcs_stream.save_im();
   }
