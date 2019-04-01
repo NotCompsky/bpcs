@@ -741,6 +741,8 @@ void BPCSStreamBuf::save_im(){
     }
     
     png_write_end(png_ptr, NULL);
+    
+    free(this->img_fps[this->img_n -1]);
 }
 #endif
 
