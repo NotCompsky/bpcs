@@ -165,7 +165,7 @@ define MINSRC
 	$(CC) $(CPPFLAGS) -o /tmp/$(1)_macros.cpp -E $(2)
 	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(1)_macros_
 	cat bpcs.cpp | grep '#define ' >> $(1)_macros_
-	cat -s /tmp/$(1)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 8, 8> Matx88uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(1)_macros_
+	cat -s /tmp/$(1)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 9, 9> Matx99uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(1)_macros_
 	mv $(1)_macros_ /tmp/$(1)_macros.cpp
 	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/' /tmp/$(1)_macros.cpp # Regex works in Kate, not sed...
 	sed -i -r 's/\{\n\n/{\n/' /tmp/$(1)_macros.cpp # same
