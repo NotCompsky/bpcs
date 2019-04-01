@@ -210,6 +210,8 @@ class BPCSStreamBuf {
         std::vector<uint8_t> complexities;
     #endif
     
+    uchar* img_data;
+    
     void load_next_img(); // Init
     
     #ifdef EMBEDDOR
@@ -257,7 +259,6 @@ class BPCSStreamBuf {
     cv::Mat bitplanes[N_BITPLANES * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
     #endif
     
-    uchar* img_data;
     cv::Mat im_mat;
     
     #ifdef EMBEDDOR
@@ -341,6 +342,7 @@ void BPCSStreamBuf::load_next_img(){
         mylog.set_cl('g');
         mylog << "Loading img " << +this->img_n << " of " << +this->n_imgs << " `" << this->img_fps[this->img_n] << "`, using: Complexity >= " << +this->min_complexity << std::endl;
     #endif
+    
   #ifdef TESTS
     assert(this->img_n != this->n_imgs);
   #endif
@@ -424,16 +426,16 @@ void BPCSStreamBuf::load_next_img(){
         assert(png_get_channels(png_ptr, png_info_ptr) == 3);
     #endif
     
-    if ((this->img_data = (uchar*)malloc(rowbytes*h)) == NULL){
-        png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
-        handler(4);
-    }
+    this->img_data = (uchar*)malloc(rowbytes*h);
     
     uchar* row_ptrs[h];
     for (uint32_t i=0; i<h; ++i)
         row_ptrs[i] = this->img_data + i*rowbytes;
     
     png_read_image(png_ptr, row_ptrs);
+    
+    fclose(png_file);
+    png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
     
     this->im_mat = cv::Mat(h, w, CV_8UC3, this->img_data);
     // WARNING: Loaded as RGB rather than OpenCV's default BGR
@@ -574,6 +576,7 @@ void BPCSStreamBuf::set_next_grid(){
         if (this->embedding)
             this->save_im();
 #endif
+        free(this->img_data);
         this->load_next_img();
         return;
     }
@@ -826,6 +829,7 @@ int main(const int argc, char* argv[]){
         #endif
                 write(STDOUT_FILENO, arr.data(), 10);
     } while (bpcs_stream.not_exhausted);
+    free(bpcs_stream.img_data);
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
