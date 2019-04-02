@@ -81,6 +81,12 @@ In descending order of usefulness.
 
 # UNUSUAL USES
 
+`tar -czf0 /tmp/messages/*.pdf | bpcs -o '/tmp/vessels/{fname}' 1 /tmp/img/*.png`
+:   Create tarball and embed into vessel images.
+
+`bpcs 1 /tmp/vessels/*.png | tar -zxf -`
+:   Extract and untar from the vessel images created in the previous example. If your version of tar complains about the extra 'padding' bytes bpcs produces, pipe through bpcs-fmt as normal in this and the above examples.
+
 `bpcs 1 foo.png | bpcs-fmt | vlc -`
 :   Extract from foo.png and pipe to VLC
 
