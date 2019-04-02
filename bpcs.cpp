@@ -21,7 +21,6 @@
 
 #include "config.h" // for N_BITPLANES, N_CHANNELS
 
-
 typedef cv::Matx<uchar, 9, 9> Matx99uc;
 typedef cv::Matx<uchar, 9, 8> Matx98uc;
 typedef cv::Matx<uchar, 8, 9> Matx89uc;
@@ -93,7 +92,7 @@ inline void convert_to_cgc(cv::Mat &arr){
 /*
  * Initialise chequerboard
  */
-static const Matx99uc chequerboard{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+static const Matx99uc chequerboard{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
 
 
 
