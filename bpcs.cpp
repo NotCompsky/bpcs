@@ -330,7 +330,6 @@ inline void BPCSStreamBuf::load_next_bitplane(){
 
 void BPCSStreamBuf::load_next_channel(){
     this->channel = this->channel_byteplanes[this->channel_n];
-    convert_to_cgc(this->channel);
     this->bitplane_n = 0;
     this->load_next_bitplane();
 }
@@ -439,6 +438,8 @@ void BPCSStreamBuf::load_next_img(){
     this->im_mat = cv::Mat(h, w, CV_8UC3, this->img_data);
     // WARNING: Loaded as RGB rather than OpenCV's default BGR
     
+    convert_to_cgc(this->im_mat);
+    
     #ifdef TESTS
         assert(this->im_mat.depth() == CV_8U);
         assert(this->im_mat.channels() == 3);
@@ -462,7 +463,6 @@ void BPCSStreamBuf::load_next_img(){
         uint_fast8_t k = 0;
         uint_fast8_t i = 0;
         for (uint_fast8_t j=0; j<N_CHANNELS; ++j){
-            convert_to_cgc(this->channel_byteplanes[j]);
             i = 0;
             while (i < N_BITPLANES){
                 this->bitplanes[k++] = this->channel_byteplanes[j] & 1;
@@ -677,7 +677,6 @@ void BPCSStreamBuf::save_im(){
                     handler(10);
                 }
             #endif
-            cv::bitwise_xor(this->bitplanes[k], this->bitplanes[k+1], this->bitplanes[k]);
             
             this->bitplane = this->bitplanes[k].clone();
             this->bitplane *= (1 << j);
@@ -687,6 +686,7 @@ void BPCSStreamBuf::save_im(){
     
     format_out_fp(this->out_fmt, &this->img_fps[this->img_n -1]);
     cv::merge(this->channel_byteplanes, this->im_mat);
+    convert_to_cgc(this->im_mat);
     #ifdef DEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
