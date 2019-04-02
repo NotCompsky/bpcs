@@ -21,36 +21,53 @@ endif
 EXEPATH = $(BUILD_DIR)/bpcs_$(V)
 EXTPATH = $(BUILD_DIR)/bpcs-e_$(V)
 EXVPATH = $(BUILD_DIR)/bpcs-v_$(V)
-FMTPATH = $(BUILD_DIR)/bpcs-fmt_$(V)
-FMEPATH = $(BUILD_DIR)/bpcs-fmt-e_$(V)
+FMEPATH = $(BUILD_DIR)/bpcs-fmt_$(V)
+FMTPATH = $(BUILD_DIR)/bpcs-fmt-e_$(V)
 FMVPATH = $(BUILD_DIR)/bpcs-fmt-v_$(V)
 
 
+LINKER_OPTS = -Wl,--gc-sections -Wl,--build-id=none
+
 DEBUGFLAGS = -DDEBUG -DTESTS -rdynamic
-TINYFLAGS = -ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--build-id=none -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden
+TINYFLAGS = -ffunction-sections -fdata-sections -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden
 NODEBUGFLAGS = -DNDEBUG -fno-exceptions -DARGS_NOEXCEPT
-RELEASEFLAGS = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -flto -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
-LDLIBS = -lsodium
+RELEASEFLAGS_ = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
+RELEASEFLAGS = $(RELEASEFLAGS) $(LINKER_OPTS) -flto
+# nvcc is not capable of LTO. g++ forgets what -Wl,... means when it is passed through by nvcc -compiler-optioins
+LDLIBS = -lsodium -lpng -lopencv_core
 
 
 LIBRARY_PATHS=
 INCLUDES= include $(HOME)/include
 OBJ_FILES=
 
-ifneq ($(OPENCV_DIR), "")
+
+
+ifneq ($(OPENCV_DIR), )
 INCLUDES += $(OPENCV_DIR)/include/opencv4
 LIBRARY_PATHS += $(OPENCV_DIR)/lib
 LDLIBS += -lopencv_core -Wl,-rpath=$(OPENCV_DIR)/lib
-else
-LDLIBS += -lopencv_core
 endif
-ifneq ($(LIBPNG_DIR), "")
+
+ifneq ($(LIBPNG_DIR), )
 INCLUDES += $(LIBPNG_DIR)/include
 LIBRARY_PATHS += $(LIBPNG_DIR)/lib
-LDLIBS += -lpng -Wl,-rpath=$(LIBPNG_DIR)/lib
-else
-LDLIBS += -lpng
+LDLIBS += $(LIBPNG_DIR) -Wl,-rpath=$(LIBPNG_DIR)/lib
 endif
+
+PREOPS=
+
+ifneq ($(USE_CUDA), )
+#LIBRARY_PATHS += $(CUDA_DIR)/include
+LDLIBS += -lcuda -lcudart
+PREOPS += nvcc -c gpu_mat_ops.cu
+GPU_MAT_SRC = gpu_mat_ops.o
+BPCS_SRC=bpcs_cuda.cpp
+else
+GPU_MAT_SRC = 
+BPCS_SRC=bpcs.cpp
+endif
+
 
 
 LIBRARY_PARAMS = $(foreach d, $(LIBRARY_PATHS), -L$d)
@@ -77,7 +94,12 @@ RELEASEFLAGS += -fira-loop-pressure
 CPPFLAGS_ += -fstack-usage
 endif
 
-CPPFLAGS = $(CPPFLAGS_) bpcs.cpp
+CPPFLAGS = $(CPPFLAGS_) $(BPCS_SRC)
+
+
+CUDA_COMPILER_OPTS := $(foreach opt, $(CPPFLAGS_) $(RELEASEFLAGS_), --compiler-options $(opt))
+CUDA_COMPILER_RELEASE_OPTS := $(CUDA_COMPILER_OPTS) $(foreach opt, $(RELEASEFLAGS_), --compiler-options $(opt))
+CUDA_COMPILER_DEBUG_OPTS := $(CUDA_COMPILER_OPTS) $(foreach opt, $(DEBUGFLAGS), --compiler-options $(opt))
 
 
 define DOC
@@ -102,22 +124,23 @@ debug:
 
 
 define RELEASE
-	$(CC) $(CPPFLAGS_) $(1) -o $(FMEPATH)_  $(STD_PARAMS) $(RELEASEFLAGS)
-	strip $(STRIP_ARGS) $(FMTPATH)_
+	$(1) $(CPPFLAGS_) $(2) $(3) -o $(4)_  $(STD_PARAMS) $(RELEASEFLAGS) $(5)
+	strip $(STRIP_ARGS) $(4)_
 	
 endef
 
 
 define RELEASE_BPCS
-	$(call RELEASE,$(EXEPATH),bpcs.cpp,$(CC))
-	$(call RELEASE,$(EXTPATH),bpcs.cpp,$(CC)) -DEMBEDDOR
+	$(PREOPS)
+	$(call RELEASE,$(1),$(GPU_MAT_SRC),$(BPCS_SRC),$(EXTPATH),)
+	$(call RELEASE,$(1),$(GPU_MAT_SRC),$(BPCS_SRC),$(EXEPATH), -DEMBEDDOR)
 	
 endef
 
 
 define RELEASE_FMT
-	$(call RELEASE,$(FMTPATH),fmt.cpp,$(CC))
-	$(call RELEASE,$(FMEPATH),fmt.cpp,$(CC)) -DEMBEDDOR
+	$(call RELEASE,$(1),$(GPU_MAT_SRC),fmt.cpp,$(FMTPATH),)
+	$(call RELEASE,$(1),$(GPU_MAT_SRC),fmt.cpp,$(FMEPATH), -DEMBEDDOR)
 	
 endef
 
@@ -129,12 +152,18 @@ release:
 release-main:
 	$(call RELEASE_BPCS,$(CC))
 
+debug-cuda:
+	nvcc $(CUDA_COMPILER_DEBUG_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+
+release-cuda:
+	nvcc $(CUDA_COMPILER_RELEASE_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+
 release-fmt:
 	$(call RELEASE_FMT,$(CC))
 
 
 profile:
-	$(CC) $(CPPFLAGS) -o $(EXEPATH)_prof $(STD_PARAMS) $(RELEASEFLAGS) -fprofile-generate
+	$(call RELEASE,$(CC),$(GPU_MAT_SRC),$(BPCS_SRC),$(EXEPATH)_prof, -DEMBEDDOR -fprofile-generate)
 
 release-profiled:
 	$(CC) $(CPPFLAGS) -o $(EXEPATH)      $(STD_PARAMS) $(RELEASEFLAGS) -fprofile-use -fprofile-correction
@@ -167,8 +196,8 @@ compare:
 
 define MINSRC
 	$(CC) $(CPPFLAGS) -o /tmp/$(1)_macros.cpp -E $(2)
-	cat bpcs.cpp | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(1)_macros_
-	cat bpcs.cpp | grep '#define ' >> $(1)_macros_
+	cat $(BPCS_SRC) | egrep '^(#include|namespace .*\{(\n +#include .*)+\n\})' > $(1)_macros_
+	cat $(BPCS_SRC) | grep '#define ' >> $(1)_macros_
 	cat -s /tmp/$(1)_macros.cpp | egrep -A 99999 'typedef cv::Matx<uchar, 9, 9> Matx99uc;' | egrep -v '^# [0-9]+ "bpcs[.]cpp"' | sed 's/[(][(][(]0[)] & [(][(]1 << 3[)] - 1[)][)] + [(][(][(]1[)]-1[)] << 3[)][)]/CV_8UC1/g' >> $(1)_macros_
 	mv $(1)_macros_ /tmp/$(1)_macros.cpp
 	sed -i -r 's/\n *CV_8UC1\n *([^ ])/CV_8UC1\1/' /tmp/$(1)_macros.cpp # Regex works in Kate, not sed...
