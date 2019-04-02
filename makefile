@@ -101,19 +101,23 @@ debug:
 	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
 
 
-define RELEASE_BPCS
-	$(1) $(CPPFLAGS) -o $(EXEPATH)_$(1)_   $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
-	$(1) $(CPPFLAGS) -o $(EXTPATH)_$(1)_   $(STD_PARAMS) $(RELEASEFLAGS)
-	strip $(STRIP_ARGS) $(EXEPATH)_$(1)_
-	strip $(STRIP_ARGS) $(EXTPATH)_$(1)_
+define RELEASE
+	$(CC) $(CPPFLAGS_) $(1) -o $(FMEPATH)_  $(STD_PARAMS) $(RELEASEFLAGS)
+	strip $(STRIP_ARGS) $(FMTPATH)_
 	
 endef
 
+
+define RELEASE_BPCS
+	$(call RELEASE,$(EXEPATH),bpcs.cpp,$(CC))
+	$(call RELEASE,$(EXTPATH),bpcs.cpp,$(CC)) -DEMBEDDOR
+	
+endef
+
+
 define RELEASE_FMT
-	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMEPATH)_  $(STD_PARAMS) $(RELEASEFLAGS)
-	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMTPATH)_  $(STD_PARAMS) $(RELEASEFLAGS) -DEMBEDDOR
-	strip $(STRIP_ARGS) $(FMEPATH)_
-	strip $(STRIP_ARGS) $(FMTPATH)_
+	$(call RELEASE,$(FMTPATH),fmt.cpp,$(CC))
+	$(call RELEASE,$(FMEPATH),fmt.cpp,$(CC)) -DEMBEDDOR
 	
 endef
 
