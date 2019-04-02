@@ -236,10 +236,6 @@ class BPCSStreamBuf {
     int img_n;
     int n_imgs;
     
-    std::vector<cv::Mat> channel_byteplanes;
-    
-    cv::Mat channel;
-    
     Matx99uc grid{9, 9, CV_8UC1};
     
     Matx98uc xor_adj_mat1{9, 8, CV_8UC1};
@@ -257,6 +253,8 @@ class BPCSStreamBuf {
     #ifdef EMBEDDOR
     cv::Mat bitplanes[N_BITPLANES * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
     #endif
+    
+    std::vector<cv::Mat> channel_byteplanes;
     
     cv::Mat im_mat;
     
@@ -324,12 +322,11 @@ inline void BPCSStreamBuf::conjugate_grid(){
 }
 
 inline void BPCSStreamBuf::load_next_bitplane(){
-    this->bitplane = this->channel & 1;
-    cv_div2(this->channel, this->channel);
+    this->bitplane = this->channel_byteplanes[this->channel_n] & 1;
+    cv_div2(this->channel_byteplanes[this->channel_n], this->channel_byteplanes[this->channel_n]);
 }
 
 void BPCSStreamBuf::load_next_channel(){
-    this->channel = this->channel_byteplanes[this->channel_n];
     this->bitplane_n = 0;
     this->load_next_bitplane();
 }
