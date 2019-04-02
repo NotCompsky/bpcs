@@ -1,14 +1,19 @@
 # Features
 
 Allow other grid sizes
-    Will be implemented without adding overhead. Necessitates templating to make the size selectable only at compile-time. Necessitates only reading/writing complete bytes to grids, which makes it advisable to use grid size MxN such that (M*N % 8 == 1) - for instance, (2m + 1)x(2m + 1) for any natural m. 
+    Allowed grid sizes shall be restricted to squares of odd length. This is the only set of sizes that is both a reasonable shape and does not necessitate breaking bytes across grids.
+    Will be implemented without adding overhead. Necessitates templating to make the size selectable only at compile-time.
+
+Rewrite to calculate sizeof rather than assume sensible hardware
+    Might improve readability as it helps display where numbers come from
 
 # Optimisations
 
 Compile-time option to replace OpenCV use with specially-written CUDA
+    Assuming:
+        w (== grid_width == grid_height)
     Inputs:
         t (== complexity_threshold)
-        w (== grid_width == grid_height)
         N_GRIDS_HRZTL
         N_GRIDS_VRTCL
         Individual MxN channel* (i.e. byteplane)
