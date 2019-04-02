@@ -236,9 +236,8 @@ class BPCSStreamBuf {
     int img_n;
     int n_imgs;
     
-    #ifdef EMBEDDOR
     std::vector<cv::Mat> channel_byteplanes;
-    #endif
+    
     cv::Mat channel;
     
     Matx99uc grid{9, 9, CV_8UC1};
@@ -330,7 +329,7 @@ inline void BPCSStreamBuf::load_next_bitplane(){
 }
 
 void BPCSStreamBuf::load_next_channel(){
-    cv::extractChannel(this->im_mat, this->channel, this->channel_n);
+    this->channel = this->channel_byteplanes[this->channel_n];
     convert_to_cgc(this->channel);
     this->bitplane_n = 0;
     this->load_next_bitplane();
@@ -445,9 +444,11 @@ void BPCSStreamBuf::load_next_img(){
         assert(this->im_mat.channels() == 3);
     #endif
     
-    #ifdef EMBEDDOR
     cv::split(this->im_mat, this->channel_byteplanes);
-    #endif
+  #ifdef EMBEDDOR
+    if (!this->embedding)
+        free(this->img_data);
+  #endif
     
     #ifdef DEBUG
         mylog.set_verbosity(4);
@@ -576,7 +577,6 @@ void BPCSStreamBuf::set_next_grid(){
         if (this->embedding)
             this->save_im();
 #endif
-        free(this->img_data);
         this->load_next_img();
         return;
     }
@@ -746,6 +746,7 @@ void BPCSStreamBuf::save_im(){
     png_write_end(png_ptr, NULL);
     
     free(this->img_fps[this->img_n -1]);
+    free(this->img_data);
 }
 #endif
 
