@@ -19,8 +19,7 @@
     #include "utils.hpp" // for format_out_fp
 #endif
 
-#define N_BITPLANES 8
-#define N_CHANNELS 3
+#include "config.h" // for N_BITPLANES, N_CHANNELS
 
 
 typedef cv::Matx<uchar, 9, 9> Matx99uc;

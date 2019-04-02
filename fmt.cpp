@@ -6,11 +6,7 @@
 
 /* Not needed for GCC */
 #include <cstdio> // for FILE, fopen
-typedef unsigned char uchar;
-typedef __uint8_t uint8_t;
-typedef __int32_t int32_t;
-typedef __uint32_t uint32_t;
-typedef __uint64_t uint64_t;
+#include "units.h" // for uintN_t typedefs
 
 
 #include "utils.hpp" // for format_out_fp
