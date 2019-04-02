@@ -28,7 +28,7 @@ FMVPATH = $(BUILD_DIR)/bpcs-fmt-v_$(V)
 
 LINKER_OPTS = -Wl,--gc-sections -Wl,--build-id=none
 
-DEBUGFLAGS = -DDEBUG -DTESTS -rdynamic
+DEBUGFLAGS = -DDEBUG -DTESTS -rdynamic -DEMBEDDOR -g
 TINYFLAGS = -ffunction-sections -fdata-sections -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden
 NODEBUGFLAGS = -DNDEBUG -fno-exceptions -DARGS_NOEXCEPT
 RELEASEFLAGS_ = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
@@ -97,7 +97,7 @@ endif
 CPPFLAGS = $(CPPFLAGS_) $(BPCS_SRC)
 
 
-CUDA_COMPILER_OPTS := $(foreach opt, $(CPPFLAGS_) $(RELEASEFLAGS_), --compiler-options $(opt))
+CUDA_COMPILER_OPTS := $(foreach opt, $(CPPFLAGS_), --compiler-options $(opt))
 CUDA_COMPILER_RELEASE_OPTS := $(CUDA_COMPILER_OPTS) $(foreach opt, $(RELEASEFLAGS_), --compiler-options $(opt))
 CUDA_COMPILER_DEBUG_OPTS := $(CUDA_COMPILER_OPTS) $(foreach opt, $(DEBUGFLAGS), --compiler-options $(opt))
 
@@ -113,14 +113,14 @@ docs:
 
 
 debug-main:
-	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
+	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
 
 debug-fmt:
-	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
+	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
 
 debug:
-	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
-	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS) -DEMBEDDOR -g
+	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
+	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
 
 
 define RELEASE
@@ -153,7 +153,7 @@ release-main:
 	$(call RELEASE_BPCS,$(CC))
 
 debug-cuda:
-	nvcc $(CUDA_COMPILER_DEBUG_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+	nvcc -O0 $(CUDA_COMPILER_DEBUG_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
 
 release-cuda:
 	nvcc $(CUDA_COMPILER_RELEASE_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
