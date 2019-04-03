@@ -258,6 +258,10 @@ void BPCSStreamBuf::gets(){
         this->load_next_img();
     }
     
+  #ifdef DEBUG
+    printf("Extracting channel with settings:\n\tthreshold=%d\tw=%d\th=%d\tn_hztl_grids=%d\tn_vtcl_grids=%d\n", this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids);
+  #endif
+    
     extract_bytes(this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids, this->channel_byteplanes[0].data, this->extraction_byte_tensor);
     
     this->n_extracted_bytes = 0;
@@ -268,6 +272,11 @@ void BPCSStreamBuf::gets(){
                     this->extraction_byte_tensor[this->n_extracted_bytes++] = this->extraction_byte_tensor[11*(w*j + i) + k];
                     // Index of LHS is not greater than index of RHS - this is overwriting from the 'left'
     
+    --this->n_extracted_bytes;
+  #ifdef DEBUG
+    printf("Extracted %d bytes\n", this->n_extracted_bytes);
+  #endif
+    
     ++this->channel_n;
 }
 
@@ -275,6 +284,10 @@ void BPCSStreamBuf::load_next_img(){
     if (this->img_n != this->img_n_offset){
         free(this->extraction_byte_tensor);
     }
+    
+  #ifdef DEBUG
+    printf("Loading img %d of %d: %s\n", this->img_n, this->n_imgs, this->img_fps[this->img_n]);
+  #endif
     
     /* Load PNG file into array */
     FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
@@ -376,6 +389,33 @@ void BPCSStreamBuf::load_next_img(){
 int main(const int argc, char* argv[]){
     int i = 0;
     
+  #ifdef DEBUG
+    bool print_content = true;
+    bool ignore_errors = false;
+    int verbosity = 3;
+    
+    while (++i < argc){
+        if (argv[i][0] == '-' && argv[i][2] == 0){
+            switch(argv[i][1]){
+                case 'v': ++verbosity; break;
+                case 'q': --verbosity; break;
+                case 'Q': print_content=false; break;
+                case 'i': ignore_errors=true; break;
+                default: --i; goto end_args;
+            }
+        } else {
+            --i;
+            goto end_args;
+        }
+    }
+    end_args:
+    
+    if (verbosity < 0)
+        verbosity = 0;
+    else if (verbosity > 10)
+        verbosity = 10;
+  #endif
+    
     const uint8_t min_complexity = 50 + (argv[++i][0] -48);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv);
@@ -383,7 +423,10 @@ int main(const int argc, char* argv[]){
     
     do {
         bpcs_stream.gets();
-        write(STDOUT_FILENO, bpcs_stream.extraction_byte_tensor, bpcs_stream.n_extracted_bytes-1);
+      #ifdef DEBUG
+        if (print_content)
+      #endif
+            write(STDOUT_FILENO, bpcs_stream.extraction_byte_tensor, bpcs_stream.n_extracted_bytes);
     } while (bpcs_stream.not_exhausted);
     free(bpcs_stream.extraction_byte_tensor);
 }
