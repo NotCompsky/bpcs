@@ -3,23 +3,31 @@
 #define SET_THREAD_COORD(row, x) int row = (blockIdx.y * blockDim.y) + threadIdx.y
 #define SET_THREAD_COORDS() SET_THREAD_COORD(row, x); SET_THREAD_COORD(col, y)
 
+#include <cstdio> // for printf
+
 /* See https://en.wikipedia.org/wiki/CUDA for variious hardware-specific constraints. */
 
 
 /* Device */
 
-__global__ void gpu_rgb2cgc(int w, int h, uint8_t* arr){
+__global__ void gpu_rgb2cgc(
+    int n_pixels, uint8_t* arr
+  #ifdef DEBUG
+    , uint32_t* d_n
+  #endif
+){
     /*
         Inputs:
             row_ptrs:
                 Matrix of 8-bit pixels
     */
-    //int row = (blockIdx.y * blockDim.y) + threadIdx.y;
-    //int col = (blockIdx.x * blockDim.x) + threadIdx.x;
-    SET_THREAD_COORDS();
-    if (row < h && col < w){
+    int indx = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (indx < n_pixels){
         // Order is because most images are landscape, therefore - and this is just a totally uneducated guess - I would expect the height condition to fail more often
-        arr[col*row] ^= (arr[col*row] >> 1);
+        arr[indx] ^= (arr[indx] >> 1);
+      #ifdef DEBUG
+        atomicAdd(d_n, 1);
+      #endif
     }
 }
 /*
@@ -51,7 +59,12 @@ inline __device__ uint8_t gpu_calculate_grid_complexity(int row, int col, uint32
     return c;
 }
 
-__global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t*& arr, uint8_t*& extraced_bytes){
+__global__ void gpu_extract_bytes(
+    uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t*& arr, uint8_t*& extraced_bytes
+  #ifdef DEBUG
+    , uint32_t** d_ns
+  #endif
+){
     /*
         Inputs:
             t
@@ -62,7 +75,7 @@ __global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_
     SET_THREAD_COORD(row, y);
     int col = (blockIdx.x * blockDim.x) + threadIdx.x;
     
-    if (col < w/9 && row < h){
+    if (col < n_hztl_grids && row < n_vtcl_grids){
         for (int j=0; j<N_BITPLANES; ++j){
             
             if (gpu_calculate_grid_complexity(row, col, w, arr) >= t){
@@ -77,6 +90,9 @@ __global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_
                 
             }
         }
+      #ifdef DEBUG
+        atomicAdd(d_ns[blockIdx.y*blockDim.x + blockIdx.x], 1);
+      #endif
     }
 }
 
@@ -84,20 +100,39 @@ __global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_
 
 /* Host */
 
-void rgb2cgc(uint32_t w, uint32_t h, uint8_t*& host_img_data){
+void rgb2cgc(uint32_t n_pixels, uint8_t*& host_img_data){
     int n_grids;
     int n_blocks;
     //cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, w*h);
-    n_grids=1; n_blocks=1024;
+    n_grids=n_pixels/1024; n_blocks=1024;
+    
+  #ifdef DEBUG
+    printf("rgb2cgc\t%d grids\t%d threads/grid\n", n_grids, n_blocks); // tmp
+    
+    uint32_t n_threads_completed = 0;
+    uint32_t* d_n;
+    cudaMalloc(&d_n, sizeof(uint32_t));
+    cudaMemcpy(d_n, &n_threads_completed, sizeof(uint32_t), cudaMemcpyHostToDevice);
+  #endif
     
     uint8_t* arr;
-    cudaMalloc(&arr, w*h*sizeof(uint8_t));
-    cudaMemcpy(arr, host_img_data, h*w*sizeof(uint8_t), cudaMemcpyHostToDevice);
+    cudaMalloc(&arr, n_pixels);
+    cudaMemcpy(arr, host_img_data, n_pixels, cudaMemcpyHostToDevice);
     
-    gpu_rgb2cgc<<<n_grids, n_blocks>>>(w, h, arr);
+    gpu_rgb2cgc<<<n_grids, n_blocks>>>(
+        n_pixels, arr
+      #ifdef DEBUG
+        , d_n
+      #endif
+    );
     cudaDeviceSynchronize();
     
-    cudaMemcpy(host_img_data, arr, h*w*sizeof(uint8_t), cudaMemcpyDeviceToHost);
+  #ifdef DEBUG
+    cudaMemcpy(&n_threads_completed, d_n, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    printf("n_threads_completed\t%d\n", n_threads_completed);
+  #endif
+    
+    cudaMemcpy(host_img_data, arr, n_pixels, cudaMemcpyDeviceToHost);
     cudaFree(arr);
 }
 
@@ -107,10 +142,24 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
             host_extraced_bytes
                 Empty array to write to
     */
-    int n_grids;
-    int n_blocks;
     //cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, n_hztl_grids*n_vtcl_grids);
-    n_grids=1; n_blocks=1024;
+    dim3 n_grids(n_hztl_grids/32, n_vtcl_grids/32);
+    dim3 n_blocks(32, 32);
+    // Memory constrains -> smaller blocks?
+    
+  #ifdef DEBUG
+    printf("extract_bytes\n"); // tmp
+    
+    uint32_t n_threads_completed = 0;
+    uint32_t* h_ns[sizeof(uint32_t*) * (n_hztl_grids/32) * (n_vtcl_grids/32)];
+    for (auto i=0;  i<(n_hztl_grids/32) * (n_vtcl_grids/32);  ++i){
+        cudaMalloc(&h_ns[i], sizeof(uint32_t));
+        cudaMemcpy(&*h_ns[i], &n_threads_completed, sizeof(uint32_t), cudaMemcpyHostToDevice);
+    }
+    uint32_t** d_ns;
+    cudaMalloc(&d_ns, sizeof(uint32_t*) * (n_hztl_grids/32) * (n_vtcl_grids/32));
+    cudaMemcpy(d_ns,  h_ns,  sizeof(uint32_t*) * (n_hztl_grids/32) * (n_vtcl_grids/32),  cudaMemcpyHostToDevice);
+  #endif
     
     uint8_t* arr;
     cudaMalloc(&arr, w*h*sizeof(uint8_t));
@@ -120,8 +169,31 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
     uint8_t* extraced_bytes;
     cudaMalloc(&extraced_bytes, n_extracted_bytes);
     
-    gpu_extract_bytes<<<n_grids, n_blocks>>>(t, w, h, n_hztl_grids, n_vtcl_grids, arr, extraced_bytes);
+  #ifdef TESTS
+    uint8_t extracted_bytes_zeros[n_hztl_grids*n_vtcl_grids*11];
+    for (auto i=0; i<n_hztl_grids*n_vtcl_grids*11; ++i)
+        extracted_bytes_zeros[i] = 0;
+    cudaMemcpy(extraced_bytes, extracted_bytes_zeros, n_hztl_grids*n_vtcl_grids*11*sizeof(uint8_t), cudaMemcpyHostToDevice);
+  #endif
+    
+    gpu_extract_bytes<<<n_grids, n_blocks>>>(
+        t, w, h, n_hztl_grids, n_vtcl_grids, arr, extraced_bytes
+      #ifdef DEBUG
+        , d_ns
+      #endif
+    );
     cudaDeviceSynchronize();
+    
+  #ifdef DEBUG
+    uint32_t n;
+    for (auto i=0;  i<(n_hztl_grids/32) * (n_vtcl_grids/32);  ++i){
+        printf("n_threads_completed of block %d at addr %d\n", i, h_ns[i]);
+        cudaMemcpy(&n, (void*)*h_ns[i], sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        printf("n_threads_completed in block %d\t%d\n", i, n_threads_completed);
+        n_threads_completed += n;
+    }
+    printf("n_threads_completed\t%d\n", n_threads_completed);
+  #endif
     
     cudaFree(arr);
     
@@ -369,7 +441,7 @@ void BPCSStreamBuf::load_next_img(){
     fclose(png_file);
     png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
     
-    rgb2cgc(N_CHANNELS*this->w, this->h, this->img_data);
+    rgb2cgc(N_CHANNELS*this->w*this->h, this->img_data);
     
     this->im_mat = cv::Mat(this->h, this->w, CV_8UC3, this->img_data);
     // WARNING: Loaded as RGB rather than OpenCV's default BGR
