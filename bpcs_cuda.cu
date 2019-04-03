@@ -3,13 +3,12 @@
 #define SET_THREAD_COORD(row, x) int row = (blockIdx.y * blockDim.y) + threadIdx.y
 #define SET_THREAD_COORDS() SET_THREAD_COORD(row, x); SET_THREAD_COORD(col, y)
 
-
 /* See https://en.wikipedia.org/wiki/CUDA for variious hardware-specific constraints. */
 
 
-/* CUDA */
+/* Device */
 
-__global__ void gpu_rgb2cgc(int w, int h, uint8_t** row_ptrs){
+__global__ void gpu_rgb2cgc(int w, int h, uint8_t* arr){
     /*
         Inputs:
             row_ptrs:
@@ -18,12 +17,12 @@ __global__ void gpu_rgb2cgc(int w, int h, uint8_t** row_ptrs){
     //int row = (blockIdx.y * blockDim.y) + threadIdx.y;
     //int col = (blockIdx.x * blockDim.x) + threadIdx.x;
     SET_THREAD_COORDS();
-    if (col < h && row < w){
+    if (row < h && col < w){
         // Order is because most images are landscape, therefore - and this is just a totally uneducated guess - I would expect the height condition to fail more often
-        row_ptrs[row][col] ^= (row_ptrs[row][col] >> 1);
+        arr[col*row] ^= (arr[col*row] >> 1);
     }
 }
-
+/*
 inline __device__ uint8_t gpu_calculate_grid_complexity(uint8_t bitgrid[81]){
     uint8_t c = 0;
     for (int i=0;  i < 9*9 - 1;  ++i)
@@ -34,35 +33,45 @@ inline __device__ uint8_t gpu_calculate_grid_complexity(uint8_t bitgrid[81]){
             c += bitgrid[9*j + i] ^ bitgrid[9*(j+1) + i];
     return c;
 }
-
+*/
+/*
 inline __device__ void gpu_conjugate_grid(int row, int col, uint8_t** row_ptrs){
     for (int i=0; i<8; ++i)
         row_ptrs[row][col] &= (row + col) & 1;
 }
+*/
+inline __device__ uint8_t gpu_calculate_grid_complexity(int row, int col, uint32_t w, uint8_t*& arr){
+    uint8_t c = 0;
+    for (int j=0; j<8; ++j)
+        for (int i=0; i<9; ++i)
+            c  +=  arr[w*(row + j) + (col + i)]  ^  arr[w*(row + j + 1) + (col + i)];
+    for (int j=0; j<9; ++j)
+        for (int i=0; i<8; ++i)
+            c  +=  arr[w*(row + j) + (col + i)]  ^  arr[w*(row + j)     + (col + i + 1)];
+    return c;
+}
 
-__global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t** row_ptrs, uint8_t* extraced_bytes){
+__global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t*& arr, uint8_t*& extraced_bytes){
     /*
         Inputs:
             t
                 aka complexity_threshold
-            row_ptrs
-                Channel (i.e. byteplane) matrix
+            arr
+                Channel (i.e. byteplane) matrix, flattened
     */
-    SET_THREAD_COORDS();
+    SET_THREAD_COORD(row, y);
+    int col = (blockIdx.x * blockDim.x) + threadIdx.x;
     
-    if (col < h && row < w){
-        uint8_t bitgrid[81];
+    if (col < w/9 && row < h){
         for (int j=0; j<N_BITPLANES; ++j){
-            for (int y=0; y<9; ++y)
-                for (int x=0; x<9; ++x)
-                    bitgrid[9*y + x] = (row_ptrs[row+y][col+x] >> j) & 1;
-            if (gpu_calculate_grid_complexity(bitgrid) >= t){
-                extraced_bytes[8*(w*row + col) + 0] = 1;
+            
+            if (gpu_calculate_grid_complexity(row, col, w, arr) >= t){
+                extraced_bytes[11*(w*row + col) + 0] = 1;
                 for (int i=1; i<11; ++i){
-                    extraced_bytes[8*(w*row + col) + i] = 0;
+                    extraced_bytes[11*(w*row + col) + i] = 0;
                     for (int k=0; k<8; ++k){
-                        extraced_bytes[8*(w*row + col) + i] *= 2;
-                        extraced_bytes[8*(w*row + col) + i] |= (row_ptrs[row][col] >> j) & 1;
+                        extraced_bytes[11*(w*row + col) + i] *= 2;
+                        extraced_bytes[11*(w*row + col) + i] |= (arr[w*row + col + k] >> j) & 1;
                     }
                 }
                 
@@ -73,25 +82,26 @@ __global__ void gpu_extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_
 
 
 
-/* C, C++ */
+/* Host */
 
-void rgb2cgc(int w, int h, uint8_t** host_row_ptrs){
+void rgb2cgc(uint32_t w, uint32_t h, uint8_t*& host_img_data){
     int n_grids;
     int n_blocks;
-    cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, w*h);
+    //cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, w*h);
+    n_grids=1; n_blocks=1024;
     
-    uint8_t** row_ptrs;
-    cudaMalloc((void***)&row_ptrs, w*h*sizeof(uint8_t));
-    cudaMemcpy(row_ptrs, host_row_ptrs, w*h*sizeof(uint8_t), cudaMemcpyHostToDevice);
+    uint8_t* arr;
+    cudaMalloc(&arr, w*h*sizeof(uint8_t));
+    cudaMemcpy(arr, host_img_data, h*w*sizeof(uint8_t), cudaMemcpyHostToDevice);
     
-    gpu_rgb2cgc<<<n_grids, n_blocks>>>(w, h, row_ptrs);
+    gpu_rgb2cgc<<<n_grids, n_blocks>>>(w, h, arr);
     cudaDeviceSynchronize();
     
-    cudaMemcpy(host_row_ptrs, row_ptrs, w*h*sizeof(uint8_t), cudaMemcpyDeviceToHost);
-    cudaFree(row_ptrs);
+    cudaMemcpy(host_img_data, arr, h*w*sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    cudaFree(arr);
 }
 
-void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t** host_row_ptrs, uint8_t* host_extraced_bytes){
+void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t*& host_img_data, uint8_t*& host_extraced_bytes){
     /*
         Inputs:
             host_extraced_bytes
@@ -99,22 +109,21 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
     */
     int n_grids;
     int n_blocks;
-    cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, n_hztl_grids*n_vtcl_grids);
+    //cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, n_hztl_grids*n_vtcl_grids);
+    n_grids=1; n_blocks=1024;
     
-    
-    uint8_t** row_ptrs;
-    cudaMalloc((void***)&row_ptrs, w*h*sizeof(uint8_t));
-    cudaMemcpy(row_ptrs, host_row_ptrs, w*h*sizeof(uint8_t), cudaMemcpyHostToDevice);
-    
+    uint8_t* arr;
+    cudaMalloc(&arr, w*h*sizeof(uint8_t));
+    cudaMemcpy(arr, host_img_data, h*w*sizeof(uint8_t), cudaMemcpyHostToDevice);
     
     auto n_extracted_bytes = n_hztl_grids*n_vtcl_grids*11*sizeof(uint8_t);
     uint8_t* extraced_bytes;
-    cudaMalloc((void**)&extraced_bytes, n_extracted_bytes);
+    cudaMalloc(&extraced_bytes, n_extracted_bytes);
     
-    gpu_extract_bytes<<<n_grids, n_blocks>>>(t, w, h, n_hztl_grids, n_vtcl_grids, row_ptrs, extraced_bytes);
+    gpu_extract_bytes<<<n_grids, n_blocks>>>(t, w, h, n_hztl_grids, n_vtcl_grids, arr, extraced_bytes);
     cudaDeviceSynchronize();
     
-    cudaFree(row_ptrs);
+    cudaFree(arr);
     
     cudaMemcpy(host_extraced_bytes, extraced_bytes, n_extracted_bytes, cudaMemcpyDeviceToHost);
     cudaFree(extraced_bytes);
@@ -236,8 +245,6 @@ class BPCSStreamBuf {
     int img_n;
     int n_imgs;
     
-    uint8_t** row_ptrs;
-    
     char** img_fps;
     
     cv::Mat im_mat;
@@ -245,20 +252,22 @@ class BPCSStreamBuf {
 };
 
 void BPCSStreamBuf::gets(){
-    if (this->channel_n == N_CHANNELS)
+    if (this->channel_n == N_CHANNELS){
+        if (this->img_n == this->n_imgs){
+            this->not_exhausted = false;
+            return;
+        }
         this->load_next_img();
+    }
     
-    for (uint32_t i=0; i<this->h; ++i)
-        this->row_ptrs[i] = this->channel_byteplanes[this->channel_n].data + i*this->rowbytes;
-    
-    extract_bytes(this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids, this->row_ptrs, this->extraction_byte_tensor);
+    extract_bytes(this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids, this->channel_byteplanes[0].data, this->extraction_byte_tensor);
     
     this->n_extracted_bytes = 0;
     for (int j=0; j<this->n_vtcl_grids; ++j)
         for (int i=0; i<this->n_hztl_grids; ++i)
-            if (this->extraction_byte_tensor[8*(w*j + i) + 0] != 0)
+            if (this->extraction_byte_tensor[11*(this->n_hztl_grids*j + i) + 0] != 0)
                 for (int k=1; k<11; ++k)
-                    this->extraction_byte_tensor[this->n_extracted_bytes++] = this->extraction_byte_tensor[8*(w*j + i) + k];
+                    this->extraction_byte_tensor[this->n_extracted_bytes++] = this->extraction_byte_tensor[11*(w*j + i) + k];
                     // Index of LHS is not greater than index of RHS - this is overwriting from the 'left'
     
     ++this->channel_n;
@@ -266,13 +275,9 @@ void BPCSStreamBuf::gets(){
 
 void BPCSStreamBuf::load_next_img(){
     if (this->img_n != this->img_n_offset){
-        free(this->row_ptrs);
         free(this->extraction_byte_tensor);
     }
     
-  #ifdef TESTS
-    assert(this->img_n != this->n_imgs);
-  #endif
     /* Load PNG file into array */
     FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
     
@@ -345,16 +350,17 @@ void BPCSStreamBuf::load_next_img(){
     
     this->img_data = (uchar*)malloc(this->rowbytes*this->h);
     
-    this->row_ptrs = (uint8_t**)malloc(this->h);
+    uchar* row_ptrs[h];
     for (uint32_t i=0; i<this->h; ++i)
-        this->row_ptrs[i] = this->img_data + i*this->rowbytes;
+        row_ptrs[i] = this->img_data + i*this->rowbytes;
     
-    png_read_image(png_ptr, this->row_ptrs);
+    png_read_image(png_ptr, row_ptrs);
     
     fclose(png_file);
     png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
     
-    rgb2cgc(this->w, this->h, this->row_ptrs);
+    rgb2cgc(this->w, N_CHANNELS*this->h, row_ptrs[0]);
+    //                == this->rowbytes
     
     this->im_mat = cv::Mat(this->h, this->w, CV_8UC3, this->img_data);
     // WARNING: Loaded as RGB rather than OpenCV's default BGR
@@ -383,6 +389,5 @@ int main(const int argc, char* argv[]){
         bpcs_stream.gets();
         write(STDOUT_FILENO, bpcs_stream.extraction_byte_tensor, bpcs_stream.n_extracted_bytes-1);
     } while (bpcs_stream.not_exhausted);
-    free(bpcs_stream.img_data);
     free(bpcs_stream.extraction_byte_tensor);
 }
