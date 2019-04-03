@@ -239,8 +239,6 @@ class BPCSStreamBuf {
     uint32_t n_hztl_grids;
     uint32_t n_vtcl_grids;
     
-    uint32_t rowbytes;
-    
     const int img_n_offset;
     int img_n;
     int n_imgs;
@@ -342,25 +340,23 @@ void BPCSStreamBuf::load_next_img(){
     
     png_read_update_info(png_ptr, png_info_ptr);
     
-    this->rowbytes = png_get_rowbytes(png_ptr, png_info_ptr);
-    
     #ifdef TESTS
         assert(png_get_channels(png_ptr, png_info_ptr) == 3);
+        assert(png_get_rowbytes(png_ptr, png_info_ptr) == N_CHANNELS*this->w);
     #endif
     
-    this->img_data = (uchar*)malloc(this->rowbytes*this->h);
+    this->img_data = (uchar*)malloc(N_CHANNELS*this->w*this->h);
     
     uchar* row_ptrs[h];
     for (uint32_t i=0; i<this->h; ++i)
-        row_ptrs[i] = this->img_data + i*this->rowbytes;
+        row_ptrs[i] = this->img_data + i*N_CHANNELS*this->w;
     
     png_read_image(png_ptr, row_ptrs);
     
     fclose(png_file);
     png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
     
-    rgb2cgc(this->w, N_CHANNELS*this->h, row_ptrs[0]);
-    //                == this->rowbytes
+    rgb2cgc(N_CHANNELS*this->w, this->h, this->img_data);
     
     this->im_mat = cv::Mat(this->h, this->w, CV_8UC3, this->img_data);
     // WARNING: Loaded as RGB rather than OpenCV's default BGR
