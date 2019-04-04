@@ -50,15 +50,15 @@ inline __device__ void gpu_conjugate_grid(int row, int col, uint8_t** row_ptrs){
         row_ptrs[row][col] &= (row + col) & 1;
 }
 */
-inline __device__ void gpu_calculate_grid_complexities(int row, int col, uint32_t w, int channel_n, uint8_t* arr, uint8_t complexities[N_BITPLANES]){
+inline __device__ void gpu_calculate_grid_complexities(uint8_t bytegrid[81], uint8_t complexities[N_BITPLANES]){
     for (int j=0; j<8; ++j)
         for (int i=0; i<9; ++i)
             for (int k=0; k<N_BITPLANES; ++k)
-                complexities[k]  +=  ((arr[N_CHANNELS*(w*(row + j) + col + i) + channel_n]  ^  arr[N_CHANNELS*(w*(row + j + 1) + col + i) + channel_n])   & (1 << k)) >> k;
+                complexities[k]  +=  ((bytegrid[9*j + i]  ^  bytegrid[9*(j + 1) + i])  &  (1 << k)) >> k;
     for (int j=0; j<9; ++j)
         for (int i=0; i<8; ++i)
             for (int k=0; k<N_BITPLANES; ++k)
-                complexities[k]  +=  ((arr[N_CHANNELS*(w*(row + j) + col + i) + channel_n]  ^  arr[N_CHANNELS*(w*(row + j) + col + i + 1) + channel_n])   & (1 << k)) >> k;
+                complexities[k]  +=  ((bytegrid[9*j + i]  ^  bytegrid[9*j + (i + 1)])  &  (1 << k)) >> k;
 }
 
 __global__ void gpu_extract_bytes(
@@ -76,6 +76,7 @@ __global__ void gpu_extract_bytes(
     */
     int row = (blockIdx.y     * blockDim.y) + threadIdx.y;
     int col = ((blockIdx.x/3) * blockDim.x) + threadIdx.x;
+    uint8_t conjugation; // 0 or 1
       #ifdef DEBUG
         d_ns[blockIdx.y*blockDim.x + blockIdx.x] = 1;
         printf(".");
@@ -85,19 +86,28 @@ __global__ void gpu_extract_bytes(
         uint8_t complexities[N_BITPLANES];
         for (auto i=0; i<N_BITPLANES; ++i)
             complexities[i] = 0;
-        gpu_calculate_grid_complexities(row, col, w, channel_n, arr, complexities);
-        for (int j=0; j<N_BITPLANES; ++j){
+        
+        uint8_t bytegrid[81];
+        for (int j=0; j<9; ++j)
+            for (int i=0; i<9; ++i)
+                bytegrid[9*j + i] = arr[N_CHANNELS*(w*(row + j) + col + i) + channel_n];
+        
+        gpu_calculate_grid_complexities(bytegrid, complexities);
+        
+        for (int n_bitplane=0; n_bitplane<N_BITPLANES; ++n_bitplane){
           #ifdef DEBUG
-            printf("%d ", complexities[j]);
+            printf("%d ", complexities[n_bitplane]);
           #endif
-            if (complexities[j] >= t){
-                auto indx = 11 * ((N_BITPLANES * ((n_hztl_grids * row) + col) + j) + channel_n * (n_vtcl_grids * n_hztl_grids * N_BITPLANES));
+            if (complexities[n_bitplane] >= t){
+                auto indx = 11 * ((N_BITPLANES * ((n_hztl_grids * row) + col) + n_bitplane) + channel_n * (n_vtcl_grids * n_hztl_grids * N_BITPLANES));
                 extraced_bytes[indx] = 1;
-                for (int i=1; i<11; ++i){
-                    extraced_bytes[indx + i] = 0;
-                    for (int k=0; k<8; ++k){
-                        extraced_bytes[indx + i] *= 2;
-                        extraced_bytes[indx + i] |= (arr[w*row + col + k] >> j) & 1;
+                
+                for (int n_byte=1; n_byte<11; ++n_byte){
+                    extraced_bytes[indx + n_byte] = 0;
+                    
+                    for (int i=0; i<8; ++i){
+                        extraced_bytes[indx + n_byte] *= 2;
+                        extraced_bytes[indx + n_byte] |= (bytegrid[8*n_byte + i] >> n_bitplane) ^ conjugation;
                     }
                 }
                 
