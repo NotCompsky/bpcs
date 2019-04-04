@@ -62,7 +62,7 @@ inline __device__ uint8_t gpu_calculate_grid_complexity(int row, int col, uint32
 __global__ void gpu_extract_bytes(
     uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uint32_t n_vtcl_grids, uint8_t*& arr, uint8_t*& extraced_bytes
   #ifdef DEBUG
-    , uint32_t** d_ns
+    , uint32_t* d_ns
   #endif
 ){
     /*
@@ -91,7 +91,7 @@ __global__ void gpu_extract_bytes(
             }
         }
       #ifdef DEBUG
-        atomicAdd(d_ns[blockIdx.y*blockDim.x + blockIdx.x], 1);
+        atomicAdd(&d_ns[blockIdx.y*blockDim.x + blockIdx.x], 1);
       #endif
     }
 }
@@ -142,23 +142,23 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
             host_extraced_bytes
                 Empty array to write to
     */
-    //cudaOccupancyMaxPotentialBlockSize(&n_grids, &n_blocks, gpu_rgb2cgc, 0, n_hztl_grids*n_vtcl_grids);
-    dim3 n_grids(n_hztl_grids/32, n_vtcl_grids/32);
+    //cudaOccupancyMaxPotentialBlockSize(&dim_grids, &n_blocks, gpu_rgb2cgc, 0, n_hztl_grids*n_vtcl_grids);
+    dim3 dim_grids(n_hztl_grids/32, n_vtcl_grids/32);
     dim3 n_blocks(32, 32);
     // Memory constrains -> smaller blocks?
     
   #ifdef DEBUG
     printf("extract_bytes\n"); // tmp
     
-    uint32_t n_threads_completed = 0;
-    uint32_t* h_ns[sizeof(uint32_t*) * (n_hztl_grids/32) * (n_vtcl_grids/32)];
-    for (auto i=0;  i<(n_hztl_grids/32) * (n_vtcl_grids/32);  ++i){
-        cudaMalloc(&h_ns[i], sizeof(uint32_t));
-        cudaMemcpy(&*h_ns[i], &n_threads_completed, sizeof(uint32_t), cudaMemcpyHostToDevice);
-    }
-    uint32_t** d_ns;
-    cudaMalloc(&d_ns, sizeof(uint32_t*) * (n_hztl_grids/32) * (n_vtcl_grids/32));
-    cudaMemcpy(d_ns,  h_ns,  sizeof(uint32_t*) * (n_hztl_grids/32) * (n_vtcl_grids/32),  cudaMemcpyHostToDevice);
+    auto n_grids = (n_hztl_grids/32) * (n_vtcl_grids/32);
+    
+    uint32_t h_ns[n_grids];
+    for (auto i=0;  i<n_grids;  ++i)
+        h_ns[i] = 0;
+    
+    uint32_t* d_ns;
+    cudaMalloc(&d_ns, sizeof(uint32_t) * n_grids);
+    cudaMemcpy(d_ns, h_ns, sizeof(uint32_t) * n_grids, cudaMemcpyHostToDevice);
   #endif
     
     uint8_t* arr;
@@ -176,7 +176,7 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
     cudaMemcpy(extraced_bytes, extracted_bytes_zeros, n_hztl_grids*n_vtcl_grids*11*sizeof(uint8_t), cudaMemcpyHostToDevice);
   #endif
     
-    gpu_extract_bytes<<<n_grids, n_blocks>>>(
+    gpu_extract_bytes<<<dim_grids, n_blocks>>>(
         t, w, h, n_hztl_grids, n_vtcl_grids, arr, extraced_bytes
       #ifdef DEBUG
         , d_ns
@@ -185,13 +185,16 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
     cudaDeviceSynchronize();
     
   #ifdef DEBUG
-    uint32_t n;
-    for (auto i=0;  i<(n_hztl_grids/32) * (n_vtcl_grids/32);  ++i){
-        printf("n_threads_completed of block %d at addr %d\n", i, h_ns[i]);
-        cudaMemcpy(&n, (void*)*h_ns[i], sizeof(uint32_t), cudaMemcpyDeviceToHost);
-        printf("n_threads_completed in block %d\t%d\n", i, n_threads_completed);
-        n_threads_completed += n;
+    uint32_t n_threads_completed = 0;
+    
+    cudaMemcpy(h_ns, d_ns, sizeof(uint32_t) * n_grids, cudaMemcpyDeviceToHost);
+    cudaFree(d_ns);
+    
+    for (auto i=0;  i<n_grids;  ++i){
+        printf("n_threads_completed in block %d\t%d\n", i, h_ns[i]);
+        n_threads_completed += h_ns[i];
     }
+    
     printf("n_threads_completed\t%d\n", n_threads_completed);
   #endif
     
