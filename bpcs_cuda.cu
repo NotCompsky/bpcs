@@ -50,15 +50,15 @@ inline __device__ void gpu_conjugate_grid(int row, int col, uint8_t** row_ptrs){
         row_ptrs[row][col] &= (row + col) & 1;
 }
 */
-inline __device__ uint8_t gpu_calculate_grid_complexity(int row, int col, uint32_t w, uint8_t*& arr){
-    uint8_t c = 0;
+inline __device__ void gpu_calculate_grid_complexities(int row, int col, uint32_t w, int channel_n, uint8_t* arr, uint8_t complexities[N_BITPLANES]){
     for (int j=0; j<8; ++j)
         for (int i=0; i<9; ++i)
-            c  +=  arr[w*(row + j) + (col + i)]  ^  arr[w*(row + j + 1) + (col + i)];
+            for (int k=0; k<N_BITPLANES; ++k)
+                complexities[k]  +=  ((arr[N_CHANNELS*(w*(row + j) + col + i) + channel_n]  ^  arr[N_CHANNELS*(w*(row + j + 1) + col + i) + channel_n])   & (1 << k)) >> k;
     for (int j=0; j<9; ++j)
         for (int i=0; i<8; ++i)
-            c  +=  arr[w*(row + j) + (col + i)]  ^  arr[w*(row + j)     + (col + i + 1)];
-    return c;
+            for (int k=0; k<N_BITPLANES; ++k)
+                complexities[k]  +=  ((arr[N_CHANNELS*(w*(row + j) + col + i) + channel_n]  ^  arr[N_CHANNELS*(w*(row + j) + col + i + 1) + channel_n])   & (1 << k)) >> k;
 }
 
 __global__ void gpu_extract_bytes(
@@ -72,22 +72,32 @@ __global__ void gpu_extract_bytes(
             t
                 aka complexity_threshold
             arr
-                Channel (i.e. byteplane) matrix, flattened
+                Image data
     */
-    SET_THREAD_COORDS();
+    int row = (blockIdx.y     * blockDim.y) + threadIdx.y;
+    int col = ((blockIdx.x/3) * blockDim.x) + threadIdx.x;
       #ifdef DEBUG
         d_ns[blockIdx.y*blockDim.x + blockIdx.x] = 1;
         printf(".");
       #endif
     if (row < n_vtcl_grids  &&  col < n_hztl_grids){
+        auto channel_n = blockIdx.x % 3;
+        uint8_t complexities[N_BITPLANES];
+        for (auto i=0; i<N_BITPLANES; ++i)
+            complexities[i] = 0;
+        gpu_calculate_grid_complexities(row, col, w, channel_n, arr, complexities);
         for (int j=0; j<N_BITPLANES; ++j){
-            if (gpu_calculate_grid_complexity(row, col, w, arr) >= t){
-                extraced_bytes[11*(w*row + col) + 0] = 1;
+          #ifdef DEBUG
+            printf("%d ", complexities[j]);
+          #endif
+            if (complexities[j] >= t){
+                auto indx = 11 * ((N_BITPLANES * ((n_hztl_grids * row) + col) + j) + channel_n * (n_vtcl_grids * n_hztl_grids * N_BITPLANES));
+                extraced_bytes[indx] = 1;
                 for (int i=1; i<11; ++i){
-                    extraced_bytes[11*(w*row + col) + i] = 0;
+                    extraced_bytes[indx + i] = 0;
                     for (int k=0; k<8; ++k){
-                        extraced_bytes[11*(w*row + col) + i] *= 2;
-                        extraced_bytes[11*(w*row + col) + i] |= (arr[w*row + col + k] >> j) & 1;
+                        extraced_bytes[indx + i] *= 2;
+                        extraced_bytes[indx + i] |= (arr[w*row + col + k] >> j) & 1;
                     }
                 }
                 
@@ -144,14 +154,14 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
                 Empty array to write to
     */
     //cudaOccupancyMaxPotentialBlockSize(&dim_grids, &dim_threads, gpu_rgb2cgc, 0, n_hztl_grids*n_vtcl_grids);
-    dim3 dim_grids(n_hztl_grids/32, n_vtcl_grids/32);
+    dim3 dim_grids(N_CHANNELS*(n_hztl_grids/32), n_vtcl_grids/32);
     dim3 dim_threads(32, 32);
     // Memory constrains -> smaller blocks?
     
   #ifdef DEBUG
     printf("extract_bytes\n"); // tmp
     
-    auto n_grids = (n_hztl_grids/32) * (n_vtcl_grids/32);
+    auto n_grids = N_CHANNELS*(n_hztl_grids/32) * (n_vtcl_grids/32);
     auto n_threads = 32*32;
     
     uint32_t h_ns[n_grids * n_threads];
@@ -167,7 +177,7 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
     cudaMalloc(&arr, w*h*sizeof(uint8_t));
     cudaMemcpy(arr, host_img_data, h*w*sizeof(uint8_t), cudaMemcpyHostToDevice);
     
-    auto n_extracted_bytes = n_hztl_grids*n_vtcl_grids*11*sizeof(uint8_t);
+    auto n_extracted_bytes = N_CHANNELS*n_hztl_grids*n_vtcl_grids*11*sizeof(uint8_t);
     uint8_t* extraced_bytes;
     cudaMalloc((void**)&extraced_bytes, n_extracted_bytes);
     cudaMemset(extraced_bytes, 0, n_extracted_bytes);
@@ -245,7 +255,6 @@ void extract_bytes(uint8_t t, uint32_t w, uint32_t h, uint32_t n_hztl_grids, uin
 
 
 
-#include <opencv2/core/core.hpp>
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <cstdlib> // for exit()
@@ -287,23 +296,19 @@ class BPCSStreamBuf {
     BPCSStreamBuf(const uint8_t min_complexity, int img_n, int n_imgs, char** im_fps):
                 // WARNING: img_fps is just argv which needs an index to skip the options
                 // Use double pointer rather than array of pointers due to constraints on constructor initialisation
-    not_exhausted(true),
     min_complexity(min_complexity), img_n(img_n), img_n_offset(img_n), n_imgs(n_imgs), img_fps(im_fps)
     {}
     
     
-    bool not_exhausted;
     int n_extracted_bytes;
     
     uchar* img_data;
     uint8_t* extraction_byte_tensor;
     
-    void gets();
-    void load_next_img(); // Init
+    bool gets();
+    void load_next_img();
   private:
     const uint8_t min_complexity;
-    
-    uint8_t channel_n;
     
     uint32_t w;
     uint32_t h;
@@ -315,44 +320,33 @@ class BPCSStreamBuf {
     int n_imgs;
     
     char** img_fps;
-    
-    cv::Mat im_mat;
-    std::vector<cv::Mat> channel_byteplanes;
 };
 
-void BPCSStreamBuf::gets(){
-    if (this->channel_n == N_CHANNELS){
-        if (this->img_n == this->n_imgs){
-            this->not_exhausted = false;
-            return;
-        }
-        this->load_next_img();
-    }
+bool BPCSStreamBuf::gets(){
+    if (this->img_n == this->n_imgs)
+        return false;
     
-  #ifdef DEBUG
-    printf("Extracting channel with settings:\n\tthreshold=%d\tw=%d\th=%d\tn_hztl_grids=%d\tn_vtcl_grids=%d\n", this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids);
-  #endif
+    this->load_next_img();
     
-    extract_bytes(this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids, this->channel_byteplanes[0].data, this->extraction_byte_tensor);
+    extract_bytes(this->min_complexity, this->w, this->h, this->n_hztl_grids, this->n_vtcl_grids, this->img_data, this->extraction_byte_tensor);
     
     this->n_extracted_bytes = 0;
-    for (int j=0; j<this->n_vtcl_grids; ++j)
-        for (int i=0; i<this->n_hztl_grids; ++i)
-            if (this->extraction_byte_tensor[11*(this->n_hztl_grids*j + i) + 0] != 0)
-                for (int k=1; k<11; ++k)
-                    this->extraction_byte_tensor[this->n_extracted_bytes++] = this->extraction_byte_tensor[11*(w*j + i) + k];
-                    // Index of LHS is not greater than index of RHS - this is overwriting from the 'left'
+    for (int i=0; i<N_CHANNELS*this->n_vtcl_grids*this->n_hztl_grids; ++i)
+        if (this->extraction_byte_tensor[11*i + 0] != 0)
+            for (int k=1; k<11; ++k)
+                this->extraction_byte_tensor[this->n_extracted_bytes++] = this->extraction_byte_tensor[11*i + k];
+                // Index of LHS is not greater than index of RHS - this is overwriting from the 'left'
     
-    --this->n_extracted_bytes;
   #ifdef DEBUG
     printf("Extracted %d bytes\n", this->n_extracted_bytes);
   #endif
     
-    ++this->channel_n;
+    return true;
 }
 
 void BPCSStreamBuf::load_next_img(){
     if (this->img_n != this->img_n_offset){
+        free(this->img_data);
         free(this->extraction_byte_tensor);
     }
     
@@ -416,7 +410,8 @@ void BPCSStreamBuf::load_next_img(){
     this->n_vtcl_grids = this->h/9;
     
     #ifdef TESTS
-        assert(bit_depth == N_BITPLANES);
+        if (bit_depth != N_BITPLANES)
+            handler(61);
         if (colour_type != PNG_COLOR_TYPE_RGB){
             handler(61);
         }
@@ -425,8 +420,10 @@ void BPCSStreamBuf::load_next_img(){
     png_read_update_info(png_ptr, png_info_ptr);
     
     #ifdef TESTS
-        assert(png_get_channels(png_ptr, png_info_ptr) == 3);
-        assert(png_get_rowbytes(png_ptr, png_info_ptr) == N_CHANNELS*this->w);
+        if (png_get_channels(png_ptr, png_info_ptr) != 3)
+            handler(61);
+        if (png_get_rowbytes(png_ptr, png_info_ptr) != N_CHANNELS*this->w)
+            handler(61);
     #endif
     
     this->img_data = (uchar*)malloc(N_CHANNELS*this->w*this->h);
@@ -442,16 +439,7 @@ void BPCSStreamBuf::load_next_img(){
     
     rgb2cgc(N_CHANNELS*this->w*this->h, this->img_data);
     
-    this->im_mat = cv::Mat(this->h, this->w, CV_8UC3, this->img_data);
-    // WARNING: Loaded as RGB rather than OpenCV's default BGR
-    
-    cv::split(this->im_mat, this->channel_byteplanes);
-    
-    free(this->img_data);
-    
-    this->extraction_byte_tensor = (uint8_t*)malloc(this->n_hztl_grids*this->n_vtcl_grids*11*sizeof(uint8_t));
-    
-    this->channel_n = 0;
+    this->extraction_byte_tensor = (uint8_t*)malloc(N_CHANNELS * this->n_hztl_grids * this->n_vtcl_grids * 11 * sizeof(uint8_t));
     
     ++this->img_n;
 }
@@ -490,14 +478,11 @@ int main(const int argc, char* argv[]){
     const uint8_t min_complexity = 50 + (argv[++i][0] -48);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv);
-    bpcs_stream.load_next_img(); // Init
     
-    do {
-        bpcs_stream.gets();
+    while (bpcs_stream.gets()){
       #ifdef DEBUG
         if (print_content)
       #endif
             write(STDOUT_FILENO, bpcs_stream.extraction_byte_tensor, bpcs_stream.n_extracted_bytes);
-    } while (bpcs_stream.not_exhausted);
-    free(bpcs_stream.extraction_byte_tensor);
+    }
 }
