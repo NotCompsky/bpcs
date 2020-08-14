@@ -463,8 +463,9 @@ void BPCSStreamBuf::load_next_img(){
     cv::split(this->im_mat, this->channel_byteplanes);
   #ifdef EMBEDDOR
     if (!this->embedding)
-        free(this->img_data);
   #endif
+        free(this->img_data);
+    
     
     #ifdef DEBUG
         mylog.set_verbosity(4);
@@ -763,10 +764,11 @@ void BPCSStreamBuf::save_im(){
 
 int main(const int argc, char* argv[]){
     int i = 0;
-#ifdef EMBEDDOR
-    const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
 	
 	init_chequerboard();
+	
+#ifdef EMBEDDOR
+    const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
     
     char* out_fmt;
     
