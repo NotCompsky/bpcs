@@ -15,7 +15,7 @@
 
 #define GRID_W 9
 #define GRID_H 9
-#define N_BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 10)
+#define N_BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
 #define CONJUGATION_BIT_INDX (GRID_W * GRID_H - 1)
 typedef std::array<uchar, N_BYTES_PER_GRID> GridBytesArr;
 
