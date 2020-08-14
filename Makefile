@@ -52,7 +52,7 @@ LINKER_OPTS += -lopencv_core
 endif
 
 ifneq ($(LIBPNG_DIR), )
-INCLUDES += $(LIBPNG_DIR)/include
+INCLUDES += $(LIBPNG_DIR) $(LIBPNG_DIR)/include
 LIBRARY_PATHS += $(LIBPNG_DIR)/lib
 LINKER_OPTS += -lpng -rpath=$(LIBPNG_DIR)/lib
 else
