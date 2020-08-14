@@ -102,6 +102,8 @@ __global__ void gpu_extract_bytes(
                 auto indx = 11 * ((N_BITPLANES * ((n_hztl_grids * row) + col) + n_bitplane) + channel_n * (n_vtcl_grids * n_hztl_grids * N_BITPLANES));
                 extraced_bytes[indx] = 1;
                 
+                conjugation = bytegrid[80];
+                
                 for (int n_byte=1; n_byte<11; ++n_byte){
                     extraced_bytes[indx + n_byte] = 0;
                     

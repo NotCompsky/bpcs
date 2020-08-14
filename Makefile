@@ -63,11 +63,12 @@ ifneq ($(USE_CUDA), )
 #LIBRARY_PATHS += $(CUDA_DIR)/include
 LINKER_OPTS += -lcuda -lcudart
 GPU_MAT_SRC = gpu_mat_ops.o
-BPCS_SRC=bpcs_cuda.cpp
+BPCS_SRC=src/bpcs_cuda.cpp
 else
 GPU_MAT_SRC = 
-BPCS_SRC=bpcs.cpp
+BPCS_SRC=src/bpcs.cpp
 endif
+FMT_SRC=src/fmt.cpp
 
 
 
@@ -129,11 +130,11 @@ debug-main:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
 
 debug-fmt:
-	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
+	$(CC) $(CPPFLAGS_) $(FMT_SRC) -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
 
 debug:
 	$(CC) $(CPPFLAGS) -o $(EXVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
-	$(CC) $(CPPFLAGS_) fmt.cpp -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
+	$(CC) $(CPPFLAGS_) $(FMT_SRC) -o $(FMVPATH) $(STD_PARAMS) $(DEBUGFLAGS)
 
 
 define RELEASE
@@ -151,8 +152,8 @@ endef
 
 
 define RELEASE_FMT
-	$(call RELEASE,$(1),$(GPU_MAT_SRC),fmt.cpp,$(FMTPATH),)
-	$(call RELEASE,$(1),$(GPU_MAT_SRC),fmt.cpp,$(FMEPATH), -DEMBEDDOR)
+	$(call RELEASE,$(1),$(GPU_MAT_SRC),$(FMT_SRC),$(FMTPATH),)
+	$(call RELEASE,$(1),$(GPU_MAT_SRC),$(FMT_SRC),$(FMEPATH), -DEMBEDDOR)
 	
 endef
 
@@ -165,10 +166,10 @@ release-main:
 	$(call RELEASE_BPCS,$(CC))
 
 debug-cuda:
-	nvcc -O0 $(CUDA_COMPILER_DEBUG_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+	nvcc -O0 $(CUDA_COMPILER_DEBUG_OPTS) -ccbin=g++ src/bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
 
 release-cuda:
-	nvcc $(CUDA_COMPILER_RELEASE_OPTS) -ccbin=g++ bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+	nvcc $(CUDA_COMPILER_RELEASE_OPTS) -ccbin=g++ src/bpcs_cuda.cu -o build/bpcs_cuda $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
 
 release-fmt:
 	$(call RELEASE_FMT,$(CC))
