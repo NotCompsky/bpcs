@@ -1,8 +1,12 @@
+#pragma once
+
+
 #include <cstring> // for memcpy
 #ifdef TESTS
     #include <assert.h>
     #include <iostream>
 #endif
+
 
 inline int32_t _format_out_fp(char* out_fmt, char** fp, int32_t dir_length, int32_t indx_dot, int32_t i, int32_t fp_length){
     int32_t basename_length;
@@ -42,30 +46,6 @@ inline int32_t _format_out_fp(char* out_fmt, char** fp, int32_t dir_length, int3
         result_length += 1;
     }
     ++result_length; // terminating 0
-    
-#ifdef DEBUG
-    std::cout << "result_length:\t" << +result_length << std::endl;
-    char basename[basename_length+1];
-    memcpy(basename, *fp + dir_length + 1, basename_length);
-    basename[basename_length] = 0;
-    std::cout << "basename_length:\t" << +basename_length << "\t" << basename << std::endl;
-    char dir[dir_length+1];
-    memcpy(dir, *fp, dir_length);
-    dir[dir_length] = 0;
-    std::cout << "dir_length:\t" << +dir_length << "\t" << dir << std::endl;
-    char ext[ext_length+1];
-    memcpy(ext, *fp + indx_dot + 1, ext_length);
-    ext[ext_length] = 0;
-    std::cout << "ext_length:\t" << +ext_length << "\t" << ext << std::endl;
-    char fname[fname_length+1];
-    memcpy(fname, *fp + dir_length +1, fname_length);
-    fname[fname_length] = 0;
-    std::cout << "fname_length:\t" << +fname_length << "\t" << fname << std::endl;
-    char effpee[fp_length+1];
-    memcpy(effpee, *fp, fp_length);
-    effpee[fp_length] = 0;
-    std::cout << "fp_length:\t" << +fp_length << "\t" << effpee << std::endl;
-#endif
     
     char* result = (char*)malloc(result_length);
     
