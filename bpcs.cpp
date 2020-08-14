@@ -2,7 +2,6 @@
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <array>
-#include <compsky/macros/likely.hpp>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
     #define IS_POSIX
@@ -17,6 +16,14 @@
 typedef cv::Matx<uchar, 9, 9> Matx99uc;
 typedef cv::Matx<uchar, 9, 8> Matx98uc;
 typedef cv::Matx<uchar, 8, 9> Matx89uc;
+
+
+
+
+
+void handler(int sgnl){
+    exit(sgnl);
+}
 
 
 /*
@@ -221,14 +228,23 @@ void BPCSStreamBuf::load_next_img(){
     uchar png_sig[8];
     
     fread(png_sig, 1, 8, png_file);
-	if (unlikely(!png_check_sig(png_sig, 8)))
-		throw std::runtime_error("Not a PNG file");
+    if (!png_check_sig(png_sig, 8)){
+        
+        handler(60);
+    }
     
     auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	auto png_info_ptr = png_create_info_struct(png_ptr);
     
-	if (unlikely((png_ptr == nullptr) or (png_info_ptr == nullptr)))
-		throw std::runtime_error("Cannot allocate memory for reading PNG file");
+    if (!png_ptr)
+        // Could not allocate memory
+        handler(4);
+  
+    auto png_info_ptr = png_create_info_struct(png_ptr);
+    
+    if (!png_info_ptr){
+        png_destroy_read_struct(&png_ptr, NULL, NULL);
+        handler(69);
+    }
     
     /* ERROR - incorrect use of incomplete type
     if (setjmp(png_ptr->jmpbuf)){
@@ -416,8 +432,9 @@ void BPCSStreamBuf::set_next_grid(){
     // This is not necessarily alarming - this termination is used rather than returning status values for each get() call.
     
     #ifdef EMBEDDOR
-	if (unlikely(this->embedding))
-		throw std::runtime_error("Exhausted all images while embedding");
+    if (this->embedding){
+        handler(255);
+    }
     #endif
     not_exhausted = false;
     return;
@@ -482,8 +499,10 @@ void BPCSStreamBuf::save_im(){
         do {
             --k;
             #ifdef TESTS
-				if (unlikely(this->bitplanes[k].cols == 0))
-					throw std::runtime_error("Empty bitplane");
+                if (this->bitplanes[k].cols == 0){
+                    std::cerr << "bitplane " << +k << " is empty" << std::endl;
+                    handler(10);
+                }
             #endif
             
             this->bitplane = this->bitplanes[k].clone();
@@ -503,36 +522,49 @@ void BPCSStreamBuf::save_im(){
     auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     
     #ifdef TESTS
-	if (unlikely((png_file == nullptr) or (png_ptr == nullptr)))
-		throw std::runtime_error("Cannot allocate memory for writing PNG file");
+    if (!png_file){
+        handler(5);
+    }
+    if (!png_ptr){
+        handler(66);
+    }
     #endif
     
     auto png_info_ptr = png_create_info_struct(png_ptr);
-	if (unlikely(png_info_ptr == nullptr))
-		throw std::runtime_error("Cannot create PNG info struct");
     
-	if (unlikely(setjmp(png_jmpbuf(png_ptr))))
-		throw std::runtime_error("libpng error was set during PNG write struct creation");
+    if (!png_info_ptr){
+        handler(67);
+    }
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        handler(68);
+    }
     
     png_init_io(png_ptr, png_file);
-	if (unlikely(setjmp(png_jmpbuf(png_ptr))))
-		throw std::runtime_error("libpng error was set while initialising the PNG write struct");
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        handler(69);
+    }
     
     png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
     
     png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, N_BITPLANES, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     
     png_write_info(png_ptr, png_info_ptr);
-	if (unlikely(setjmp(png_jmpbuf(png_ptr))))
-		throw std::runtime_error("libpng error was set while writing PNG info to the struct");
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        handler(64);
+    }
     
     uchar* row_ptrs[this->im_mat.rows];
     for (uint32_t i=0; i<this->im_mat.rows; ++i)
         row_ptrs[i] = this->img_data + i*3*this->im_mat.cols;
     
     png_write_image(png_ptr, row_ptrs);
-	if (unlikely(setjmp(png_jmpbuf(png_ptr))))
-		throw std::runtime_error("libpng error was set while writing to the output image file");
+    
+    if (setjmp(png_jmpbuf(png_ptr))){
+        handler(65);
+    }
     
     png_write_end(png_ptr, NULL);
     
