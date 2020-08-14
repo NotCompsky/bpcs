@@ -26,15 +26,15 @@ FMTPATH = $(BUILD_DIR)/bpcs-fmt-e_$(V)
 FMVPATH = $(BUILD_DIR)/bpcs-fmt-v_$(V)
 
 
-LINKER_OPTS = -Wl,--gc-sections -Wl,--build-id=none
+LINKER_OPTS = --gc-sections --build-id=none
 
 DEBUGFLAGS = -DDEBUG -DTESTS -rdynamic -DEMBEDDOR -g
 TINYFLAGS = -ffunction-sections -fdata-sections -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden
 NODEBUGFLAGS = -DNDEBUG -fno-exceptions -DARGS_NOEXCEPT
-RELEASEFLAGS_ = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
-RELEASEFLAGS = $(RELEASEFLAGS) $(LINKER_OPTS) -flto
-# nvcc is not capable of LTO. g++ forgets what -Wl,... means when it is passed through by nvcc -compiler-optioins
-LDLIBS = -lsodium -lpng -lopencv_core
+
+
+
+LINKER_OPTS += -lsodium
 
 
 LIBRARY_PATHS=
@@ -46,21 +46,22 @@ OBJ_FILES=
 ifneq ($(OPENCV_DIR), )
 INCLUDES += $(OPENCV_DIR)/include/opencv4
 LIBRARY_PATHS += $(OPENCV_DIR)/lib
-LDLIBS += -lopencv_core -Wl,-rpath=$(OPENCV_DIR)/lib
+LINKER_OPTS += -lopencv_core -rpath=$(OPENCV_DIR)/lib
+else
+LINKER_OPTS += -lopencv_core
 endif
 
 ifneq ($(LIBPNG_DIR), )
 INCLUDES += $(LIBPNG_DIR)/include
 LIBRARY_PATHS += $(LIBPNG_DIR)/lib
-LDLIBS += $(LIBPNG_DIR) -Wl,-rpath=$(LIBPNG_DIR)/lib
+LINKER_OPTS += -lpng -rpath=$(LIBPNG_DIR)/lib
+else
+LINKER_OPTS += -lpng
 endif
-
-PREOPS=
 
 ifneq ($(USE_CUDA), )
 #LIBRARY_PATHS += $(CUDA_DIR)/include
-LDLIBS += -lcuda -lcudart
-PREOPS += nvcc -c gpu_mat_ops.cu
+LINKER_OPTS += -lcuda -lcudart
 GPU_MAT_SRC = gpu_mat_ops.o
 BPCS_SRC=bpcs_cuda.cpp
 else
@@ -70,9 +71,21 @@ endif
 
 
 
+
+
+
+RELEASEFLAGS_ = -Ofast -s -frename-registers $(NODEBUGFLAGS) $(TINYFLAGS) -march=native -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations
+RELEASEFLAGS = $(RELEASEFLAGS_) -flto
+# nvcc is not capable of LTO. g++ forgets what -Wl,... means when it is passed through by nvcc -compiler-optioins
+
+
+
+
+LINKER_FLAGS = $(foreach opt, $(LINKER_OPTS), -Wl,$(opt))
+
 LIBRARY_PARAMS = $(foreach d, $(LIBRARY_PATHS), -L$d)
 INCLUDE_PARAMS = $(foreach d, $(INCLUDES), -I$d)
-STD_PARAMS = $(OBJ_FILES) $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LDLIBS)
+STD_PARAMS = $(OBJ_FILES) $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LINKER_FLAGS)
 
 
 STRIP_ARGS_VERNEEN_RECORD =  -R .gnu.version_r
@@ -97,7 +110,7 @@ endif
 CPPFLAGS = $(CPPFLAGS_) $(BPCS_SRC)
 
 
-CUDA_COMPILER_OPTS := $(foreach opt, $(CPPFLAGS_), --compiler-options $(opt))
+CUDA_COMPILER_OPTS := $(foreach opt, $(CPPFLAGS_), --compiler-options $(opt)) $(foreach opt, $(LINKER_OPTS), --linker-options $(opt))
 CUDA_COMPILER_RELEASE_OPTS := $(CUDA_COMPILER_OPTS) $(foreach opt, $(RELEASEFLAGS_), --compiler-options $(opt))
 CUDA_COMPILER_DEBUG_OPTS := $(CUDA_COMPILER_OPTS) $(foreach opt, $(DEBUGFLAGS), --compiler-options $(opt))
 
@@ -131,7 +144,6 @@ endef
 
 
 define RELEASE_BPCS
-	$(PREOPS)
 	$(call RELEASE,$(1),$(GPU_MAT_SRC),$(BPCS_SRC),$(EXTPATH),)
 	$(call RELEASE,$(1),$(GPU_MAT_SRC),$(BPCS_SRC),$(EXEPATH), -DEMBEDDOR)
 	

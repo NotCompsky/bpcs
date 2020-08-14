@@ -20,7 +20,7 @@
 #endif
 #ifdef DEBUG
     #include <iostream> // for std::cout, std::endl
-    #include <compsky/logger.hpp> // for CompskyLogger
+    #include "logger.hpp" // for CompskyLogger
     
     // Fancy loggers
     static CompskyLogger mylog("bpcs", std::cout);

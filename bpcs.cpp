@@ -1,6 +1,7 @@
 #include <opencv2/core/core.hpp>
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
+#include <array>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
     #define IS_POSIX
@@ -8,7 +9,7 @@
 
 #ifdef DEBUG
     #include <iostream>
-    #include <compsky/logger.hpp> // for CompskyLogger
+    #include "logger.hpp" // for CompskyLogger
 
     #ifdef IS_POSIX
         #include <execinfo.h> // for printing stack trace
@@ -73,18 +74,26 @@ inline void cv_div2(cv::Mat& arr, cv::Mat& dest){
     dest -= m;
 }
 
-inline void convert_to_cgc(cv::Mat &arr){
-    #ifdef DEBUG
-        mylog.set_verbosity(5);
-        mylog.set_cl(0);
-        mylog << "Converted to CGC: arr(sum==" << +cv::sum(arr)[0] << ") -> dest(sum==";
-    #endif
-    cv::Mat dest;
-    cv_div2(arr, dest);
-    cv::bitwise_xor(arr, dest, arr);
-    #ifdef DEBUG
-        mylog << +cv::sum(arr)[0] << ")" << std::endl;
-    #endif
+inline
+constexpr
+uint8_t to_cgc(const uint8_t n){
+	return n ^ (n / 2);
+}
+
+inline
+void convert_to_cgc(cv::Mat &arr){
+	for (uint64_t i = 0;  i < (uint64_t)arr.cols * (uint64_t)arr.rows;  ++i)
+		arr.data[i]  =  to_cgc(arr.data[i]);
+}
+
+inline
+void convert_from_cgc(cv::Mat &arr){
+	constexpr
+	static
+	const uint8_t from_cgc[256] = {0, 1, 3, 2, 7, 6, 4, 5, 15, 14, 12, 13, 8, 9, 11, 10, 31, 30, 28, 29, 24, 25, 27, 26, 16, 17, 19, 18, 23, 22, 20, 21, 63, 62, 60, 61, 56, 57, 59, 58, 48, 49, 51, 50, 55, 54, 52, 53, 32, 33, 35, 34, 39, 38, 36, 37, 47, 46, 44, 45, 40, 41, 43, 42, 127, 126, 124, 125, 120, 121, 123, 122, 112, 113, 115, 114, 119, 118, 116, 117, 96, 97, 99, 98, 103, 102, 100, 101, 111, 110, 108, 109, 104, 105, 107, 106, 64, 65, 67, 66, 71, 70, 68, 69, 79, 78, 76, 77, 72, 73, 75, 74, 95, 94, 92, 93, 88, 89, 91, 90, 80, 81, 83, 82, 87, 86, 84, 85, 255, 254, 252, 253, 248, 249, 251, 250, 240, 241, 243, 242, 247, 246, 244, 245, 224, 225, 227, 226, 231, 230, 228, 229, 239, 238, 236, 237, 232, 233, 235, 234, 192, 193, 195, 194, 199, 198, 196, 197, 207, 206, 204, 205, 200, 201, 203, 202, 223, 222, 220, 221, 216, 217, 219, 218, 208, 209, 211, 210, 215, 214, 212, 213, 128, 129, 131, 130, 135, 134, 132, 133, 143, 142, 140, 141, 136, 137, 139, 138, 159, 158, 156, 157, 152, 153, 155, 154, 144, 145, 147, 146, 151, 150, 148, 149, 191, 190, 188, 189, 184, 185, 187, 186, 176, 177, 179, 178, 183, 182, 180, 181, 160, 161, 163, 162, 167, 166, 164, 165, 175, 174, 172, 173, 168, 169, 171, 170};
+	
+	for (uint64_t i = 0;  i < (uint64_t)arr.cols * (uint64_t)arr.rows;  ++i)
+		arr.data[i]  =  from_cgc[arr.data[i]];
 }
 
 
@@ -92,7 +101,16 @@ inline void convert_to_cgc(cv::Mat &arr){
 /*
  * Initialise chequerboard
  */
-static const Matx99uc chequerboard{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+static Matx99uc chequerboard;
+void init_chequerboard(){
+	// NOTE: Matx template initialisation has changed, soo we have to do this for now.
+#define GRID_W 9
+#define GRID_H 9
+	for (auto j = 0;  j < GRID_H;  ++j)
+		for (auto i = 0;  i < GRID_W;  ++i)
+			chequerboard.val[GRID_W*j + i] = 1 ^ ((i & 1) ^ (j & 1));
+			// NOTE: chequerboard.val[0] should be 1, so that when the chequerboard is applied to grids, the grid[80] == 1 (to mark it as conjugated)
+}
 
 
 
@@ -394,6 +412,8 @@ void BPCSStreamBuf::load_next_img(){
     );
     
     #ifdef TESTS
+		mylog.set_verbosity(0);
+		mylog << "bit_depth: " << +bit_depth << std::endl;
         assert(bit_depth == N_BITPLANES);
         if (colour_type != PNG_COLOR_TYPE_RGB){
             #ifdef DEBUG
@@ -525,12 +545,7 @@ void BPCSStreamBuf::set_next_grid(){
                 this->x = i;
                 this->y = j;
                 #ifdef DEBUG
-                    ++this->n_complex_grids_found;
-                    mylog.set_verbosity(7);
-                    mylog.set_cl('B');
-                    mylog << "Found grid(" << +i << "," << +j << "): " << +complexity << "\n";
-                    mylog.set_cl('r');
-                    mylog << this->grid << std::endl;
+				fprintf(stderr, "Grid<%d,%d> complexity == %d\n", i, j, (int)complexity); fflush(stderr);
                 #endif
                 return;
             }
@@ -614,8 +629,12 @@ std::array<uchar, 10> BPCSStreamBuf::get(){
     
     this->set_next_grid();
     
-    if (this->grid.val[80] != 0)
+    if (this->grid.val[80] != 0){
+#ifdef DEBUG
+		fprintf(stderr,  "  Conjugated [%d]\n", (int)this->grid.val[80]);
+#endif
         this->conjugate_grid();
+	}
     
     return out;
 }
@@ -630,21 +649,17 @@ void BPCSStreamBuf::put(std::array<uchar, 10> in){
     
     this->grid.val[80] = 0;
     
-    #ifdef DEBUG
-        sgetputc_count += 10;
-        if (sgetputc_count >= SGETPUTC_TO)
-            handler(0);
-        else if (sgetputc_count >= SGETPUTC_FROM)
-            mylog.set_level(10);
-        mylog.set_verbosity(8);
-        mylog.set_cl('B');
-        mylog << "Last grid (pre-conj)" << "\n";
-        mylog.set_cl(0);
-        mylog << this->grid << std::endl;
-    #endif
-    if (this->get_grid_complexity(this->grid) < this->min_complexity)
+    if (this->get_grid_complexity(this->grid) < this->min_complexity){
         this->conjugate_grid();
+#ifdef DEBUG
+		fprintf(stderr,  "  Conjugated [%d]\n", (int)this->grid.val[80]);
+#endif
+	}
     
+#ifdef DEBUG
+	fprintf(stderr, "New complexity == %d\n", (int)this->get_grid_complexity(this->grid)); fflush(stderr);
+#endif
+	
     cv::Mat(this->grid).copyTo(this->grid_orig);
     this->set_next_grid();
 }
@@ -681,7 +696,7 @@ void BPCSStreamBuf::save_im(){
     
     format_out_fp(this->out_fmt, &this->img_fps[this->img_n -1]);
     cv::merge(this->channel_byteplanes, this->im_mat);
-    convert_to_cgc(this->im_mat);
+	convert_from_cgc(this->im_mat);
     #ifdef DEBUG
         mylog.set_verbosity(3);
         mylog.set_cl('g');
@@ -750,6 +765,8 @@ int main(const int argc, char* argv[]){
     int i = 0;
 #ifdef EMBEDDOR
     const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
+	
+	init_chequerboard();
     
     char* out_fmt;
     
