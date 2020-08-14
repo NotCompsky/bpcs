@@ -81,11 +81,11 @@ RELEASEFLAGS = $(RELEASEFLAGS_) -flto
 
 
 
-LINKER_FLAGS = $(foreach opt, $(LINKER_OPTS), -Wl,$(opt))
+
 
 LIBRARY_PARAMS = $(foreach d, $(LIBRARY_PATHS), -L$d)
 INCLUDE_PARAMS = $(foreach d, $(INCLUDES), -I$d)
-STD_PARAMS = $(OBJ_FILES) $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(LINKER_FLAGS)
+STD_PARAMS = $(OBJ_FILES) $(LIBRARY_PARAMS) $(INCLUDE_PARAMS) $(foreach opt, $(LINKER_OPTS), -Wl,$(opt))
 
 
 STRIP_ARGS_VERNEEN_RECORD =  -R .gnu.version_r
