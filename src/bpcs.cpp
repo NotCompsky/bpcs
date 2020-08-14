@@ -11,7 +11,7 @@
     #include "utils.hpp" // for format_out_fp
 #endif
 
-#include "config.h" // for N_BITPLANES, N_CHANNELS
+#include "config.h"
 
 typedef cv::Matx<uchar, 9, 9> Matx99uc;
 typedef cv::Matx<uchar, 9, 8> Matx98uc;
@@ -133,6 +133,7 @@ class BPCSStreamBuf {
     const uint8_t min_complexity;
     
     uint8_t channel_n;
+	int n_bitplanes;
     uint8_t bitplane_n;
     
     const int img_n_offset;
@@ -154,7 +155,7 @@ class BPCSStreamBuf {
     cv::Mat bitplane;
     
     #ifdef EMBEDDOR
-    cv::Mat bitplanes[N_BITPLANES * 4]; // WARNING: Images rarely have a bit-depth greater than 32, but would ideally be set on per-image basis
+    cv::Mat bitplanes[MAX_BITPLANES];
     #endif
     
     std::vector<cv::Mat> channel_byteplanes;
@@ -217,8 +218,6 @@ void BPCSStreamBuf::load_next_channel(){
 }
 
 void BPCSStreamBuf::load_next_img(){
-    
-    
   #ifdef TESTS
     assert(this->img_n != this->n_imgs);
   #endif
@@ -260,22 +259,21 @@ void BPCSStreamBuf::load_next_img(){
     uint32_t w;
     uint32_t h;
   #ifdef TESTS
-    int32_t bit_depth;
     int32_t colour_type;
   #endif
     
     png_get_IHDR(
-        png_ptr, png_info_ptr, &w, &h
+        png_ptr, png_info_ptr, &w, &h, &this->n_bitplanes
       #ifdef TESTS
-        , &bit_depth, &colour_type
+        , &colour_type
       #else
-        , nullptr, nullptr
+        , nullptr
       #endif
         , NULL, NULL, NULL
     );
     
     #ifdef TESTS
-        assert(bit_depth == N_BITPLANES);
+        assert(this->n_bitplanes <= MAX_BITPLANES);
 		assert(colour_type == PNG_COLOR_TYPE_RGB);
     #endif
     
@@ -321,23 +319,18 @@ void BPCSStreamBuf::load_next_img(){
         free(this->img_data);
     
     
-    
     this->channel_n = 0;
     
     #ifdef EMBEDDOR
     if (this->embedding){
-        uint_fast8_t k = 0;
-        uint_fast8_t i = 0;
-        for (uint_fast8_t j=0; j<N_CHANNELS; ++j){
-            i = 0;
-            while (i < N_BITPLANES){
+		auto k = 0;
+        for (auto j = 0;  j < N_CHANNELS;  ++j){
+			for (auto i = 0;  i < this->n_bitplanes;  ++i){
                 this->bitplanes[k++] = this->channel_byteplanes[j] & 1;
                 cv_div2(this->channel_byteplanes[j], this->channel_byteplanes[j]);
-                ++i;
             }
         }
         this->bitplane = this->bitplanes[0];
-        
         this->bitplane_n = 0;
     } else {
     #endif
@@ -355,7 +348,6 @@ void BPCSStreamBuf::load_next_img(){
     #endif
         if (this->img_n == this->img_n_offset){
             // If false, this function is being called from within get()
-            
             if (this->grid.val[80])
                 this->conjugate_grid();
         }
@@ -379,8 +371,6 @@ void BPCSStreamBuf::set_next_grid(){
             
             complexity = this->get_grid_complexity(this->grid_orig);
             
-            
-            
             i += 9;
             
             if (complexity >= this->min_complexity){
@@ -399,18 +389,16 @@ void BPCSStreamBuf::set_next_grid(){
     this->x = 0;
     this->y = 0;
     
-    
-    
     ++this->bitplane_n;
     #ifdef EMBEDDOR
     if (this->embedding){
-        if (this->bitplane_n < N_BITPLANES * N_CHANNELS){
+        if (this->bitplane_n < this->n_bitplanes * N_CHANNELS){
             this->bitplane = this->bitplanes[this->bitplane_n];
             goto try_again;
         }
     } else
     #endif
-    if (this->bitplane_n < N_BITPLANES){
+    if (this->bitplane_n < this->n_bitplanes){
         this->load_next_bitplane();
         goto try_again;
     } else if (++this->channel_n < N_CHANNELS){
@@ -452,49 +440,40 @@ std::array<uchar, 10> BPCSStreamBuf::get(){
         }
     }
     
-    
-    
     this->set_next_grid();
     
-    if (this->grid.val[80] != 0){
-
+    if (this->grid.val[80] != 0)
         this->conjugate_grid();
-	}
     
     return out;
 }
 
 #ifdef EMBEDDOR
 void BPCSStreamBuf::put(std::array<uchar, 10> in){
-    for (uint_fast8_t j=0; j<10; ++j)
+    for (uint_fast8_t j=0; j<10; ++j){
         for (uint_fast8_t i=0; i<8; ++i){
             this->grid.val[8*j +i] = in[j] & 1;
             in[j] = in[j] >> 1;
         }
+	}
     
     this->grid.val[80] = 0;
     
-    if (this->get_grid_complexity(this->grid) < this->min_complexity){
+    if (this->get_grid_complexity(this->grid) < this->min_complexity)
         this->conjugate_grid();
-
-	}
     
-
-	
     cv::Mat(this->grid).copyTo(this->grid_orig);
     this->set_next_grid();
 }
 
 void BPCSStreamBuf::save_im(){
-    
-    uint_fast8_t j;
-    uint_fast8_t k = N_CHANNELS * N_BITPLANES;
+    uint_fast8_t k = N_CHANNELS * this->n_bitplanes;
     uint_fast8_t i = N_CHANNELS -1;
     
     do {
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
         this->channel_byteplanes[i] = this->bitplanes[--k].clone();
-        j = N_BITPLANES -1;
+		auto j = this->n_bitplanes - 1;
         this->channel_byteplanes[i] *= (1 << j--);
         do {
             --k;
@@ -514,8 +493,6 @@ void BPCSStreamBuf::save_im(){
     format_out_fp(this->out_fmt, &this->img_fps[this->img_n -1]);
     cv::merge(this->channel_byteplanes, this->im_mat);
 	convert_from_cgc(this->im_mat);
-    
-    
     
     
     FILE* png_file = fopen(this->img_fps[this->img_n -1], "wb");
@@ -548,7 +525,7 @@ void BPCSStreamBuf::save_im(){
     
     png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
     
-    png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, N_BITPLANES, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     
     png_write_info(png_ptr, png_info_ptr);
     
@@ -590,7 +567,6 @@ int main(const int argc, char* argv[]){
     } else
         out_fmt = NULL;
 #endif
-    
     
     
     const uint8_t min_complexity = 50 + (argv[++i][0] - '0');
