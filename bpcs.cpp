@@ -13,15 +13,9 @@
 
 #include "config.h" // for N_BITPLANES, N_CHANNELS
 
-#define GRID_W 9
-#define GRID_H 9
-#define N_BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
-#define CONJUGATION_BIT_INDX (GRID_W * GRID_H - 1)
-typedef std::array<uchar, N_BYTES_PER_GRID> GridBytesArr;
-
-typedef cv::Matx<uchar, GRID_H,   GRID_W>   Matx99uc;
-typedef cv::Matx<uchar, GRID_H,   GRID_W-1> Matx98uc;
-typedef cv::Matx<uchar, GRID_H-1, GRID_W>   Matx89uc;
+typedef cv::Matx<uchar, 9, 9> Matx99uc;
+typedef cv::Matx<uchar, 9, 8> Matx98uc;
+typedef cv::Matx<uchar, 8, 9> Matx89uc;
 
 
 
@@ -72,10 +66,12 @@ void convert_from_cgc(cv::Mat &arr){
 static Matx99uc chequerboard;
 void init_chequerboard(){
 	// NOTE: Matx template initialisation has changed, soo we have to do this for now.
+#define GRID_W 9
+#define GRID_H 9
 	for (auto j = 0;  j < GRID_H;  ++j)
 		for (auto i = 0;  i < GRID_W;  ++i)
 			chequerboard.val[GRID_W*j + i] = 1 ^ ((i & 1) ^ (j & 1));
-			// NOTE: chequerboard.val[0] should be 1, so that when the chequerboard is applied to grids, the grid[CONJUGATION_BIT_INDX] == 1 (to mark it as conjugated)
+			// NOTE: chequerboard.val[0] should be 1, so that when the chequerboard is applied to grids, the grid[80] == 1 (to mark it as conjugated)
 }
 
 
@@ -116,7 +112,7 @@ class BPCSStreamBuf {
     char* out_fmt = NULL;
     #endif
     
-    GridBytesArr get();
+    std::array<uchar, 10> get();
     
     
     
@@ -125,7 +121,7 @@ class BPCSStreamBuf {
     void load_next_img(); // Init
     
     #ifdef EMBEDDOR
-    void put(GridBytesArr);
+    void put(std::array<uchar, 10>);
     void save_im(); // End
     #endif
   private:
@@ -143,17 +139,17 @@ class BPCSStreamBuf {
     int img_n;
     int n_imgs;
     
-    Matx99uc grid{GRID_H, GRID_W, CV_8UC1};
+    Matx99uc grid{9, 9, CV_8UC1};
     
-    Matx98uc xor_adj_mat1{GRID_H,   GRID_W-1,  CV_8UC1};
-    Matx89uc xor_adj_mat2{GRID_H-1, GRID_W,    CV_8UC1};
+    Matx98uc xor_adj_mat1{9, 8, CV_8UC1};
+    Matx89uc xor_adj_mat2{8, 9, CV_8UC1};
     
-    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(GRID_W-1, GRID_H)};
-    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(GRID_W-1, GRID_H)};
-    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(GRID_W,   GRID_H-1)};
-    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(GRID_W,   GRID_H-1)};
+    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(8, 9)};
+    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(8, 9)};
+    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(9, 8)};
+    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(9, 8)};
     
-    cv::Mat grid_orig{GRID_H, GRID_W, CV_8UC1};
+    cv::Mat grid_orig{9, 9, CV_8UC1};
     
     cv::Mat bitplane;
     
@@ -185,10 +181,10 @@ class BPCSStreamBuf {
 
 inline uint8_t BPCSStreamBuf::get_grid_complexity(Matx99uc &arr){
     uint8_t sum = 0;
-    cv::bitwise_xor(arr.get_minor<GRID_H-1,GRID_W>(1,0), arr.get_minor<GRID_H-1,GRID_W>(0,0), this->xor_adj_mat2);
+    cv::bitwise_xor(arr.get_minor<8,9>(1,0), arr.get_minor<8,9>(0,0), this->xor_adj_mat2);
     sum += cv::sum(this->xor_adj_mat2)[0];
     
-    cv::bitwise_xor(arr.get_minor<GRID_H,GRID_W-1>(0,1), arr.get_minor<GRID_H,GRID_W-1>(0,0), this->xor_adj_mat1);
+    cv::bitwise_xor(arr.get_minor<9,8>(0,1), arr.get_minor<9,8>(0,0), this->xor_adj_mat1);
     sum += cv::sum(this->xor_adj_mat1)[0];
     
     return sum;
@@ -360,7 +356,7 @@ void BPCSStreamBuf::load_next_img(){
         if (this->img_n == this->img_n_offset){
             // If false, this function is being called from within get()
             
-            if (this->grid.val[CONJUGATION_BIT_INDX])
+            if (this->grid.val[80])
                 this->conjugate_grid();
         }
     #ifdef EMBEDDOR
@@ -375,9 +371,9 @@ void BPCSStreamBuf::set_next_grid(){
     
     uint8_t complexity;
     int i = this->x;
-	for (int j=this->y;  j <= this->im_mat.rows - GRID_H;  j += GRID_H, i = 0){
-		while (i <= this->im_mat.cols - GRID_W){
-			cv::Rect grid_shape(cv::Point(i, j), cv::Size(GRID_W, GRID_H));
+    for (int j=this->y;  j <= this->im_mat.rows -9;  j+=9, i=0){
+        while (i <= this->im_mat.cols -9){
+            cv::Rect grid_shape(cv::Point(i, j), cv::Size(9, 9));
             
             this->grid_orig = this->bitplane(grid_shape);
             
@@ -385,7 +381,7 @@ void BPCSStreamBuf::set_next_grid(){
             
             
             
-			i += GRID_W;
+            i += 9;
             
             if (complexity >= this->min_complexity){
                 this->grid_orig = this->bitplane(grid_shape);
@@ -447,12 +443,12 @@ void BPCSStreamBuf::set_next_grid(){
     this->set_next_grid();
 }
 
-GridBytesArr BPCSStreamBuf::get(){
-    GridBytesArr out;
-    for (uint_fast8_t j = 0;  j < N_BYTES_PER_GRID;  ++j){
+std::array<uchar, 10> BPCSStreamBuf::get(){
+    std::array<uchar, 10> out;
+    for (uint_fast8_t j=0; j<10; ++j){
         out[j] = 0;
-        for (uint_fast8_t i = 0;  i < GRID_H;  ++i){
-            out[j] |= this->grid.val[GRID_W*j + i] << i;
+        for (uint_fast8_t i=0; i<8; ++i){
+            out[j] |= this->grid.val[8*j +i] << i;
         }
     }
     
@@ -460,7 +456,7 @@ GridBytesArr BPCSStreamBuf::get(){
     
     this->set_next_grid();
     
-    if (this->grid.val[CONJUGATION_BIT_INDX] != 0){
+    if (this->grid.val[80] != 0){
 
         this->conjugate_grid();
 	}
@@ -469,14 +465,14 @@ GridBytesArr BPCSStreamBuf::get(){
 }
 
 #ifdef EMBEDDOR
-void BPCSStreamBuf::put(GridBytesArr in){
-	for (uint_fast8_t j = 0;  j < N_BYTES_PER_GRID;  ++j)
-		for (uint_fast8_t i = 0;  i < GRID_H;  ++i){
-			this->grid.val[GRID_W*j +i] = in[j] & 1;
+void BPCSStreamBuf::put(std::array<uchar, 10> in){
+    for (uint_fast8_t j=0; j<10; ++j)
+        for (uint_fast8_t i=0; i<8; ++i){
+            this->grid.val[8*j +i] = in[j] & 1;
             in[j] = in[j] >> 1;
         }
     
-	this->grid.val[CONJUGATION_BIT_INDX] = 0;
+    this->grid.val[80] = 0;
     
     if (this->get_grid_complexity(this->grid) < this->min_complexity){
         this->conjugate_grid();
@@ -608,7 +604,7 @@ int main(const int argc, char* argv[]){
                               );
     bpcs_stream.load_next_img(); // Init
     
-    GridBytesArr arr;
+    std::array<uchar, 10> arr;
     // Using std::array rather than C-style array to allow direct copying
     // arr is the same size as a pointer (8 bytes), so perhaps copying directly is more performative.
 #ifdef EMBEDDOR
@@ -617,18 +613,18 @@ int main(const int argc, char* argv[]){
     do {
         arr = bpcs_stream.get();
         
-                write(STDOUT_FILENO, arr.data(), N_BYTES_PER_GRID);
+                write(STDOUT_FILENO, arr.data(), 10);
     } while (bpcs_stream.not_exhausted);
     free(bpcs_stream.img_data);
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
   } else {
-    read(STDIN_FILENO, arr.data(), N_BYTES_PER_GRID);
+    read(STDIN_FILENO, arr.data(), 10);
     do {
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
-    } while (read(STDIN_FILENO, arr.data(), N_BYTES_PER_GRID) == N_BYTES_PER_GRID);
+    } while (read(STDIN_FILENO, arr.data(), 10) == 10);
     bpcs_stream.put(arr);
     bpcs_stream.save_im();
   }
