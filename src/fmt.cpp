@@ -3,9 +3,7 @@
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <vector>
 #include <cstdio> // for FILE, fopen
-#include "units.h" // for uintN_t typedefs
-
-
+#include <inttypes.h>
 #include "utils.hpp" // for format_out_fp
 
 
@@ -15,6 +13,9 @@
 #ifdef TESTS
     #include <assert.h>
 #endif
+
+
+typedef unsigned char uchar;
 
 
 inline uint64_t get_charp_len(char* chrp){
