@@ -278,6 +278,7 @@ void BPCSStreamBuf::load_next_img(){
     #endif
     
     #ifdef EMBEDDOR
+	this->png_bg = nullptr;
     png_get_bKGD(png_ptr, png_info_ptr, &this->png_bg);
     #endif
     
@@ -523,7 +524,8 @@ void BPCSStreamBuf::save_im(){
         handler(69);
     }
     
-    png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
+	if (this->png_bg != nullptr)
+		png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
     
     png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     
@@ -605,4 +607,5 @@ int main(const int argc, char* argv[]){
     bpcs_stream.save_im();
   }
 #endif
+	return 0;
 }
