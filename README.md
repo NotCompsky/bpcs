@@ -23,11 +23,15 @@ Steganography in general has a variety of uses. For instance:
     * Watermarking copywrited materials so that its source can be tracked in the event of piracy
     * Watermarking banknotes designs to allow compliant software to refuse to edit them
     * Watermarking printer pages to embed serial numbers and datetime stamps.
-    * Communication between intelligence agents
+    * Skirting firewall rules (with infiltrating/exfiltrating of data over embedded transport layers)
     * Online puzzles
     * Obfuscating code that is to be executed
 
-This project, however, is particularly useful for 
+BPCS steganopgraphy is far more efficient than most other forms. It has a roughly 50% efficiency - that is, 50% of the vessel image's size can be used to store the hidden data.
+
+In my view, BPCS steganography is not resilient to stego analysis; more difficult to detect than trivial stego techniques such as LSB, of course, but if you really need deniability you would want to use [steghide](http://steghide.sourceforge.net/) whose algorithms are designed to be resilient.
+
+BPCS's advantage is throughput and efficiency. Roughly 50% of the vessel image's size can be used to store the hidden data; and throughput is almost 2MB/s on a single 2.30GHz CPU thread. This makes it viable even for streaming 4K video.
 
 # FEATURES
 
