@@ -23,7 +23,16 @@ enum {
 	TRYING_TO_ENCODE_MSG_OF_0_BYTES,
 	WROTE_WRONG_NUMBER_OF_BYTES_TO_STDOUT,
 	CANNOT_OPEN_FILE,
+	DID_NOT_WRITE_AS_MANY_BYTES_AS_READ,
 	SENDFILE_ERROR,
+	SENDFILE_ERROR__EAGAIN,
+	SENDFILE_ERROR__EBADF,
+	SENDFILE_ERROR__EFAULT,
+	SENDFILE_ERROR__EINVAL,
+	SENDFILE_ERROR__EIO,
+	SENDFILE_ERROR__ENOMEM,
+	SENDFILE_ERROR__EOVERFLOW,
+	SENDFILE_ERROR__ESPIPE,
 	UNLIKELY_NUMBER_OF_MSG_BYTES,
 	UNLIKELY_LONG_FILE_NAME,
 	N_ERRORS
@@ -42,7 +51,16 @@ const char* const handler_msgs[] = {
 	"Trying to encode a message of 0 bytes",
 	"Wrote the wrong number of bytes to stdout",
 	"Cannot open file",
+	"Did not write as many bytes as read",
 	"Sendfile error",
+	"Sendfile error: Nonblocking IO has been selected using O_NONBLOCK and the write would block",
+	"Sendfile error: The input file was not opened for reading, or the output file was not opened for writing",
+	"Sendfile error: Bad address",
+	"Sendfile error: Descriptor is not valid or locked, or an mmap-like operation is not available for in_fd, or count is negative. OR (???) out_fd has the O_APPEND flag set, not currently supported by sendfile.",
+	"Sendfile error: Unspecified error while reading from in_fd",
+	"Sendfile error: Insufficient memory to read from in_fd",
+	"Sendfile error: Count is too large",
+	"Sendfile error: Offset is not NULL but the input file is not seek-able",
 	"Improbably large file",
 	"Improbably long file name"
 };
@@ -185,9 +203,54 @@ int main(const int argc,  char** argv){
                         assert(fp_str[0] != 0);
                     #endif
                     fout = open(fp_str__formatted,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
-					fprintf(stderr,  "Created file: %s\n",  fp_str__formatted);
                 }
-				sendfile(fout, STDIN_FILENO, nullptr, n_msg_bytes);
+				size_t msg_bytes_to_write = n_msg_bytes;
+				do {
+					static char sendbytes_buf[4096 * 10];
+					size_t n_want = sizeof(sendbytes_buf);
+					if (n_want > msg_bytes_to_write)
+						n_want = msg_bytes_to_write;
+					auto n_read =  read(STDIN_FILENO, sendbytes_buf, n_want);
+					auto n_writ = write(fout,         sendbytes_buf, n_read);
+				  #ifdef TESTS
+					if (unlikely(n_writ != n_read)){
+						handler(DID_NOT_WRITE_AS_MANY_BYTES_AS_READ);
+					}
+				  #endif
+					/* auto n_writ = sendfile(fout, STDIN_FILENO, nullptr, n_msg_bytes);
+					// NOTE: Error because stdin cannot be mmap-ped
+					if (unlikely(n_writ == -1)){
+						auto msg_id = SENDFILE_ERROR;
+						switch(errno){
+							case EAGAIN:
+								msg_id = SENDFILE_ERROR__EAGAIN;
+								break;
+							case EBADF:
+								msg_id = SENDFILE_ERROR__EBADF;
+								break;
+							case EFAULT:
+								msg_id = SENDFILE_ERROR__EFAULT;
+								break;
+							case EINVAL:
+								msg_id = SENDFILE_ERROR__EINVAL;
+								break;
+							case EIO:
+								msg_id = SENDFILE_ERROR__EIO;
+								break;
+							case ENOMEM:
+								msg_id = SENDFILE_ERROR__ENOMEM;
+								break;
+							case EOVERFLOW:
+								msg_id = SENDFILE_ERROR__EOVERFLOW;
+								break;
+							case ESPIPE:
+								msg_id = SENDFILE_ERROR__ESPIPE;
+								break;
+						}
+						handler(msg_id);
+					}*/
+					msg_bytes_to_write -= n_writ;
+				} while(msg_bytes_to_write != 0);
             } else {
               #ifdef TESTS
                 if (unlikely(n_msg_bytes > sizeof(fp_str))){
