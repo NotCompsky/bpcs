@@ -2,10 +2,7 @@
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <array>
-
-#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
-    #define IS_POSIX
-#endif
+#include <compsky/macros/likely.hpp>
 
 #ifdef EMBEDDOR
     #include "utils.hpp" // for format_out_fp
@@ -521,12 +518,13 @@ void BPCSStreamBuf::save_im(){
         } while (j-- != 0);
     } while (i-- != 0);
     
-    format_out_fp(this->out_fmt, &this->img_fps[this->img_n -1]);
+	static char formated_out_fp[1024];
+	format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], formated_out_fp);
     cv::merge(this->channel_byteplanes, this->im_mat);
 	convert_from_cgc(this->im_mat);
     
     
-    FILE* png_file = fopen(this->img_fps[this->img_n -1], "wb");
+	FILE* png_file = fopen(formated_out_fp, "wb");
     auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     
     #ifdef TESTS
@@ -577,7 +575,6 @@ void BPCSStreamBuf::save_im(){
     
     png_write_end(png_ptr, NULL);
     
-    free(this->img_fps[this->img_n -1]);
     free(this->img_data);
 }
 #endif
@@ -620,19 +617,18 @@ int main(const int argc, char* argv[]){
 #endif
     do {
         arr = bpcs_stream.get();
-        
-                write(STDOUT_FILENO, arr.data(), 10);
+		if (unlikely(write(STDOUT_FILENO, arr.data(), 10) != 10))
+			break;
     } while (bpcs_stream.not_exhausted);
     free(bpcs_stream.img_data);
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
   } else {
-    read(STDIN_FILENO, arr.data(), 10);
-    do {
+	while (likely(read(STDIN_FILENO, arr.data(), 10) == 10)){
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
-    } while (read(STDIN_FILENO, arr.data(), 10) == 10);
+	}
     bpcs_stream.put(arr);
     bpcs_stream.save_im();
   }

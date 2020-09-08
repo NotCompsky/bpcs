@@ -38,9 +38,12 @@ enum {
 };
 #ifdef NO_EXCEPTIONS
 # define handler(msg) exit(msg)
+# define handler2(msg, arg) handler(msg)
 #else
 # include <stdexcept>
+# include <cstdio>
 # define handler(msg) throw std::runtime_error(handler_msgs[msg])
+# define handler2(msg, arg) fprintf(stderr, "Arg1: %s\n", arg); handler(msg)
 constexpr static
 const char* const handler_msgs[] = {
 	"No error",
@@ -98,7 +101,7 @@ int main(const int argc,  char** argv){
     }
 	
 #ifdef EMBEDDOR
-	char** msg_fps = argv;
+	char** msg_fps = argv + 1;
 #endif
     
     uint64_t n_msg_bytes;
@@ -121,7 +124,7 @@ int main(const int argc,  char** argv){
 			if (unlikely((rc1 != 8) or (rc2 != n_msg_bytes)))
 				handler(WRONG_NUMBER_OF_BYTES_READ);
 			if (unlikely(rc3 == -1)){
-				handler(COULD_NOT_STAT_FILE);
+				handler2(COULD_NOT_STAT_FILE, fp);
 			}
 		  #endif
             n_msg_bytes = stat_buf.st_size;
