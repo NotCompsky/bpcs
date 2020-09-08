@@ -5,7 +5,10 @@
 #include <compsky/macros/likely.hpp>
 
 #ifdef EMBEDDOR
-    #include "utils.hpp" // for format_out_fp
+# include "utils.hpp" // for format_out_fp
+# ifdef ONLY_COUNT
+#  error "No use being an embeddor if only counting"
+# endif
 #endif
 
 #include "config.h"
@@ -596,6 +599,10 @@ int main(const int argc, char* argv[]){
     } else
         out_fmt = NULL;
 #endif
+	
+#ifdef ONLY_COUNT
+	uint64_t count = 0;
+#endif
     
     
     const uint8_t min_complexity = 50 + (argv[++i][0] - '0');
@@ -617,8 +624,12 @@ int main(const int argc, char* argv[]){
 #endif
     do {
         arr = bpcs_stream.get();
+#ifdef ONLY_COUNT
+		count += 10;
+#else
 		if (unlikely(write(STDOUT_FILENO, arr.data(), 10) != 10))
 			break;
+#endif
     } while (bpcs_stream.not_exhausted);
     free(bpcs_stream.img_data);
 #ifdef EMBEDDOR
@@ -632,6 +643,9 @@ int main(const int argc, char* argv[]){
     bpcs_stream.put(arr);
     bpcs_stream.save_im();
   }
+#endif
+#ifdef ONLY_COUNT
+	printf("%lu\n", count);
 #endif
 	return 0;
 }

@@ -42,10 +42,12 @@ set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_executable(bpcs     "${SRC_DIR}/bpcs.cpp")
 add_executable(bpcs-x   "${SRC_DIR}/bpcs.cpp")
 add_executable(bpcs-fmt "${SRC_DIR}/fmt.cpp")
+add_executable(bpcs-count "${SRC_DIR}/bpcs.cpp")
 set_target_properties(
 	bpcs
 	bpcs-x
 	bpcs-fmt
+	bpcs-count
 	PROPERTIES
 		CXX_STANDARD 17
 		LINK_FLAGS_RELEASE "${LINKER_FLAGS}"
@@ -59,6 +61,7 @@ if(is_ipo_supported)
 		bpcs
 		bpcs-x
 		bpcs-fmt
+		bpcs-count
 		PROPERTIES
 			INTERPROCEDURAL_OPTIMIZATION TRUE
 	)
@@ -69,20 +72,25 @@ endif()
 include_directories("/usr/local/include")
 target_include_directories(bpcs   PRIVATE "${OpenCV_INCLUDE_DIRS}")
 target_include_directories(bpcs-x PRIVATE "${OpenCV_INCLUDE_DIRS}")
+target_include_directories(bpcs-count PRIVATE "${OpenCV_INCLUDE_DIRS}")
 target_link_libraries(bpcs   PRIVATE "${LIBS}")
 target_link_libraries(bpcs-x PRIVATE "${LIBS}")
+target_link_libraries(bpcs-count PRIVATE "${LIBS}")
 target_compile_definitions(bpcs PRIVATE "EMBEDDOR=1")
 target_compile_definitions(bpcs-fmt PRIVATE "EMBEDDOR=1")
+target_compile_definitions(bpcs-count PRIVATE ONLY_COUNT)
 
 if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
 	target_compile_definitions(bpcs     PRIVATE "TESTS=1")
 	target_compile_definitions(bpcs-x   PRIVATE "TESTS=1")
 	target_compile_definitions(bpcs-fmt PRIVATE "TESTS=1")
+	target_compile_definitions(bpcs-count PRIVATE TESTS)
 endif()
 if(NOT ENABLE_EXCEPTS)
 	target_compile_definitions(bpcs     PRIVATE "NO_EXCEPTIONS=1")
 	target_compile_definitions(bpcs-x   PRIVATE "NO_EXCEPTIONS=1")
 	target_compile_definitions(bpcs-fmt PRIVATE "NO_EXCEPTIONS=1")
+	target_compile_definitions(bpcs-count PRIVATE NO_EXCEPTIONS)
 endif()
 
 if(BUILD_DOCS)
@@ -110,7 +118,7 @@ endif()
 
 
 install(
-	TARGETS bpcs bpcs-x bpcs-fmt
+	TARGETS bpcs bpcs-x bpcs-fmt bpcs-count
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
