@@ -13,17 +13,48 @@
 
 #include "config.h"
 
+enum {
+	NO_ERROR,
+	MISC_ERROR,
+	TOO_MUCH_DATA_TO_ENCODE,
+	INVALID_PNG_MAGIC_NUMBER,
+	OOM,
+	CANNOT_CREATE_PNG_READ_STRUCT,
+	EMPTY_BITPLANE,
+	COULD_NOT_OPEN_PNG_FILE,
+	CANNOT_CREATE_PNG_INFO_STRUCT,
+	PNG_ERROR_1,
+	PNG_ERROR_2,
+	PNG_ERROR_3,
+	PNG_ERROR_4,
+	N_ERRORS
+};
+#ifdef NO_EXCEPTIONS
+# define handler(msg) exit(msg)
+#else
+# include <stdexcept>
+# define handler(msg) throw std::runtime_error(handler_msgs[msg])
+constexpr static
+const char* const handler_msgs[] = {
+	"No error",
+	"Misc error",
+	"Too much data to encode",
+	"Invalid PNG magic number",
+	"Out of memory",
+	"Cannot create PNG read struct",
+	"Empty bitplane",
+	"Could not open PNG file",
+	"Could not create PNG info struct",
+	"PNG error 1",
+	"PNG error 2",
+	"PNG error 3",
+	"PNG error 4"
+};
+#endif
+
 typedef cv::Matx<uchar, 9, 9> Matx99uc;
 typedef cv::Matx<uchar, 9, 8> Matx98uc;
 typedef cv::Matx<uchar, 8, 9> Matx89uc;
-
-
-
-
-
-void handler(int sgnl){
-    exit(sgnl);
-}
 
 
 /*
@@ -228,21 +259,20 @@ void BPCSStreamBuf::load_next_img(){
     
     fread(png_sig, 1, 8, png_file);
     if (!png_check_sig(png_sig, 8)){
-        
-        handler(60);
+		handler(INVALID_PNG_MAGIC_NUMBER);
     }
     
     auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     
     if (!png_ptr)
         // Could not allocate memory
-        handler(4);
+		handler(OOM);
   
     auto png_info_ptr = png_create_info_struct(png_ptr);
     
     if (!png_info_ptr){
         png_destroy_read_struct(&png_ptr, NULL, NULL);
-        handler(69);
+		handler(CANNOT_CREATE_PNG_READ_STRUCT);
     }
     
     /* ERROR - incorrect use of incomplete type
@@ -422,7 +452,7 @@ void BPCSStreamBuf::set_next_grid(){
     
     #ifdef EMBEDDOR
     if (this->embedding){
-        handler(255);
+		handler(TOO_MUCH_DATA_TO_ENCODE);
     }
     #endif
     not_exhausted = false;
@@ -481,7 +511,7 @@ void BPCSStreamBuf::save_im(){
             #ifdef TESTS
                 if (this->bitplanes[k].cols == 0){
                     std::cerr << "bitplane " << +k << " is empty" << std::endl;
-                    handler(10);
+					handler(EMPTY_BITPLANE);
                 }
             #endif
             
@@ -501,27 +531,27 @@ void BPCSStreamBuf::save_im(){
     
     #ifdef TESTS
     if (!png_file){
-        handler(5);
+		handler(COULD_NOT_OPEN_PNG_FILE);
     }
     if (!png_ptr){
-        handler(66);
+		handler(OOM);
     }
     #endif
     
     auto png_info_ptr = png_create_info_struct(png_ptr);
     
     if (!png_info_ptr){
-        handler(67);
+		handler(CANNOT_CREATE_PNG_INFO_STRUCT);
     }
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        handler(68);
+		handler(PNG_ERROR_1);
     }
     
     png_init_io(png_ptr, png_file);
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        handler(69);
+		handler(PNG_ERROR_2);
     }
     
 	if (this->png_bg != nullptr)
@@ -532,7 +562,7 @@ void BPCSStreamBuf::save_im(){
     png_write_info(png_ptr, png_info_ptr);
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        handler(64);
+		handler(PNG_ERROR_3);
     }
     
     uchar* row_ptrs[this->im_mat.rows];
@@ -542,7 +572,7 @@ void BPCSStreamBuf::save_im(){
     png_write_image(png_ptr, row_ptrs);
     
     if (setjmp(png_jmpbuf(png_ptr))){
-        handler(65);
+		handler(PNG_ERROR_4);
     }
     
     png_write_end(png_ptr, NULL);
