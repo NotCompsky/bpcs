@@ -32,6 +32,10 @@ enum {
 	SENDFILE_ERROR__ENOMEM,
 	SENDFILE_ERROR__EOVERFLOW,
 	SENDFILE_ERROR__ESPIPE,
+	SPLICE_ERROR__EBADF,
+	SPLICE_ERROR__EINVAL,
+	SPLICE_ERROR__ENOMEM,
+	SPLICE_ERROR__ESPIPE,
 	UNLIKELY_NUMBER_OF_MSG_BYTES,
 	UNLIKELY_LONG_FILE_NAME,
 	N_ERRORS
@@ -63,6 +67,10 @@ const char* const handler_msgs[] = {
 	"Sendfile error: Insufficient memory to read from in_fd",
 	"Sendfile error: Count is too large",
 	"Sendfile error: Offset is not NULL but the input file is not seek-able",
+	"Splice error: Bad file descriptor",
+	"Splice error: Invalid",
+	"Splice error: Out of memory",
+	"Splice error: Either off_in or off_out was not NULL, but the corresponding file descriptor refers to a pipe",
 	"Improbably large file",
 	"Improbably long file name"
 };
@@ -192,53 +200,30 @@ int main(const int argc,  char** argv){
                     #endif
                     fout = open(fp_str__formatted,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
                 }
-				size_t msg_bytes_to_write = n_msg_bytes;
+				loff_t n_bytes_written = 0;
 				do {
-					static char sendbytes_buf[4096 * 10];
-					size_t n_want = sizeof(sendbytes_buf);
-					if (n_want > msg_bytes_to_write)
-						n_want = msg_bytes_to_write;
-					auto n_read =  read(STDIN_FILENO, sendbytes_buf, n_want);
-					auto n_writ = write(fout,         sendbytes_buf, n_read);
+					auto n_writ = splice(STDIN_FILENO, NULL, fout, &n_bytes_written, n_msg_bytes, SPLICE_F_MOVE);
 				  #ifdef TESTS
-					if (unlikely(n_writ != n_read)){
-						handler(DID_NOT_WRITE_AS_MANY_BYTES_AS_READ);
-					}
-				  #endif
-					/* auto n_writ = sendfile(fout, STDIN_FILENO, nullptr, n_msg_bytes);
-					// NOTE: Error because stdin cannot be mmap-ped
 					if (unlikely(n_writ == -1)){
-						auto msg_id = SENDFILE_ERROR;
+						auto msg_id = MISC_ERROR;
 						switch(errno){
-							case EAGAIN:
-								msg_id = SENDFILE_ERROR__EAGAIN;
-								break;
 							case EBADF:
-								msg_id = SENDFILE_ERROR__EBADF;
-								break;
-							case EFAULT:
-								msg_id = SENDFILE_ERROR__EFAULT;
+								msg_id = SPLICE_ERROR__EBADF;
 								break;
 							case EINVAL:
-								msg_id = SENDFILE_ERROR__EINVAL;
-								break;
-							case EIO:
-								msg_id = SENDFILE_ERROR__EIO;
+								msg_id = SPLICE_ERROR__EINVAL;
 								break;
 							case ENOMEM:
-								msg_id = SENDFILE_ERROR__ENOMEM;
-								break;
-							case EOVERFLOW:
-								msg_id = SENDFILE_ERROR__EOVERFLOW;
+								msg_id = SPLICE_ERROR__ENOMEM;
 								break;
 							case ESPIPE:
-								msg_id = SENDFILE_ERROR__ESPIPE;
+								msg_id = SPLICE_ERROR__ESPIPE;
 								break;
 						}
 						handler(msg_id);
-					}*/
-					msg_bytes_to_write -= n_writ;
-				} while(msg_bytes_to_write != 0);
+					}
+				  #endif
+				} while(n_bytes_written != n_msg_bytes);
             } else {
               #ifdef TESTS
                 if (unlikely(n_msg_bytes > sizeof(fp_str))){
