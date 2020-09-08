@@ -17,6 +17,7 @@
 enum {
 	NO_ERROR,
 	MISC_ERROR,
+	FP_STR_IS_EMPTY,
 	WRONG_NUMBER_OF_BYTES_READ,
 	COULD_NOT_STAT_FILE,
 	TRYING_TO_ENCODE_MSG_OF_0_BYTES,
@@ -52,6 +53,7 @@ constexpr static
 const char* const handler_msgs[] = {
 	"No error",
 	"Misc error",
+	"fp_str is empty",
 	"Wrong number of bytes read",
 	"Could not stat file",
 	"Trying to encode a message of 0 bytes",
@@ -196,13 +198,16 @@ int main(const int argc,  char** argv){
               #endif
                 if (out_fmt != NULL){
                     #ifdef TESTS
-                        assert(fp_str[0] != 0);
+						if (unlikely(fp_str[0] == 0)){
+							handler2(FP_STR_IS_EMPTY, fp_str__formatted);
+						}
                     #endif
                     fout = open(fp_str__formatted,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
                 }
 				loff_t n_bytes_written = 0;
+				size_t n_bytes_yet_to_write = n_msg_bytes;
 				do {
-					auto n_writ = splice(STDIN_FILENO, NULL, fout, &n_bytes_written, n_msg_bytes, SPLICE_F_MOVE);
+					auto n_writ = splice(STDIN_FILENO, NULL, fout, &n_bytes_written, n_bytes_yet_to_write, SPLICE_F_MOVE);
 				  #ifdef TESTS
 					if (unlikely(n_writ == -1)){
 						auto msg_id = MISC_ERROR;
@@ -220,10 +225,11 @@ int main(const int argc,  char** argv){
 								msg_id = SPLICE_ERROR__ESPIPE;
 								break;
 						}
-						handler(msg_id);
+						handler2(msg_id, fp_str__formatted);
 					}
 				  #endif
-				} while(n_bytes_written != n_msg_bytes);
+					n_bytes_yet_to_write -= n_writ;
+				} while(n_bytes_yet_to_write != 0);
             } else {
               #ifdef TESTS
                 if (unlikely(n_msg_bytes > sizeof(fp_str))){
