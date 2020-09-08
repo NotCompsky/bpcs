@@ -390,8 +390,6 @@ void BPCSStreamBuf::load_next_img(){
 }
 
 void BPCSStreamBuf::set_next_grid(){
-    
-    
     uint8_t complexity;
     int i = this->x;
     for (int j=this->y;  j <= this->im_mat.rows -9;  j+=9, i=0){
