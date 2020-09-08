@@ -27,16 +27,15 @@ Steganography in general has a variety of uses. For instance:
     * Online puzzles
     * Obfuscating code that is to be executed
 
-BPCS steganopgraphy is far more efficient than most other forms. It has a roughly 50% efficiency - that is, 50% of the vessel image's size can be used to store the hidden data.
+Due to its high efficiency and throughput - roughly 50% of the vessel image's size can be used to store the hidden data, and even a single CPU thread has a throughput of 2MB/s without GPU acceleration - BPCS is viable for many applications where other stego techniques simply are not, such as streaming 4K video over HTTP using PNG images.
 
-In my view, BPCS steganography is not resilient to stego analysis; more difficult to detect than trivial stego techniques such as LSB, of course, but if you really need deniability you would want to use [steghide](http://steghide.sourceforge.net/) whose algorithms are designed to be resilient.
+The efficiency depends very highly on the vessel images used. Some images can handily fit their originals within themselves, sometimes even resulting in a smaller file size.
 
-BPCS's advantage is throughput and efficiency. Roughly 50% of the vessel image's size can be used to store the hidden data; and throughput is almost 2MB/s on a single 2.30GHz CPU thread. This makes it viable even for streaming 4K video.
+In my view, BPCS steganography is not resilient to stego analysis; it is more difficult to detect than trivial stego techniques such as LSB, but it is not designed to evade detection, unlike [steghide](http://steghide.sourceforge.net/).
 
 # FEATURES
 
     * Embed any number of message files into any number of vessel images.
-    * 
 
 # USAGE
 
