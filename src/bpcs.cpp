@@ -631,7 +631,7 @@ int main(const int argc, char* argv[]){
 			break;
 #endif
     } while (not bpcs_stream.exhausted);
-    free(bpcs_stream.img_data);
+	//free(bpcs_stream.img_data); // Causes segfault // TODO: Investigate
 #ifdef EMBEDDOR
   // if (!embedding){
   //     ...
