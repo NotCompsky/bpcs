@@ -127,7 +127,7 @@ class BPCSStreamBuf {
                   , char* outfmt
                 #endif
                 ):
-    not_exhausted(true),
+	exhausted(false),
     #ifdef EMBEDDOR
         embedding(emb), out_fmt(outfmt),
     #endif
@@ -136,7 +136,7 @@ class BPCSStreamBuf {
     {}
     
     
-    bool not_exhausted;
+	bool exhausted;
     
     #ifdef EMBEDDOR
     const bool embedding;
@@ -455,7 +455,7 @@ void BPCSStreamBuf::set_next_grid(){
 		handler(TOO_MUCH_DATA_TO_ENCODE);
     }
     #endif
-    not_exhausted = false;
+	exhausted = true;
     return;
     
     try_again:
@@ -630,7 +630,7 @@ int main(const int argc, char* argv[]){
 		if (unlikely(write(STDOUT_FILENO, arr.data(), 10) != 10))
 			break;
 #endif
-    } while (bpcs_stream.not_exhausted);
+    } while (not bpcs_stream.exhausted);
     free(bpcs_stream.img_data);
 #ifdef EMBEDDOR
   // if (!embedding){
