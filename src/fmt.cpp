@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include "utils.hpp" // for format_out_fp
 #include <sys/sendfile.h>
-#include <cstdio> // for fprintf etc // NOTE: tmp
 #include <compsky/macros/likely.hpp>
 
 
@@ -114,9 +113,6 @@ int main(const int argc,  char** argv){
 			char* const fp = *msg_fps;
             
             n_msg_bytes = get_charp_len(fp);
-			fprintf(stderr, "fp_file_len %s\n", (char*)(&n_msg_bytes));
-			fprintf(stderr, "fp_file_len %lu\n", n_msg_bytes);
-			fflush(stderr);
             
 			const size_t rc1 = write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
 			const size_t rc2 = write(STDOUT_FILENO, fp, n_msg_bytes);
@@ -125,22 +121,15 @@ int main(const int argc,  char** argv){
 			if (unlikely((rc1 != 8) or (rc2 != n_msg_bytes)))
 				handler(WRONG_NUMBER_OF_BYTES_READ);
 			if (unlikely(rc3 == -1)){
-				fprintf(stderr,  "While encoding file: %s\n",  fp);
-				fflush(stderr);
 				handler(COULD_NOT_STAT_FILE);
 			}
 		  #endif
             n_msg_bytes = stat_buf.st_size;
 #ifdef TESTS
 			if (unlikely(n_msg_bytes == 0)){
-				fprintf(stderr,  "When encoding file: %s\n",  fp);
-				fflush(stderr);
 				handler(TRYING_TO_ENCODE_MSG_OF_0_BYTES);
 			}
 #endif
-			fprintf(stderr, "n_msg_bytes %s\n", (char*)(&n_msg_bytes));
-			fprintf(stderr, "n_msg_bytes %lu\n", n_msg_bytes);
-			fflush(stderr);
             
 			const size_t rc4 = write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
 			const int msg_file = open(fp, O_RDONLY);
@@ -180,9 +169,6 @@ int main(const int argc,  char** argv){
 				handler(WRONG_NUMBER_OF_BYTES_READ);
 			}
 		  #endif
-			fprintf(stderr, "n_msg_bytes %s\n", (char*)(&n_msg_bytes));
-			fprintf(stderr, "n_msg_bytes %lu\n", n_msg_bytes);
-			fflush(stderr);
             
             if (n_msg_bytes == 0){
                 // Reached end of embedded datas
