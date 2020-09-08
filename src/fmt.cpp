@@ -18,12 +18,9 @@ enum {
 	NO_ERROR,
 	MISC_ERROR,
 	FP_STR_IS_EMPTY,
-	WRONG_NUMBER_OF_BYTES_READ,
 	COULD_NOT_STAT_FILE,
 	TRYING_TO_ENCODE_MSG_OF_0_BYTES,
-	WROTE_WRONG_NUMBER_OF_BYTES_TO_STDOUT,
 	CANNOT_OPEN_FILE,
-	DID_NOT_WRITE_AS_MANY_BYTES_AS_READ,
 	SENDFILE_ERROR,
 	SENDFILE_ERROR__EAGAIN,
 	SENDFILE_ERROR__EBADF,
@@ -42,24 +39,18 @@ enum {
 	N_ERRORS
 };
 #ifdef NO_EXCEPTIONS
-# define handler(msg) exit(msg)
-# define handler2(msg, arg) handler(msg)
+# define handler(msg, ...) exit(msg)
 #else
 # include <stdexcept>
 # include <cstdio>
-# define handler(msg) throw std::runtime_error(handler_msgs[msg])
-# define handler2(msg, arg) fprintf(stderr, "Arg1: %s\n", arg); handler(msg)
 constexpr static
 const char* const handler_msgs[] = {
 	"No error",
 	"Misc error",
 	"fp_str is empty",
-	"Wrong number of bytes read",
 	"Could not stat file",
 	"Trying to encode a message of 0 bytes",
-	"Wrote the wrong number of bytes to stdout",
 	"Cannot open file",
-	"Did not write as many bytes as read",
 	"Sendfile error",
 	"Sendfile error: Nonblocking IO has been selected using O_NONBLOCK and the write would block",
 	"Sendfile error: The input file was not opened for reading, or the output file was not opened for writing",
@@ -76,7 +67,35 @@ const char* const handler_msgs[] = {
 	"Improbably large file",
 	"Improbably long file name"
 };
+# define LOG(...) fprintf(stderr, __VA_ARGS__); fflush(stderr);
+void handler(const int msg){
+	throw std::runtime_error(handler_msgs[msg]);
+}
+void log(const char* const str){
+	LOG("log %s\n", str)
+}
+void log(const size_t n){
+	LOG("log %lu\n", n)
+}
+template<typename... Args,  typename T>
+void handler(const int msg,  const T arg,  Args... args){
+	log(arg);
+	handler(msg, args...);
+}
 #endif
+
+
+void read_exact_number_of_bytes(const int fd,  char* const buf,  const size_t n){
+	size_t offset = 0;
+	do {
+		offset += read(fd,  buf + offset,  n - offset);
+	} while (offset != n);
+}
+void write_exact_number_of_bytes(const int fd,  char* const buf,  size_t n){
+	do {
+		n -= write(fd, buf, n);
+	} while (n != 0);
+}
 
 
 typedef unsigned char uchar;
@@ -127,14 +146,12 @@ int main(const int argc,  char** argv){
             
             n_msg_bytes = get_charp_len(fp);
             
-			const size_t rc1 = write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
-			const size_t rc2 = write(STDOUT_FILENO, fp, n_msg_bytes);
+			write_exact_number_of_bytes(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
+			write_exact_number_of_bytes(STDOUT_FILENO, fp, n_msg_bytes);
 			const auto rc3 = stat(fp, &stat_buf);
 		  #ifdef TESTS
-			if (unlikely((rc1 != 8) or (rc2 != n_msg_bytes)))
-				handler(WRONG_NUMBER_OF_BYTES_READ);
 			if (unlikely(rc3 == -1)){
-				handler2(COULD_NOT_STAT_FILE, fp);
+				handler(COULD_NOT_STAT_FILE, fp);
 			}
 		  #endif
             n_msg_bytes = stat_buf.st_size;
@@ -144,12 +161,9 @@ int main(const int argc,  char** argv){
 			}
 #endif
             
-			const size_t rc4 = write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
+			write_exact_number_of_bytes(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
 			const int msg_file = open(fp, O_RDONLY);
 		  #ifdef TESTS
-			if (unlikely(rc4 != 8)){
-				handler(WROTE_WRONG_NUMBER_OF_BYTES_TO_STDOUT);
-			}
 			if (unlikely(msg_file == 0)){
 				handler(CANNOT_OPEN_FILE);
 			}
@@ -163,11 +177,8 @@ int main(const int argc,  char** argv){
 			close(msg_file);
         }
         // After all messages, signal end with signalled size of 0
-		const uchar zero[32] = {0};
-		const size_t rc1 = write(STDOUT_FILENO, zero, sizeof(zero));
-	  #ifdef TESTS
-		assert(rc1 == sizeof(zero));
-	  #endif
+		const char zero[32] = {0};
+		write_exact_number_of_bytes(STDOUT_FILENO, const_cast<char*>(zero), sizeof(zero));
         // Some encryption methods require blocks of length 16 or 32 bytes, so this ensures that there is at least 8 zero bytes even if a final half-block is cut off.
     } else {
     #endif
@@ -176,12 +187,7 @@ int main(const int argc,  char** argv){
 		int fout = STDOUT_FILENO;
         
         for (auto i = 0;  true;  ++i) {
-			const size_t eight_bytes_read = read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
-		  #ifdef TESTS
-			if (unlikely(eight_bytes_read != 8)){
-				handler(WRONG_NUMBER_OF_BYTES_READ);
-			}
-		  #endif
+			read_exact_number_of_bytes(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
             
             if (n_msg_bytes == 0){
                 // Reached end of embedded datas
@@ -199,7 +205,7 @@ int main(const int argc,  char** argv){
                 if (out_fmt != NULL){
                     #ifdef TESTS
 						if (unlikely(fp_str[0] == 0)){
-							handler2(FP_STR_IS_EMPTY, fp_str__formatted);
+							handler(FP_STR_IS_EMPTY, fp_str__formatted);
 						}
                     #endif
                     fout = open(fp_str__formatted,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
@@ -225,7 +231,7 @@ int main(const int argc,  char** argv){
 								msg_id = SPLICE_ERROR__ESPIPE;
 								break;
 						}
-						handler2(msg_id, fp_str__formatted);
+						handler(msg_id, fp_str__formatted);
 					}
 				  #endif
 					n_bytes_yet_to_write -= n_writ;
@@ -237,10 +243,7 @@ int main(const int argc,  char** argv){
 					handler(UNLIKELY_LONG_FILE_NAME);
                 }
               #endif
-				const size_t rc1 = read(STDIN_FILENO, fp_str, n_msg_bytes);
-			  #ifdef TESTS
-				assert(rc1 == n_msg_bytes);
-			  #endif
+				read_exact_number_of_bytes(STDIN_FILENO, fp_str, n_msg_bytes);
 				fp_str[n_msg_bytes] = 0; // Terminating null byte
                 if (out_fmt != NULL){
 					format_out_fp(out_fmt, fp_str, fp_str__formatted);
