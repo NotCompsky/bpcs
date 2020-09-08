@@ -88,7 +88,6 @@ int main(const int argc,  char** argv){
 	++argv;
     if (argc != 1){
 		char* const arg = *argv;
-		++argv;
 		if (arg[2] == 0  &&  arg[0] == '-'){
 			switch(arg[1]){
 				case 'o': out_fmt=*(++argv); break;
