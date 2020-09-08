@@ -15,6 +15,40 @@
 #endif
 
 
+enum {
+	NO_ERROR,
+	MISC_ERROR,
+	WRONG_NUMBER_OF_BYTES_READ,
+	COULD_NOT_STAT_FILE,
+	TRYING_TO_ENCODE_MSG_OF_0_BYTES,
+	WROTE_WRONG_NUMBER_OF_BYTES_TO_STDOUT,
+	CANNOT_OPEN_FILE,
+	SENDFILE_ERROR,
+	UNLIKELY_NUMBER_OF_MSG_BYTES,
+	UNLIKELY_LONG_FILE_NAME,
+	N_ERRORS
+};
+#ifdef NO_EXCEPTIONS
+# define handler(msg) exit(msg)
+#else
+# include <stdexcept>
+# define handler(msg) throw std::runtime_error(handler_msgs[msg])
+constexpr static
+const char* const handler_msgs[] = {
+	"No error",
+	"Misc error",
+	"Wrong number of bytes read",
+	"Could not stat file",
+	"Trying to encode a message of 0 bytes",
+	"Wrote the wrong number of bytes to stdout",
+	"Cannot open file",
+	"Sendfile error",
+	"Improbably large file",
+	"Improbably long file name"
+};
+#endif
+
+
 typedef unsigned char uchar;
 
 
@@ -71,9 +105,9 @@ int main(const int argc,  char** argv){
 			const size_t rc2 = write(STDOUT_FILENO, fp, n_msg_bytes);
 			const auto rc3 = stat(fp, &stat_buf);
 		  #ifdef TESTS
-            if ((rc1 != 8) or (rc2 != n_msg_bytes))
+			if (unlikely((rc1 != 8) or (rc2 != n_msg_bytes)))
 				handler(WRONG_NUMBER_OF_BYTES_READ);
-			if (rc3 == -1){
+			if (unlikely(rc3 == -1)){
 				fprintf(stderr,  "While encoding file: %s\n",  fp);
 				fflush(stderr);
 				handler(COULD_NOT_STAT_FILE);
@@ -94,14 +128,17 @@ int main(const int argc,  char** argv){
 			const size_t rc4 = write(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
 			const int msg_file = open(fp, O_RDONLY);
 		  #ifdef TESTS
-			if ((rc4 != 8) or (msg_file == 0)){
-				return 100;
+			if (unlikely(rc4 != 8)){
+				handler(WROTE_WRONG_NUMBER_OF_BYTES_TO_STDOUT);
+			}
+			if (unlikely(msg_file == 0)){
+				handler(CANNOT_OPEN_FILE);
 			}
 		  #endif
 			const auto rc5 = sendfile(STDOUT_FILENO, msg_file, nullptr, n_msg_bytes);
 		  #ifdef TESTS
-			if (rc5 == -1){
-				return 20;
+			if (unlikely(rc5 == -1)){
+				handler(SENDFILE_ERROR);
 			}
 		  #endif
 			close(msg_file);
@@ -122,8 +159,8 @@ int main(const int argc,  char** argv){
         for (auto i = 0;  true;  ++i) {
 			const size_t eight_bytes_read = read(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
 		  #ifdef TESTS
-			if (eight_bytes_read != 8){
-				return 33;
+			if (unlikely(eight_bytes_read != 8)){
+				handler(WRONG_NUMBER_OF_BYTES_READ);
 			}
 		  #endif
 			fprintf(stderr, "n_msg_bytes %s\n", (char*)(&n_msg_bytes));
@@ -138,9 +175,9 @@ int main(const int argc,  char** argv){
             if (i & 1){
                 // First block of data is original file path, second is file contents
               #ifdef TESTS
-                if (n_msg_bytes > 1099511627780){
+				if (unlikely(n_msg_bytes > 1099511627780)){
                     // ~2**40
-                    return 1;
+					handler(UNLIKELY_NUMBER_OF_MSG_BYTES);
                 }
               #endif
                 if (out_fmt != NULL){
@@ -153,9 +190,9 @@ int main(const int argc,  char** argv){
 				sendfile(fout, STDIN_FILENO, nullptr, n_msg_bytes);
             } else {
               #ifdef TESTS
-                if (n_msg_bytes > sizeof(fp_str)){
+                if (unlikely(n_msg_bytes > sizeof(fp_str))){
 					// An improbably long file name - indicating that the n_msg_bytes was most likely garbage, in turn indicating that the last message was truncated.
-					return 2;
+					handler(UNLIKELY_LONG_FILE_NAME);
                 }
               #endif
 				const size_t rc1 = read(STDIN_FILENO, fp_str, n_msg_bytes);
