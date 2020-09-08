@@ -11,6 +11,7 @@ RUN ln -s /usr/local/include/opencv4/opencv2 /usr/local/include/opencv2 \
 		-DENABLE_STATIC=ON \
 		-DOPENCV_3RDPARTY_LIBDIR=/usr/local/lib64/opencv4/3rdparty \
 		-DBUILD_DOCS=OFF \
+		-DENABLE_EXCEPTS=OFF \
 		.. \
 	&& make \
 	&& ls -l bpcs*
