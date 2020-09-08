@@ -51,7 +51,7 @@ inline
 void format_out_fp(char* out_fmt,  char* fp,  char result[1024]){
     // WARNING: Requires absolute paths?
     
-    int32_t dir_length = 0;
+	int32_t dir_length = -1; // TODO: Fix this logic
     int32_t indx_dot = 0;
     int32_t i = 0;
     
@@ -66,5 +66,5 @@ void format_out_fp(char* out_fmt,  char* fp,  char result[1024]){
     
     --i;
     
-	_format_out_fp(out_fmt, fp, result, dir_length-1, indx_dot, i, i+1);
+	_format_out_fp(out_fmt, fp, result, dir_length, indx_dot, i, i+1);
 }
