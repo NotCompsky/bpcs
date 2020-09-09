@@ -13,6 +13,9 @@
 
 #include "config.h"
 
+#define CONJUGATION_BIT_INDX (GRID_W * GRID_H - 1)
+#define BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
+
 enum {
 	NO_ERROR,
 	MISC_ERROR,
@@ -52,9 +55,9 @@ const char* const handler_msgs[] = {
 };
 #endif
 
-typedef cv::Matx<uchar, 9, 9> Matx99uc;
-typedef cv::Matx<uchar, 9, 8> Matx98uc;
-typedef cv::Matx<uchar, 8, 9> Matx89uc;
+typedef cv::Matx<uchar, GRID_H,   GRID_W> Matx99uc;
+typedef cv::Matx<uchar, GRID_H, GRID_W-1> Matx98uc;
+typedef cv::Matx<uchar, GRID_H-1, GRID_W> Matx89uc;
 
 
 /*
@@ -97,12 +100,10 @@ void convert_from_cgc(cv::Mat &arr){
 static Matx99uc chequerboard;
 void init_chequerboard(){
 	// NOTE: Matx template initialisation has changed, soo we have to do this for now.
-#define GRID_W 9
-#define GRID_H 9
 	for (auto j = 0;  j < GRID_H;  ++j)
 		for (auto i = 0;  i < GRID_W;  ++i)
 			chequerboard.val[GRID_W*j + i] = 1 ^ ((i & 1) ^ (j & 1));
-			// NOTE: chequerboard.val[0] should be 1, so that when the chequerboard is applied to grids, the grid[80] == 1 (to mark it as conjugated)
+			// NOTE: chequerboard.val[0] should be 1, so that when the chequerboard is applied to grids, the grid[CONJUGATION_BIT_INDX] == 1 (to mark it as conjugated)
 }
 
 
@@ -143,7 +144,7 @@ class BPCSStreamBuf {
     char* out_fmt = NULL;
     #endif
     
-    std::array<uchar, 10> get();
+    std::array<uchar, BYTES_PER_GRID> get();
     
     
     
@@ -152,7 +153,7 @@ class BPCSStreamBuf {
     void load_next_img(); // Init
     
     #ifdef EMBEDDOR
-    void put(std::array<uchar, 10>);
+    void put(std::array<uchar, BYTES_PER_GRID>);
     void save_im(); // End
     #endif
   private:
@@ -171,17 +172,17 @@ class BPCSStreamBuf {
     int img_n;
     int n_imgs;
     
-    Matx99uc grid{9, 9, CV_8UC1};
+    Matx99uc grid{GRID_H, GRID_W, CV_8UC1};
     
-    Matx98uc xor_adj_mat1{9, 8, CV_8UC1};
-    Matx89uc xor_adj_mat2{8, 9, CV_8UC1};
+    Matx98uc xor_adj_mat1{GRID_H,   GRID_W-1, CV_8UC1};
+    Matx89uc xor_adj_mat2{GRID_H-1, GRID_W,   CV_8UC1};
     
     cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(8, 9)};
     cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(8, 9)};
     cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(9, 8)};
     cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(9, 8)};
     
-    cv::Mat grid_orig{9, 9, CV_8UC1};
+    cv::Mat grid_orig{GRID_H, GRID_W, CV_8UC1};
     
     cv::Mat bitplane;
     
@@ -213,10 +214,10 @@ class BPCSStreamBuf {
 
 inline uint8_t BPCSStreamBuf::get_grid_complexity(Matx99uc &arr){
     uint8_t sum = 0;
-    cv::bitwise_xor(arr.get_minor<8,9>(1,0), arr.get_minor<8,9>(0,0), this->xor_adj_mat2);
+    cv::bitwise_xor(arr.get_minor<GRID_H-1,GRID_W>(1,0), arr.get_minor<GRID_H-1,GRID_W>(0,0), this->xor_adj_mat2);
     sum += cv::sum(this->xor_adj_mat2)[0];
     
-    cv::bitwise_xor(arr.get_minor<9,8>(0,1), arr.get_minor<9,8>(0,0), this->xor_adj_mat1);
+    cv::bitwise_xor(arr.get_minor<GRID_H,GRID_W-1>(0,1), arr.get_minor<GRID_H,GRID_W-1>(0,0), this->xor_adj_mat1);
     sum += cv::sum(this->xor_adj_mat1)[0];
     
     return sum;
@@ -319,7 +320,7 @@ void BPCSStreamBuf::load_next_img(){
     rowbytes = png_get_rowbytes(png_ptr, png_info_ptr);
     
     #ifdef TESTS
-        assert(png_get_channels(png_ptr, png_info_ptr) == 3);
+        assert(png_get_channels(png_ptr, png_info_ptr) == N_CHANNELS);
     #endif
     
     this->img_data = (uchar*)malloc(rowbytes*h);
@@ -340,7 +341,7 @@ void BPCSStreamBuf::load_next_img(){
     
     #ifdef TESTS
         assert(this->im_mat.depth() == CV_8U);
-        assert(this->im_mat.channels() == 3);
+        assert(this->im_mat.channels() == N_CHANNELS);
     #endif
     
     cv::split(this->im_mat, this->channel_byteplanes);
@@ -379,7 +380,7 @@ void BPCSStreamBuf::load_next_img(){
     #endif
         if (this->img_n == this->img_n_offset){
             // If false, this function is being called from within get()
-            if (this->grid.val[80])
+            if (this->grid.val[CONJUGATION_BIT_INDX])
                 this->conjugate_grid();
         }
     #ifdef EMBEDDOR
@@ -460,9 +461,9 @@ void BPCSStreamBuf::set_next_grid(){
     this->set_next_grid();
 }
 
-std::array<uchar, 10> BPCSStreamBuf::get(){
-    std::array<uchar, 10> out;
-    for (uint_fast8_t j=0; j<10; ++j){
+std::array<uchar, BYTES_PER_GRID> BPCSStreamBuf::get(){
+    std::array<uchar, BYTES_PER_GRID> out;
+    for (uint_fast8_t j=0; j<BYTES_PER_GRID; ++j){
         out[j] = 0;
         for (uint_fast8_t i=0; i<8; ++i){
             out[j] |= this->grid.val[8*j +i] << i;
@@ -471,22 +472,22 @@ std::array<uchar, 10> BPCSStreamBuf::get(){
     
     this->set_next_grid();
     
-    if (this->grid.val[80] != 0)
+    if (this->grid.val[CONJUGATION_BIT_INDX] != 0)
         this->conjugate_grid();
     
     return out;
 }
 
 #ifdef EMBEDDOR
-void BPCSStreamBuf::put(std::array<uchar, 10> in){
-    for (uint_fast8_t j=0; j<10; ++j){
+void BPCSStreamBuf::put(std::array<uchar, BYTES_PER_GRID> in){
+    for (uint_fast8_t j=0; j<BYTES_PER_GRID; ++j){
         for (uint_fast8_t i=0; i<8; ++i){
             this->grid.val[8*j +i] = in[j] & 1;
             in[j] = in[j] >> 1;
         }
 	}
     
-    this->grid.val[80] = 0;
+    this->grid.val[CONJUGATION_BIT_INDX] = 0;
     
     if (this->get_grid_complexity(this->grid) < this->min_complexity)
         this->conjugate_grid();
@@ -622,7 +623,7 @@ int main(const int argc, char* argv[]){
                               );
     bpcs_stream.load_next_img(); // Init
     
-    std::array<uchar, 10> arr;
+    std::array<uchar, BYTES_PER_GRID> arr;
     // Using std::array rather than C-style array to allow direct copying
     // arr is the same size as a pointer (8 bytes), so perhaps copying directly is more performative.
 #ifdef EMBEDDOR
@@ -631,9 +632,9 @@ int main(const int argc, char* argv[]){
     do {
         arr = bpcs_stream.get();
 #ifdef ONLY_COUNT
-		count += 10;
+		count += BYTES_PER_GRID;
 #else
-		if (unlikely(write(STDOUT_FILENO, arr.data(), 10) != 10))
+		if (unlikely(write(STDOUT_FILENO, arr.data(), BYTES_PER_GRID) != BYTES_PER_GRID))
 			break;
 #endif
     } while (not bpcs_stream.exhausted);
@@ -642,7 +643,7 @@ int main(const int argc, char* argv[]){
   // if (!embedding){
   //     ...
   } else {
-	while (likely(read(STDIN_FILENO, arr.data(), 10) == 10)){
+	while (likely(read(STDIN_FILENO, arr.data(), BYTES_PER_GRID) == BYTES_PER_GRID)){
         // read() returns the number of bytes written
         bpcs_stream.put(arr);
 	}
