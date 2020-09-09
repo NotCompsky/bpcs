@@ -12,6 +12,9 @@
 #ifdef TESTS
     #include <assert.h>
 #endif
+#ifdef CHITTY_CHATTY
+# include <cstdio>
+#endif
 
 
 enum {
@@ -130,6 +133,10 @@ bool mkdir_path_between_pointers(char* const start,  char* const end){
 
 
 int create_file_with_parent_dirs(char* const file_path,  const size_t file_path_len){
+#ifdef CHITTY_CHATTY
+	fprintf(stderr,  "Creating file: %s\n",  file_path);
+#endif
+	
 	int fd = open(file_path,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
 	if (likely(fd != -1))
 		// File successfully created
