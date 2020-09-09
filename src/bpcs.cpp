@@ -11,10 +11,9 @@
 # endif
 #endif
 
-#include "config.h"
-
 #define CONJUGATION_BIT_INDX (GRID_W * GRID_H - 1)
 #define BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
+
 
 enum {
 	NO_ERROR,
@@ -177,10 +176,10 @@ class BPCSStreamBuf {
     Matx98uc xor_adj_mat1{GRID_H,   GRID_W-1, CV_8UC1};
     Matx89uc xor_adj_mat2{GRID_H-1, GRID_W,   CV_8UC1};
     
-    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(8, 9)};
-    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(8, 9)};
-    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(9, 8)};
-    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(9, 8)};
+    cv::Rect xor_adj_rect1{cv::Point(0, 0), cv::Size(GRID_W-1, GRID_H)};
+    cv::Rect xor_adj_rect2{cv::Point(1, 0), cv::Size(GRID_W-1, GRID_H)};
+    cv::Rect xor_adj_rect3{cv::Point(0, 0), cv::Size(GRID_W, GRID_H-1)};
+    cv::Rect xor_adj_rect4{cv::Point(0, 1), cv::Size(GRID_W, GRID_H-1)};
     
     cv::Mat grid_orig{GRID_H, GRID_W, CV_8UC1};
     
@@ -393,15 +392,15 @@ void BPCSStreamBuf::load_next_img(){
 void BPCSStreamBuf::set_next_grid(){
     uint8_t complexity;
     int i = this->x;
-    for (int j=this->y;  j <= this->im_mat.rows -9;  j+=9, i=0){
-        while (i <= this->im_mat.cols -9){
-            cv::Rect grid_shape(cv::Point(i, j), cv::Size(9, 9));
+    for (int j=this->y;  j <= this->im_mat.rows - GRID_H;  j+=GRID_H, i=0){
+        while (i <= this->im_mat.cols - GRID_W){
+            cv::Rect grid_shape(cv::Point(i, j), cv::Size(GRID_W, GRID_H));
             
             this->grid_orig = this->bitplane(grid_shape);
             
             complexity = this->get_grid_complexity(this->grid_orig);
             
-            i += 9;
+            i += GRID_W;
             
             if (complexity >= this->min_complexity){
                 this->grid_orig = this->bitplane(grid_shape);
