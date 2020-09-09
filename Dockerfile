@@ -14,8 +14,18 @@ RUN ln -s /usr/local/include/opencv4/opencv2 /usr/local/include/opencv2 \
 		-DOPENCV_3RDPARTY_LIBDIR=/usr/local/lib64/opencv4/3rdparty \
 		-DBUILD_DOCS=OFF \
 		-DENABLE_EXCEPTS=ON \
+		-DCHITTY_CHATTY=OFF \
+		-DENABLE_RUNTIME_TESTS=OFF \
+		-DMALLOC_OVERRIDE=/mimalloc-override.o \
+		\
+		-DGRID_W=9 \
+		-DGRID_H=9 \
+		-DN_CHANNELS=3 \
+		-DMAX_BIT_DEPTH=16 \
 		.. \
 	&& make \
+	&& ls -l bpcs* \
+	&& strip -s bpcs* \
 	&& ls -l bpcs*
 
 FROM alpine:latest

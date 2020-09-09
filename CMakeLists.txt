@@ -10,6 +10,8 @@ option(BUILD_DOCS    "Build documentation" OFF)
 option(ENABLE_EXCEPTS "Enable exceptions" ON)
 option(CHITTY_CHATTY "Be very verbose" OFF)
 option(ENABLE_RUNTIME_TESTS  "Enable runtime tests" ON)
+option(AGGRESSIVE_DEAD_CODE_REMOVAL "Aggressively purge dead code, structuring the resulting binary in a form which may be slower. Does not, however, appear to have any affect." OFF)
+set(MALLOC_OVERRIDE "" CACHE STRING "Path to object file that overrides the malloc implementation")
 set(GRID_W 9 CACHE STRING "Grid width")
 set(GRID_H 9 CACHE STRING "Grid height")
 set(N_CHANNELS 3 CACHE STRING "Number of colour channels in each image")
@@ -44,12 +46,17 @@ set(LIBS "${OPENCV_CORE}" "${PNG}" "${LIBS}")
 
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-add_executable(bpcs-fmt "${SRC_DIR}/fmt.cpp")
+set(MALLOC_OBJECTS)
+if(NOT MALLOC_OVERRIDE STREQUAL "")
+	set(MALLOC_OBJECTS "${MALLOC_OVERRIDE}")
+endif()
+
+add_executable(bpcs-fmt ${MALLOC_OBJECTS} "${SRC_DIR}/fmt.cpp")
 
 include_directories("/usr/local/include")
 
 foreach(tgt bpcs bpcs-x bpcs-count)
-	add_executable("${tgt}" "${SRC_DIR}/bpcs.cpp")
+	add_executable("${tgt}" ${MALLOC_OBJECTS} "${SRC_DIR}/bpcs.cpp")
 	target_compile_definitions("${tgt}" PRIVATE GRID_W=${GRID_W} GRID_H=${GRID_H} N_CHANNELS=${N_CHANNELS} MAX_BITPLANES=${MAX_BIT_DEPTH})
 	target_include_directories("${tgt}" PRIVATE "${OpenCV_INCLUDE_DIRS}")
 	target_link_libraries("${tgt}" PRIVATE "${LIBS}")
@@ -72,6 +79,11 @@ endif()
 target_compile_definitions(bpcs PRIVATE EMBEDDOR)
 target_compile_definitions(bpcs-fmt PRIVATE EMBEDDOR)
 target_compile_definitions(bpcs-count PRIVATE ONLY_COUNT)
+
+if(AGGRESSIVE_DEAD_CODE_REMOVAL)
+	set(COMPILER_FLAGS "${COMPILER_FLAGS} -fdata-sections -ffunction-sections")
+	set(LINKER_FLAGS "${LINKER_FLAGS} --gc-sections")
+endif()
 
 set_target_properties(
 	bpcs
