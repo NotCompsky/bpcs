@@ -9,6 +9,11 @@ option(NATIVE_MARCH  "Optimise for the native CPU? Will not run on other CPUs" O
 option(BUILD_DOCS    "Build documentation" OFF)
 option(ENABLE_EXCEPTS "Enable exceptions" ON)
 option(CHITTY_CHATTY "Be very verbose" OFF)
+option(ENABLE_RUNTIME_TESTS  "Enable runtime tests" ON)
+set(GRID_W 9 CACHE STRING "Grid width")
+set(GRID_H 9 CACHE STRING "Grid height")
+set(N_CHANNELS 3 CACHE STRING "Number of colour channels in each image")
+set(MAX_BIT_DEPTH 32 CACHE STRING "Maximum bit-depth of images used. There is not much performance loss from higher values.")
 set(OPENCV_3RDPARTY_LIBDIR "/usr/local/lib64/opencv4/3rdparty" CACHE STRING "Path to 3rd party OpenCV libraries")
 
 find_package(OpenCV REQUIRED)
@@ -39,11 +44,35 @@ set(LIBS "${OPENCV_CORE}" "${PNG}" "${LIBS}")
 
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-
-add_executable(bpcs     "${SRC_DIR}/bpcs.cpp")
-add_executable(bpcs-x   "${SRC_DIR}/bpcs.cpp")
 add_executable(bpcs-fmt "${SRC_DIR}/fmt.cpp")
-add_executable(bpcs-count "${SRC_DIR}/bpcs.cpp")
+
+include_directories("/usr/local/include")
+
+foreach(tgt bpcs bpcs-x bpcs-count)
+	add_executable("${tgt}" "${SRC_DIR}/bpcs.cpp")
+	target_compile_definitions("${tgt}" PRIVATE GRID_W=${GRID_W} GRID_H=${GRID_H} N_CHANNELS=${N_CHANNELS} MAX_BITPLANES=${MAX_BIT_DEPTH})
+	target_include_directories("${tgt}" PRIVATE "${OpenCV_INCLUDE_DIRS}")
+	target_link_libraries("${tgt}" PRIVATE "${LIBS}")
+endforeach()
+
+foreach(tgt bpcs bpcs-x bpcs-count bpcs-fmt)
+	if(ENABLE_RUNTIME_TESTS)
+		target_compile_definitions("${tgt}" PRIVATE TESTS)
+	endif()
+	if(NOT ENABLE_EXCEPTS)
+		target_compile_definitions("${tgt}" PRIVATE NO_EXCEPTIONS)
+	endif()
+endforeach()
+
+if(CHITTY_CHATTY)
+	target_compile_definitions(bpcs-fmt PRIVATE CHITTY_CHATTY)
+endif()
+
+
+target_compile_definitions(bpcs PRIVATE EMBEDDOR)
+target_compile_definitions(bpcs-fmt PRIVATE EMBEDDOR)
+target_compile_definitions(bpcs-count PRIVATE ONLY_COUNT)
+
 set_target_properties(
 	bpcs
 	bpcs-x
@@ -70,32 +99,6 @@ else()
 	message(WARNING "Compiler does not support IPO, so expect a larger binary size")
 endif()
 
-include_directories("/usr/local/include")
-target_include_directories(bpcs   PRIVATE "${OpenCV_INCLUDE_DIRS}")
-target_include_directories(bpcs-x PRIVATE "${OpenCV_INCLUDE_DIRS}")
-target_include_directories(bpcs-count PRIVATE "${OpenCV_INCLUDE_DIRS}")
-target_link_libraries(bpcs   PRIVATE "${LIBS}")
-target_link_libraries(bpcs-x PRIVATE "${LIBS}")
-target_link_libraries(bpcs-count PRIVATE "${LIBS}")
-target_compile_definitions(bpcs PRIVATE "EMBEDDOR=1")
-target_compile_definitions(bpcs-fmt PRIVATE "EMBEDDOR=1")
-target_compile_definitions(bpcs-count PRIVATE ONLY_COUNT)
-
-if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-	target_compile_definitions(bpcs     PRIVATE "TESTS=1")
-	target_compile_definitions(bpcs-x   PRIVATE "TESTS=1")
-	target_compile_definitions(bpcs-fmt PRIVATE "TESTS=1")
-	target_compile_definitions(bpcs-count PRIVATE TESTS)
-endif()
-if(NOT ENABLE_EXCEPTS)
-	target_compile_definitions(bpcs     PRIVATE "NO_EXCEPTIONS=1")
-	target_compile_definitions(bpcs-x   PRIVATE "NO_EXCEPTIONS=1")
-	target_compile_definitions(bpcs-fmt PRIVATE "NO_EXCEPTIONS=1")
-	target_compile_definitions(bpcs-count PRIVATE NO_EXCEPTIONS)
-endif()
-if(CHITTY_CHATTY)
-	target_compile_definitions(bpcs-fmt PRIVATE CHITTY_CHATTY)
-endif()
 
 if(BUILD_DOCS)
 	file(MAKE_DIRECTORY man)
