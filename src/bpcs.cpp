@@ -581,6 +581,14 @@ void BPCSStreamBuf::save_im(){
 #endif
 
 
+uint8_t a2i_1or2digits(const char* const str){
+	uint8_t n = str[0] - '0';
+	if (str[1] == 0)
+		return n;
+	return (n * 10) + str[1] - '0';
+}
+
+
 int main(const int argc, char* argv[]){
     int i = 0;
 	
@@ -603,7 +611,7 @@ int main(const int argc, char* argv[]){
 #endif
     
     
-    const uint8_t min_complexity = 50 + (argv[++i][0] - '0');
+	const uint8_t min_complexity = 50 + a2i_1or2digits(argv[++i]);
     //assert(50 <= min_complexity && min_complexity <= 56);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
