@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include "utils.hpp" // for format_out_fp
 #include <sys/sendfile.h>
+#include <cerrno>
 #include <compsky/macros/likely.hpp>
 
 
@@ -43,7 +44,7 @@ enum {
 	N_ERRORS
 };
 #ifdef NO_EXCEPTIONS
-# define handler(msg, ...) exit(msg)
+# define handler(msg, ...) _exit(msg)
 #else
 # include <stdexcept>
 # include <cstdio>
