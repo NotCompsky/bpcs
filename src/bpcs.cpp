@@ -516,7 +516,7 @@ void BPCSStreamBuf::save_im(){
         } while (j-- != 0);
     } while (i-- != 0);
     
-	static char formated_out_fp[1024];
+	static char formated_out_fp[MAX_FILE_PATH_LEN];
 	format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], formated_out_fp);
     cv::merge(this->channel_byteplanes, this->im_mat);
 	convert_from_cgc(this->im_mat);
