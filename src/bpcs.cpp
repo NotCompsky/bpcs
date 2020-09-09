@@ -143,7 +143,7 @@ class BPCSStreamBuf {
     char* out_fmt = NULL;
     #endif
     
-    std::array<uchar, BYTES_PER_GRID> get();
+	void get(uchar* msg_arr);
     
     
     
@@ -152,7 +152,7 @@ class BPCSStreamBuf {
     void load_next_img(); // Init
     
     #ifdef EMBEDDOR
-    void put(std::array<uchar, BYTES_PER_GRID>);
+    void put(uchar arr[BYTES_PER_GRID]);
     void save_im(); // End
     #endif
   private:
@@ -460,12 +460,11 @@ void BPCSStreamBuf::set_next_grid(){
     this->set_next_grid();
 }
 
-std::array<uchar, BYTES_PER_GRID> BPCSStreamBuf::get(){
-    std::array<uchar, BYTES_PER_GRID> out;
+void BPCSStreamBuf::get(uchar* msg_arr){
     for (uint_fast8_t j=0; j<BYTES_PER_GRID; ++j){
-        out[j] = 0;
+		msg_arr[j] = 0;
         for (uint_fast8_t i=0; i<8; ++i){
-            out[j] |= this->grid.val[8*j +i] << i;
+			msg_arr[j] |= this->grid.val[8*j +i] << i;
         }
     }
     
@@ -473,12 +472,10 @@ std::array<uchar, BYTES_PER_GRID> BPCSStreamBuf::get(){
     
     if (this->grid.val[CONJUGATION_BIT_INDX] != 0)
         this->conjugate_grid();
-    
-    return out;
 }
 
 #ifdef EMBEDDOR
-void BPCSStreamBuf::put(std::array<uchar, BYTES_PER_GRID> in){
+void BPCSStreamBuf::put(uchar* in){
     for (uint_fast8_t j=0; j<BYTES_PER_GRID; ++j){
         for (uint_fast8_t i=0; i<8; ++i){
             this->grid.val[8*j +i] = in[j] & 1;
@@ -621,20 +618,24 @@ int main(const int argc, char* argv[]){
                               #endif
                               );
     bpcs_stream.load_next_img(); // Init
+	
+	uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
+	uchar* io_buf_itr = io_buf;
     
-    std::array<uchar, BYTES_PER_GRID> arr;
-    // Using std::array rather than C-style array to allow direct copying
-    // arr is the same size as a pointer (8 bytes), so perhaps copying directly is more performative.
 #ifdef EMBEDDOR
   if (!embedding){
 #endif
     do {
-        arr = bpcs_stream.get();
+		bpcs_stream.get(io_buf_itr);
+		io_buf_itr += BYTES_PER_GRID;
 #ifdef ONLY_COUNT
 		count += BYTES_PER_GRID;
 #else
-		if (unlikely(write(STDOUT_FILENO, arr.data(), BYTES_PER_GRID) != BYTES_PER_GRID))
-			break;
+		if (unlikely((io_buf_itr == io_buf + sizeof(io_buf)) or (bpcs_stream.exhausted))){
+			if (unlikely(write(STDOUT_FILENO, io_buf, sizeof(io_buf)) != sizeof(io_buf)))
+				break;
+			io_buf_itr = io_buf;
+		}
 #endif
     } while (not bpcs_stream.exhausted);
 	//free(bpcs_stream.img_data); // Causes segfault // TODO: Investigate
@@ -642,11 +643,12 @@ int main(const int argc, char* argv[]){
   // if (!embedding){
   //     ...
   } else {
-	while (likely(read(STDIN_FILENO, arr.data(), BYTES_PER_GRID) == BYTES_PER_GRID)){
+	while (likely(read(STDIN_FILENO, io_buf, BYTES_PER_GRID) == BYTES_PER_GRID)){
+		// TODO: Optimise
         // read() returns the number of bytes written
-        bpcs_stream.put(arr);
+		bpcs_stream.put(io_buf);
 	}
-    bpcs_stream.put(arr);
+	bpcs_stream.put(io_buf);
     bpcs_stream.save_im();
   }
 #endif
