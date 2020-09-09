@@ -36,6 +36,7 @@ enum {
 	SPLICE_ERROR__ESPIPE,
 	UNLIKELY_NUMBER_OF_MSG_BYTES,
 	UNLIKELY_LONG_FILE_NAME,
+	CANNOT_CREATE_FILE,
 	N_ERRORS
 };
 #ifdef NO_EXCEPTIONS
@@ -65,7 +66,8 @@ const char* const handler_msgs[] = {
 	"Splice error: Out of memory",
 	"Splice error: Either off_in or off_out was not NULL, but the corresponding file descriptor refers to a pipe",
 	"Improbably large file",
-	"Improbably long file name"
+	"Improbably long file name",
+	"Cannot create file"
 };
 # define LOG(...) fprintf(stderr, __VA_ARGS__); fflush(stderr);
 void handler(const int msg){
@@ -95,6 +97,66 @@ void write_exact_number_of_bytes(const int fd,  char* const buf,  size_t n){
 	do {
 		n -= write(fd, buf, n);
 	} while (n != 0);
+}
+
+
+char* get_parent_dir(char* path){
+	do {
+		--path;
+	} while ((*path != '/'));
+	// No need to check whether path has overflown the full file path beginning, because we can assume the root path begins with a slash - and we would not encounter root anyway.
+	return path;
+}
+
+
+char* get_child_dir(char* path,  char* const end_of_full_file_path){
+	do {
+		++path;
+	} while ((*path != '/') and (path != end_of_full_file_path));
+	return (*path == '/') ? path : nullptr;
+}
+
+
+bool mkdir_path_between_pointers(char* const start,  char* const end){
+	*end = 0;
+	const int rc = mkdir(start,  S_IRUSR | S_IWUSR | S_IXUSR);
+	if (rc == -1){
+		if (unlikely(errno != ENOENT))
+			handler(CANNOT_CREATE_FILE, start);
+	}
+	*end = '/';
+	return (rc == 0); // i.e. return true on a success
+}
+
+
+int create_file_with_parent_dirs(char* const file_path,  const size_t file_path_len){
+	int fd = open(file_path,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
+	if (likely(fd != -1))
+		// File successfully created
+		return fd;
+	if (unlikely(errno != ENOENT)){
+		handler(CANNOT_CREATE_FILE, file_path);
+	}
+	
+	// ENOENT: Either a directory component in pathname does not exist or is a dangling symbolic link
+	
+	// Traverse up the path until a directory is successfully created
+	char* path = file_path + file_path_len;
+	while(true){
+		path = get_parent_dir(path);
+		if (mkdir_path_between_pointers(file_path, path))
+			break;
+	}
+	
+	// Traverse back down the path
+	while(true){
+		path = get_child_dir(path,  file_path + file_path_len);
+		if (path == nullptr)
+			break;
+		mkdir_path_between_pointers(file_path, path);
+	}
+	
+	return open(file_path,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
 }
 
 
@@ -208,7 +270,7 @@ int main(const int argc,  char** argv){
 							handler(FP_STR_IS_EMPTY, fp_str__formatted);
 						}
                     #endif
-                    fout = open(fp_str__formatted,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
+					fout = create_file_with_parent_dirs(fp_str__formatted, strlen(fp_str__formatted));
                 }
 				loff_t n_bytes_written = 0;
 				size_t n_bytes_yet_to_write = n_msg_bytes;
