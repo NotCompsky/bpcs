@@ -339,11 +339,12 @@ void BPCSStreamBuf::load_next_img(){
 	  #endif
 	}
 	{
-		auto i = 0;
-		this->channel_byteplanes[i] = this->img_data + (N_CHANNELS * img_width_by_height);
-		while (++i < N_CHANNELS)
-			this->channel_byteplanes[i] = this->channel_byteplanes[i - 1] + img_width_by_height;
-		this->bitplane = this->channel_byteplanes[i-1] + img_width_by_height;
+		uchar* itr = this->img_data + (N_CHANNELS * img_width_by_height);
+		for (auto i = 0;  i < N_CHANNELS;  ++i){
+			this->channel_byteplanes[i] = itr;
+			itr += img_width_by_height;
+		}
+		this->bitplane = itr;
 	}
 	
     uchar* row_ptrs[h];
