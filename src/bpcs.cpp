@@ -61,6 +61,21 @@ const char* const handler_msgs[] = {
 #endif
 
 
+#define WHILE_CONDITION while(not bpcs_stream.exhausted)
+#ifdef ONLY_COUNT
+# define DO_OR_WHILE WHILE_CONDITION
+# define WHILE_OR_DO
+#else
+# define DO_OR_WHILE do
+# define WHILE_OR_DO WHILE_CONDITION;
+#endif
+/*
+* NOTE: While extracting, it is assumed that there is at least one full grid of bytes embedded in the vessel image.
+* However, this is not necessarily the case when using bpcs-count, because a use-case is to identify good vessel images before embedding.
+* Hence the count must be corrected in case the stream is exhausted
+*/
+
+
 typedef unsigned char uchar;
 typedef unsigned int  uint;
 
@@ -650,7 +665,7 @@ int main(const int argc, char* argv[]){
 #ifdef EMBEDDOR
   if (!embedding){
 #endif
-    do {
+    DO_OR_WHILE {
 		bpcs_stream.get(io_buf_itr);
 		io_buf_itr += BYTES_PER_GRID;
 #ifdef ONLY_COUNT
@@ -663,7 +678,7 @@ int main(const int argc, char* argv[]){
 #endif
 			io_buf_itr = io_buf;
 		}
-    } while (not bpcs_stream.exhausted);
+    } WHILE_OR_DO
 	//free(bpcs_stream.img_data); // Causes segfault // TODO: Investigate
 #ifdef EMBEDDOR
   // if (!embedding){
