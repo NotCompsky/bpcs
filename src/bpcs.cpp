@@ -367,6 +367,9 @@ void BPCSStreamBuf::load_next_img(){
 		auto k = 0;
         for (auto j = 0;  j < N_CHANNELS;  ++j){
 			for (auto i = 0;  i < this->n_bitplanes;  ++i){
+				this->bitplanes[k] = (uchar*)malloc(this->w * this->h);
+				if (unlikely(this->bitplanes[k] == nullptr))
+					handler(OOM);
 				for (auto _i = 0;  _i < this->w * this->h;  ++_i)
 					this->bitplanes[k][_i] = this->channel_byteplanes[j][_i] & 1;
 				++k;
@@ -504,9 +507,11 @@ void BPCSStreamBuf::save_im(){
     
     do {
         // First bitplane (i.e. most significant bit) of each channel is unchanged by conversion to CGC
-        this->channel_byteplanes[i] = this->bitplanes[--k].clone();
+		--k;
 		auto j = this->n_bitplanes - 1;
-        this->channel_byteplanes[i] *= (1 << j--);
+		for (auto _i = 0;  _i < this->w * this->h;  ++_i)
+			this->channel_byteplanes[i][_i] = this->bitplanes[k][_i] << j;
+		--j;
         do {
             --k;
 			for (auto _i = 0;  _i < this->w * this->h;  ++_i)
