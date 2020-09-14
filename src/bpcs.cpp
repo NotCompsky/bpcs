@@ -558,7 +558,7 @@ void BPCSStreamBuf::save_im(){
     
     uchar* row_ptrs[this->h];
     for (uint32_t i=0; i<this->h; ++i)
-        row_ptrs[i] = this->img_data + i*3*this->w;
+        row_ptrs[i] = this->img_data + i*N_CHANNELS*this->w;
     
     png_write_image(png_ptr, row_ptrs);
     
