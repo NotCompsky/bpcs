@@ -497,7 +497,7 @@ void BPCSStreamBuf::put(uchar* in){
     if (get_grid_complexity(this->grid) < this->min_complexity)
         this->conjugate_grid();
     
-	this->embed_grid(this->bitplane,  this->x + this->y * this->w);
+	this->embed_grid(this->bitplane,  (this->x - GRID_W) + this->y * this->w);
     this->set_next_grid();
 }
 
