@@ -137,13 +137,8 @@ class BPCSStreamBuf {
 	, img_n_offset(img_n)
 	, n_imgs(n_imgs)
 	, img_fps(im_fps)
-	{
-		this->img_data = (uchar*)malloc(MAX_IMG_W * MAX_IMG_H * N_CHANNELS);
-	  #ifdef TESTS
-		if (unlikely(this->img_data == nullptr))
-			handler(OOM);
-	  #endif
-	}
+	, img_data_sz(0)
+    {}
     
     
 	bool exhausted;
@@ -158,7 +153,7 @@ class BPCSStreamBuf {
     
     
     uchar* img_data;
-	uchar* row_ptrs[MAX_IMG_H];
+	size_t img_data_sz;
     
     void load_next_img(); // Init
     
@@ -333,10 +328,25 @@ void BPCSStreamBuf::load_next_img(){
         assert(png_get_channels(png_ptr, png_info_ptr) == N_CHANNELS);
     #endif
     
-    for (uint32_t i=0; i<h; ++i)
-		this->row_ptrs[i] = this->img_data + i*rowbytes;
+	if (this->img_data_sz == 0){
+		this->img_data_sz = rowbytes * h;
+		if (this->n_imgs != 1)
+			this->img_data_sz *= 2;
+		this->img_data = (uchar*)malloc(this->img_data_sz);
+	} else if (this->img_data_sz < rowbytes * h){
+		this->img_data_sz = rowbytes * h * 2;
+		this->img_data = (uchar*)realloc(this->img_data, this->img_data_sz);
+	  #ifdef TESTS
+		if (unlikely(this->img_data == nullptr))
+			handler(OOM);
+	  #endif
+	}
     
-	png_read_image(png_ptr, this->row_ptrs);
+    uchar* row_ptrs[h];
+    for (uint32_t i=0; i<h; ++i)
+        row_ptrs[i] = this->img_data + i*rowbytes;
+    
+    png_read_image(png_ptr, row_ptrs);
     
     fclose(png_file);
     png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
