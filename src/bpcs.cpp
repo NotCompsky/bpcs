@@ -334,6 +334,7 @@ void BPCSStreamBuf::load_next_img(){
 		this->img_data_sz = rowbytes * h;
 		if (this->n_imgs != 1)
 			this->img_data_sz *= 2;
+		this->img_data = (uchar*)malloc(this->img_data_sz);
 	} else if (this->img_data_sz < rowbytes * h){
 		this->img_data_sz = rowbytes * h * 2;
 		this->img_data = (uchar*)realloc(this->img_data, this->img_data_sz);
