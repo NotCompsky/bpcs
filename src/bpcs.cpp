@@ -179,21 +179,19 @@ class BPCSStreamBuf {
 
 void BPCSStreamBuf::split_channels(){
 	// RGBRGBRGBRGB... -> RRRR... GGGG... BBBB...
-	// WARNING: It is assumed that the image has only 3 channels
-	for (auto i = 0;  i < this->w * this->h * N_CHANNELS;  i += 3){
-		this->channel_byteplanes[0][i] = this->img_data[i + 0];
-		this->channel_byteplanes[1][i] = this->img_data[i + 1];
-		this->channel_byteplanes[2][i] = this->img_data[i + 2];
+	for (auto i = 0;  i < this->w * this->h;  ++i){
+		for (auto k = 0;  k < N_CHANNELS;  ++k){
+			this->channel_byteplanes[k][i] = this->img_data[N_CHANNELS*i + k];
+		}
 	}
 }
 
 void BPCSStreamBuf::merge_channels(){
 	// RRRR... GGGG... BBBB... -> RGBRGBRGBRGB...
-	// WARNING: It is assumed that the image has only 3 channels
-	for (auto i = 0;  i < this->w * this->h * N_CHANNELS;  i += 3){
-		this->img_data[i + 0] = this->channel_byteplanes[0][i];
-		this->img_data[i + 1] = this->channel_byteplanes[1][i];
-		this->img_data[i + 2] = this->channel_byteplanes[2][i];
+	for (auto i = 0;  i < this->w * this->h;  ++i){
+		for (auto k = 0;  k < N_CHANNELS;  ++k){
+			this->img_data[N_CHANNELS*i + k] = this->channel_byteplanes[k][i];
+		}
 	}
 }
 
