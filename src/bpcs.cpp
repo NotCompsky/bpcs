@@ -62,11 +62,9 @@ typedef cv::Matx<uchar, GRID_H-1, GRID_W> Matx89uc;
 /*
  * Bitwise operations on OpenCV Matrices
  */
-inline void cv_div2(cv::Mat& arr, cv::Mat& dest){
-    cv::Mat m;
-    m = ((arr & 2) / 2) & (arr & 1);
-    dest  = arr/2;
-    dest -= m;
+inline void byteplane_div2(cv::Mat& mat){
+	for (auto i = 0;  i < mat.rows * mat.cols;  ++i)
+		mat.data[i] /= 2;
 }
 
 inline
@@ -248,7 +246,7 @@ inline void BPCSStreamBuf::conjugate_grid(){
 
 inline void BPCSStreamBuf::load_next_bitplane(){
     this->bitplane = this->channel_byteplanes[this->channel_n] & 1;
-    cv_div2(this->channel_byteplanes[this->channel_n], this->channel_byteplanes[this->channel_n]);
+	byteplane_div2(this->channel_byteplanes[this->channel_n]);
 }
 
 void BPCSStreamBuf::load_next_channel(){
@@ -377,7 +375,7 @@ void BPCSStreamBuf::load_next_img(){
         for (auto j = 0;  j < N_CHANNELS;  ++j){
 			for (auto i = 0;  i < this->n_bitplanes;  ++i){
                 this->bitplanes[k++] = this->channel_byteplanes[j] & 1;
-                cv_div2(this->channel_byteplanes[j], this->channel_byteplanes[j]);
+				byteplane_div2(this->channel_byteplanes[j]);
             }
         }
         this->bitplane = this->bitplanes[0];
