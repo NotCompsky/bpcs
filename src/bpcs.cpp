@@ -551,7 +551,7 @@ void BPCSStreamBuf::save_im(){
 	if (this->png_bg != nullptr)
 		png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
     
-    png_set_IHDR(png_ptr, png_info_ptr, this->im_mat.cols, this->im_mat.rows, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+	png_set_IHDR(png_ptr, png_info_ptr, this->w, this->h, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     
     png_write_info(png_ptr, png_info_ptr);
     
@@ -559,9 +559,9 @@ void BPCSStreamBuf::save_im(){
 		handler(PNG_ERROR_3);
     }
     
-    uchar* row_ptrs[this->im_mat.rows];
-    for (uint32_t i=0; i<this->im_mat.rows; ++i)
-        row_ptrs[i] = this->img_data + i*3*this->im_mat.cols;
+    uchar* row_ptrs[this->h];
+    for (uint32_t i=0; i<this->h; ++i)
+        row_ptrs[i] = this->img_data + i*3*this->w;
     
     png_write_image(png_ptr, row_ptrs);
     
