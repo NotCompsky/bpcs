@@ -1,4 +1,4 @@
-FROM notcompsky/static-wangle-ffmpeg-opencv:latest AS intermediate
+FROM notcompsky/static-wangle-ffmpeg:latest AS intermediate
 WORKDIR /bpcs
 COPY CMakeLists.txt /bpcs/CMakeLists.txt
 COPY src /bpcs/src
