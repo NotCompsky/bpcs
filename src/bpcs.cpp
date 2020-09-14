@@ -338,12 +338,14 @@ void BPCSStreamBuf::load_next_img(){
 			handler(OOM);
 	  #endif
 	}
-	// WARNING: N_CHANNELS is assumed to be 3
-	this->channel_byteplanes[0] = this->img_data + ((N_CHANNELS + 0) * img_width_by_height);
-	this->channel_byteplanes[1] = this->img_data + ((N_CHANNELS + 1) * img_width_by_height);
-	this->channel_byteplanes[2] = this->img_data + ((N_CHANNELS + 2) * img_width_by_height);
-	this->bitplane = this->img_data + ((N_CHANNELS + N_CHANNELS) * img_width_by_height);
-    
+	{
+		auto i = 0;
+		this->channel_byteplanes[i] = this->img_data + (N_CHANNELS * img_width_by_height);
+		while (++i < N_CHANNELS)
+			this->channel_byteplanes[i] = this->channel_byteplanes[i - 1] + img_width_by_height;
+		this->bitplane = this->channel_byteplanes[i-1] + img_width_by_height;
+	}
+	
     uchar* row_ptrs[h];
     for (uint32_t i=0; i<h; ++i)
         row_ptrs[i] = this->img_data + i*rowbytes;
