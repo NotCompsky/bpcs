@@ -276,13 +276,6 @@ void BPCSStreamBuf::load_next_img(){
 		handler(CANNOT_CREATE_PNG_READ_STRUCT);
     }
     
-    /* ERROR - incorrect use of incomplete type
-    if (setjmp(png_ptr->jmpbuf)){
-        png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
-        handler(1);
-    }
-    */
-    
     png_init_io(png_ptr, png_file);
     png_set_sig_bytes(png_ptr, 8);
     png_read_info(png_ptr, png_info_ptr);
@@ -641,10 +634,7 @@ int main(const int argc, char* argv[]){
 			io_buf_itr = io_buf;
 		}
     } WHILE_OR_DO
-	//free(bpcs_stream.img_data); // Causes segfault // TODO: Investigate
 #ifdef EMBEDDOR
-  // if (!embedding){
-  //     ...
   } else {
 	while (likely(read(STDIN_FILENO, io_buf, BYTES_PER_GRID) == BYTES_PER_GRID)){
 		// TODO: Optimise
@@ -653,7 +643,6 @@ int main(const int argc, char* argv[]){
 	}
 	bpcs_stream.put(io_buf);
     bpcs_stream.save_im();
-	// free(bpcs_stream.img_data);
   }
 #endif
 #ifdef ONLY_COUNT
