@@ -115,6 +115,9 @@ void init_chequerboard(){
 class BPCSStreamBuf {
     // Based on excellent post by krzysztoftomaszewski
     // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
+  private:
+	png_structp png_ptr;
+	png_infop png_info_ptr;
   public:
     /* Constructors */
     BPCSStreamBuf(const uint8_t min_complexity, int img_n, int n_imgs, char** im_fps
@@ -138,7 +141,12 @@ class BPCSStreamBuf {
 	, n_imgs(n_imgs)
 	, img_fps(im_fps)
 	, img_data_sz(0)
-    {}
+	{
+		this->png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+		this->png_info_ptr = png_create_info_struct(this->png_ptr);
+		if (unlikely((this->png_ptr == nullptr) or (this->png_info_ptr == nullptr)))
+			handler(OOM);
+	}
     
     
 	bool exhausted;
@@ -268,19 +276,6 @@ void BPCSStreamBuf::load_next_img(){
 		handler(INVALID_PNG_MAGIC_NUMBER);
     }
     
-    auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    
-    if (!png_ptr)
-        // Could not allocate memory
-		handler(OOM);
-  
-    auto png_info_ptr = png_create_info_struct(png_ptr);
-    
-    if (!png_info_ptr){
-        png_destroy_read_struct(&png_ptr, NULL, NULL);
-		handler(CANNOT_CREATE_PNG_READ_STRUCT);
-    }
-    
     /* ERROR - incorrect use of incomplete type
     if (setjmp(png_ptr->jmpbuf)){
         png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
@@ -349,7 +344,6 @@ void BPCSStreamBuf::load_next_img(){
     png_read_image(png_ptr, row_ptrs);
     
     fclose(png_file);
-    png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
     
     this->im_mat = cv::Mat(h, w, CV_8UC3, this->img_data);
     // WARNING: Loaded as RGB rather than OpenCV's default BGR
