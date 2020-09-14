@@ -127,12 +127,19 @@ class BPCSStreamBuf {
                   , char* outfmt
                 #endif
                 ):
-	exhausted(false),
-    #ifdef EMBEDDOR
-        embedding(emb), out_fmt(outfmt),
-    #endif
-    x(0), y(0), min_complexity(min_complexity), img_n(img_n), img_n_offset(img_n), n_imgs(n_imgs), img_fps(im_fps)
-    
+	exhausted(false)
+  #ifdef EMBEDDOR
+	, embedding(emb)
+	, out_fmt(outfmt)
+  #endif
+	, x(0)
+	, y(0)
+	, min_complexity(min_complexity)
+	, img_n(img_n)
+	, img_n_offset(img_n)
+	, n_imgs(n_imgs)
+	, img_fps(im_fps)
+	, img_data_sz(0)
     {}
     
     
@@ -148,6 +155,7 @@ class BPCSStreamBuf {
     
     
     uchar* img_data;
+	size_t img_data_sz;
     
     void load_next_img(); // Init
     
@@ -322,7 +330,18 @@ void BPCSStreamBuf::load_next_img(){
         assert(png_get_channels(png_ptr, png_info_ptr) == N_CHANNELS);
     #endif
     
-    this->img_data = (uchar*)malloc(rowbytes*h);
+	if (this->img_data_sz == 0){
+		this->img_data_sz = rowbytes * h;
+		if (this->n_imgs != 1)
+			this->img_data_sz *= 2;
+	} else if (this->img_data_sz < rowbytes * h){
+		this->img_data_sz = rowbytes * h * 2;
+		this->img_data = (uchar*)realloc(this->img_data, this->img_data_sz);
+	  #ifdef TESTS
+		if (unlikely(this->img_data == nullptr))
+			handler(OOM);
+	  #endif
+	}
     
     uchar* row_ptrs[h];
     for (uint32_t i=0; i<h; ++i)
@@ -347,7 +366,6 @@ void BPCSStreamBuf::load_next_img(){
   #ifdef EMBEDDOR
     if (!this->embedding)
   #endif
-        free(this->img_data);
     
     
     this->channel_n = 0;
@@ -572,8 +590,6 @@ void BPCSStreamBuf::save_im(){
     }
     
     png_write_end(png_ptr, NULL);
-    
-    free(this->img_data);
 }
 #endif
 
@@ -650,6 +666,7 @@ int main(const int argc, char* argv[]){
 	}
 	bpcs_stream.put(io_buf);
     bpcs_stream.save_im();
+	// free(bpcs_stream.img_data);
   }
 #endif
 #ifdef ONLY_COUNT
