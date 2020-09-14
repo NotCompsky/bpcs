@@ -80,8 +80,6 @@ uint8_t get_grid_complexity(const uchar* grid){
 
 
 class BPCSStreamBuf {
-    // Based on excellent post by krzysztoftomaszewski
-    // src https://artofcode.wordpress.com/2010/12/12/deriving-from-stdstreambuf/
   public:
     /* Constructors */
     BPCSStreamBuf(const uint8_t min_complexity, int img_n, int n_imgs, char** im_fps
