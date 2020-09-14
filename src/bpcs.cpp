@@ -648,7 +648,7 @@ int main(const int argc, char* argv[]){
 #endif
     
     
-	const uint8_t min_complexity = 50 + a2i_1or2digits(argv[++i]);
+	const uint8_t min_complexity = a2i_1or2digits(argv[++i]);
     //assert(50 <= min_complexity && min_complexity <= 56);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
