@@ -70,6 +70,10 @@ See [VERSIONING.md](VERSIONING.md)
 
 Compared to [steghide](http://steghide.sourceforge.net/), this program has around 5x storage efficiency, and 10x more throughput (over 1MB/s, compared to 100KB/s on my machine). However, steghide uses a very different method that I suspect is more resistant to steganalysis.
 
+# NOTES
+
+A CUDA version was, at one point, nearly implemented; the (bad quality) code is left in this repository in case it will ever be useful. However, optimisations to the single-threaded CPU version have pushed performance to what this CUDA version was capable of, so it looks unlikely that the CUDA version will ever be worth developing.
+
 # SEE ALSO
 
 A [BPCS implementation in python](https://github.com/mobeets/bpcs)
