@@ -146,7 +146,6 @@ class BPCSStreamBuf {
     int n_imgs;
     
 	uchar grid[GRID_H * GRID_W];
-	uchar grid_orig[GRID_H * GRID_W];
     
 	uchar* bitplane;
     
@@ -172,6 +171,7 @@ class BPCSStreamBuf {
     
 	inline void byteplane_div2(uchar* arr);
 	void extract_grid(uchar* arr,  size_t indx);
+	void embed_grid(uchar* arr,  size_t indx);
     inline void conjugate_grid();
     
 };
@@ -220,6 +220,15 @@ void BPCSStreamBuf::extract_grid(uchar* arr,  size_t indx){
 	uchar* grid_itr = this->grid;
 	for (auto j = 0;  j < GRID_H;  ++j){
 		memcpy(grid_itr,  arr + indx,  GRID_W);
+		indx += this->w;
+		grid_itr += GRID_W;
+	}
+}
+
+void BPCSStreamBuf::embed_grid(uchar* arr,  size_t indx){
+	uchar* grid_itr = this->grid;
+	for (auto j = 0;  j < GRID_H;  ++j){
+		memcpy(arr + indx,  grid_itr,  GRID_W);
 		indx += this->w;
 		grid_itr += GRID_W;
 	}
@@ -405,7 +414,6 @@ void BPCSStreamBuf::set_next_grid(){
             i += GRID_W;
             
             if (complexity >= this->min_complexity){
-				memcpy(this->grid_orig,  this->grid,  GRID_W * GRID_H);
                 this->x = i;
                 this->y = j;
                 
@@ -489,7 +497,7 @@ void BPCSStreamBuf::put(uchar* in){
     if (get_grid_complexity(this->grid) < this->min_complexity)
         this->conjugate_grid();
     
-	memcpy(this->grid_orig,  this->grid,  GRID_W * GRID_H);
+	this->embed_grid(this->bitplane,  this->x + this->y * this->w);
     this->set_next_grid();
 }
 
