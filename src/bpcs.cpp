@@ -520,7 +520,7 @@ void BPCSStreamBuf::save_im(){
     } while (i-- != 0);
     
 	static char formated_out_fp[MAX_FILE_PATH_LEN];
-	format_out_fp(this->out_fmt, this->img_fps[this->img_n -1], formated_out_fp);
+	format_out_fp(this->out_fmt, this->img_fps[this->img_n], formated_out_fp);
 	this->merge_channels();
 	convert_from_cgc(this->img_data);
     
