@@ -38,7 +38,7 @@ Steganography in general has a variety of uses. For instance:
     * Online puzzles
     * Obfuscating code that is to be executed
 
-Due to its high efficiency and throughput - in a good image, roughly 50% of the vessel image's size can be used to store the hidden data, and even a single CPU thread has a throughput of 2MB/s without GPU acceleration - BPCS is viable for many applications where other stego techniques simply are not, such as streaming 4K video over HTTP using PNG images.
+Due to its high efficiency and throughput - in a good image, roughly 50% of the vessel image's size can be used to store the hidden data, and even a single CPU thread has a throughput of 5MB/s without GPU acceleration - BPCS is viable for many applications where other stego techniques simply are not, such as streaming 4K video over HTTP using PNG images.
 
 The efficiency depends very highly on the vessel images used. Some images can handily fit their originals within themselves, sometimes even resulting in a smaller file size.
 
