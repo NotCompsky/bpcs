@@ -1,6 +1,9 @@
 #pragma once
 
 
+#include <cstdlib> // for exit
+
+
 enum {
 	NO_ERROR,
 	MISC_ERROR,
