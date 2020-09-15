@@ -5,3 +5,4 @@ build/*
 nohup.out
 test/*
 doc/*.1
+etc/*
