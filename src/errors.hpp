@@ -18,6 +18,7 @@ enum {
 	TOO_MANY_BITPLANES,
 	IMAGE_IS_NOT_RGB,
 	WRONG_NUMBER_OF_CHANNELS,
+	WRONG_ARGUMENTS_TO_PROGRAM,
 	N_ERRORS
 };
 #ifdef NO_EXCEPTIONS
@@ -43,6 +44,7 @@ const char* const handler_msgs[] = {
 	"Bitdepth is too high",
 	"Image is not RGB",
 	"Wrong number of colour channels in image",
+	"Wrong arguments given to this program - reference the manual",
 	""
 };
 #endif

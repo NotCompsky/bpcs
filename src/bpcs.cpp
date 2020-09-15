@@ -583,6 +583,10 @@ uint8_t a2i_1or2digits(const char* const str){
 
 int main(const int argc, char* argv[]){
     int i = 0;
+  #ifdef TESTS
+	if (unlikely(argc == 1))
+		handler(WRONG_ARGUMENTS_TO_PROGRAM);
+  #endif
 	
 #ifdef EMBEDDOR
     const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
@@ -602,7 +606,6 @@ int main(const int argc, char* argv[]){
     
     
 	const uint8_t min_complexity = a2i_1or2digits(argv[++i]);
-    //assert(50 <= min_complexity && min_complexity <= 56);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
                               #ifdef EMBEDDOR
