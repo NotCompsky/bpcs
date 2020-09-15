@@ -6,15 +6,15 @@
 	<a href="LICENSE"><img src="https://img.shields.io/github/license/NotCompsky/bpcs"/></a>
 	<a href="https://github.com/notcompsky/bpcs/releases"><img src="https://img.shields.io/github/v/release/NotCompsky/bpcs"/></a>
 	<a href="https://hub.docker.com/repository/docker/notcompsky/bpcs/tags"><img src="https://img.shields.io/docker/image-size/notcompsky/bpcs?label=Docker%20image"/></a>
-	<a href="https://github.com/notcompsky/bpcs/graphs/commit-activity"><img src="https://img.shields.io/github/commit-activity/w/NotCompsky/bpcs"/>
+	<a href="https://github.com/notcompsky/bpcs/graphs/commit-activity"><img src="https://img.shields.io/github/commit-activity/w/NotCompsky/bpcs"/></a>
 </p>
 
-# INTRODUCTION
-
 <figure class="image">
-	<img src="https://user-images.githubusercontent.com/30552567/93227238-12abd080-f76c-11ea-8243-65ccb365759c.png">
+	<img src="https://user-images.githubusercontent.com/30552567/93227238-12abd080-f76c-11ea-8243-65ccb365759c.png"/>
 	<figcaption>This entire repository, along with portable binaries for Linux, are contained - encrypted - in this vessel image. Photograph colourised by Marina Amaral.</figcaption>
 </figure>
+
+# INTRODUCTION
 
 Bit Plane Complexity Segmentation (BPCS) steganography is a method of embedding a message file in an image through replacing the most "complex" regions with the data from the message file.
 
