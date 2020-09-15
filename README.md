@@ -11,6 +11,11 @@
 
 # INTRODUCTION
 
+<figure class="image">
+	<img src="https://user-images.githubusercontent.com/30552567/93227238-12abd080-f76c-11ea-8243-65ccb365759c.png">
+	<figcaption>This entire repository, along with portable binaries for Linux, are contained - encrypted - in this vessel image. Photograph colourised by Marina Amaral.</figcaption>
+</figure>
+
 Bit Plane Complexity Segmentation (BPCS) steganography is a method of embedding a message file in an image through replacing the most "complex" regions with the data from the message file.
 
 The idea behind it is that these complex grids appear as noise to the human eye.
