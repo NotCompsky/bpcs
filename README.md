@@ -69,7 +69,7 @@ This was my first taste of C++. I had only fleeting experience with C from writi
 
 # LICENSE
 
-All rights reserved for now. Will likely move to a GPLv2 or GPLv3 license.
+[GPLv3](LICENSE)
 
 # BENCHMARKS
 
