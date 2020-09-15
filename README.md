@@ -55,13 +55,13 @@ In my view, BPCS steganography is not resilient to stego analysis; it is more di
 
 # FEATURES
 
-    * Embed any number of message files into any number of vessel images.
+    * High performance - between 5-10MB/s on a single CPU thread on my mid-tier machine.
+    * Any number of files can be embedded and extracted.
+    * Any encryption can be applied.
 
 # USAGE
 
-See [the manual](doc/bpcs.md) for general use.
-
-See [the manual](doc/bpcs-v.md) for debugger usage.
+See [the manual](doc/bpcs.1.md) for general use.
 
 # DISCLAIMER
 
