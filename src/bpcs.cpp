@@ -1,7 +1,7 @@
 #include <png.h>
 #include <unistd.h> // for STD(IN|OUT)_FILENO
 #include <compsky/macros/likely.hpp>
-#include <cstring> // for malloc
+#include <cstdlib> // for malloc
 
 #include "errors.hpp"
 #ifdef EMBEDDOR
