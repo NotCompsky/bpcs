@@ -25,7 +25,7 @@ Efficient steganographic tool using the BPCS method, using generic PNG images.
 # ARGUMENTS
 
 *threshold*
-:   Integer between 0 and 6 (inclusive). The complexity threshold is this number plus 50.
+:   A non-negative integer representing the complexity threshold for each grid. For a grid that is 9x9, the maximum threshold is 2*8*9==144, and a sensible threshold value is usually in the 50s.
 
 *vessel_image_path(s)*
 :   File path(s) of images that transport the message data.
