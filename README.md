@@ -73,7 +73,7 @@ All rights reserved for now. Will likely move to a GPLv2 or GPLv3 license.
 
 # BENCHMARKS
 
-Compared to [steghide](http://steghide.sourceforge.net/), this program has around 5x storage efficiency, and 10x more throughput (over 1MB/s, compared to 100KB/s on my machine). However, steghide uses a very different method that I suspect is more resistant to steganalysis.
+Compared to [steghide](http://steghide.sourceforge.net/), this program has around 5x storage efficiency, and 50x more throughput (over 5MB/s, compared to 100KB/s, on my machine). However, steghide uses a very different method that I suspect is more resistant to steganalysis.
 
 # SEE ALSO
 
