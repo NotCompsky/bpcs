@@ -52,28 +52,20 @@ uint8_t get_grid_complexity(const uchar* grid){
 	size_t _indx = 0;
 	for (auto j = 0;  j < GRID_H;  ++j){
 		for (auto i = 0;  i < GRID_W - 1;  ++i){
-			//fprintf(stderr, "%c", grid[_indx] + '0');
 			sum += grid[_indx] ^ grid[_indx + 1];
 			_indx += 1;
 		}
-		//fprintf(stderr, "%c\n", grid[_indx] + '0');
 		_indx += 1; // Skip the last column
 	}
-	
-	//fprintf(stderr, "\n");
 	
 	// Complexity of vertical neighbours
 	for (auto i = 0;  i < GRID_W;  ++i){
 		size_t _indx = i;
 		for (auto j = 0;  j < GRID_H - 1;  ++j){
-			//fprintf(stderr, "%c", grid[_indx] + '0');
 			sum += grid[_indx] ^ grid[_indx + GRID_W];
 			_indx += GRID_W;
 		}
-		//fprintf(stderr, "%c\n", '?');
 	}
-	
-	//fprintf(stderr, "\nComplexity == %d\n\n",  (int)sum);
     
     return sum;
 }
@@ -258,7 +250,9 @@ void BPCSStreamBuf::load_next_img(){
 		handler(TOO_MUCH_DATA_TO_ENCODE);
   #endif
     /* Load PNG file into array */
+  #ifdef CHITTY_CHATTY
 	fprintf(stderr,  "Loading image: %s\n",  this->img_fps[this->img_n]);
+  #endif
     FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
     
     uchar png_sig[8];

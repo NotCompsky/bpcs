@@ -63,11 +63,10 @@ foreach(tgt bpcs bpcs-x bpcs-count bpcs-fmt)
 	if(NOT ENABLE_EXCEPTS)
 		target_compile_definitions("${tgt}" PRIVATE NO_EXCEPTIONS)
 	endif()
+	if(CHITTY_CHATTY)
+		target_compile_definitions("${tgt}" PRIVATE CHITTY_CHATTY)
+	endif()
 endforeach()
-
-if(CHITTY_CHATTY)
-	target_compile_definitions(bpcs-fmt PRIVATE CHITTY_CHATTY)
-endif()
 
 
 target_compile_definitions(bpcs PRIVATE EMBEDDOR)
