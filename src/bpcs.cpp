@@ -323,7 +323,7 @@ void BPCSStreamBuf::load_next_img(){
 		if (this->n_imgs != 1)
 			this->img_data_sz *= 2;
 		this->img_data = (uchar*)malloc(this->img_data_sz);
-	} else if (this->img_data_sz < rowbytes * h){
+	} else if (this->img_data_sz < rowbytes * this->h){
 		this->img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
 		this->img_data = (uchar*)realloc(this->img_data,  2 * this->img_data_sz);
 	  #ifdef TESTS
@@ -340,8 +340,8 @@ void BPCSStreamBuf::load_next_img(){
 		this->bitplane = itr;
 	}
 	
-    uchar* row_ptrs[h];
-    for (uint32_t i=0; i<h; ++i)
+	uchar* row_ptrs[this->h];
+    for (uint32_t i=0; i<this->h; ++i)
         row_ptrs[i] = this->img_data + i*rowbytes;
     
     png_read_image(png_ptr, row_ptrs);
