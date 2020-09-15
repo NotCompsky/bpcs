@@ -71,10 +71,6 @@ This was my first taste of C++. I had only fleeting experience with C from writi
 
 All rights reserved for now. Will likely move to a GPLv2 or GPLv3 license.
 
-# VERSIONING
-
-See [VERSIONING.md](VERSIONING.md)
-
 # BENCHMARKS
 
 Compared to [steghide](http://steghide.sourceforge.net/), this program has around 5x storage efficiency, and 10x more throughput (over 1MB/s, compared to 100KB/s on my machine). However, steghide uses a very different method that I suspect is more resistant to steganalysis.
