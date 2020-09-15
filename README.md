@@ -17,6 +17,10 @@ The idea behind it is that these complex grids appear as noise to the human eye.
 
 The main draw of this method is the efficiency of data embedding. With sensible vessel images - for instance, pictures taken by cameras rather than digital cartoons - one can replace almost half of the vessel image with embedded data without visibly altering its appearance.
 
+# COmPATIBILITY
+
+The code assumes a UNIX-like operating system. It will work on any Linux platform except Linux kernel 2.6.x series before Linux 2.6.33, due to the use of `sendfile`. BSD and MacOS I have not tested, however they appear to implement `sendfile` and `splice` too, so they should be fine.
+
 # IMPLEMENTATION
 
 This project at its core is an implementation of the method Khaire and Nalbalwar in Shrikant Khaire et. al describe in "Review: Steganography – Bit Plane Complexity Segmentation (BPCS) Technique" in the International Journal of Engineering Science and Technology Vol. 2(9), 2010, 4860-4868.
