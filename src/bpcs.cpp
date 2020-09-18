@@ -1,10 +1,7 @@
-#include <png.h>
-#include <unistd.h> // for STD(IN|OUT)_FILENO
-#include <compsky/macros/likely.hpp>
-#include <cstring> // for malloc
-#include <cstdint> // for integer type definitions
-
+#include "bpcs.hpp"
 #include "errors.hpp"
+#include "png.hpp"
+
 #ifdef EMBEDDOR
 # include "utils.hpp" // for format_out_fp
 # ifdef ONLY_COUNT
@@ -12,27 +9,14 @@
 # endif
 #endif
 
-#define CONJUGATION_BIT_INDX (GRID_W * GRID_H - 1)
-#define BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
+#include <compsky/macros/likely.hpp>
+#include <cstring> // for malloc
 
-
-#define WHILE_CONDITION while(not bpcs_stream.exhausted)
-#ifdef ONLY_COUNT
-# define DO_OR_WHILE WHILE_CONDITION
-# define WHILE_OR_DO
-#else
-# define DO_OR_WHILE do
-# define WHILE_OR_DO WHILE_CONDITION;
-#endif
 /*
 * NOTE: While extracting, it is assumed that there is at least one full grid of bytes embedded in the vessel image.
 * However, this is not necessarily the case when using bpcs-count, because a use-case is to identify good vessel images before embedding.
 * Hence the count must be corrected in case the stream is exhausted
 */
-
-
-typedef unsigned char uchar;
-typedef unsigned int  uint;
 
 
 /*
@@ -70,104 +54,6 @@ uint8_t get_grid_complexity(const uchar* grid){
     
     return sum;
 }
-
-
-class BPCSStreamBuf {
-  public:
-    /* Constructors */
-    BPCSStreamBuf(const uint8_t min_complexity, int img_n, int n_imgs, char** im_fps
-                // WARNING: img_fps is just argv which needs an index to skip the options
-                // Use double pointer rather than array of pointers due to constraints on constructor initialisation
-                #ifdef EMBEDDOR
-                  , bool emb
-                  , char* outfmt
-                #endif
-                ):
-	exhausted(false)
-  #ifdef EMBEDDOR
-	, embedding(emb)
-	, out_fmt(outfmt)
-  #endif
-	, x(0)
-	, y(0)
-	, min_complexity(min_complexity)
-	, img_n(img_n)
-	, img_n_offset(img_n)
-	, n_imgs(n_imgs)
-	, img_fps(im_fps)
-	, img_data_sz(0)
-    {}
-    
-    
-	bool exhausted;
-    
-    #ifdef EMBEDDOR
-    const bool embedding;
-    char* out_fmt = NULL;
-    #endif
-    
-	void get(uchar* msg_arr);
-    
-    
-    
-	uchar* img_data; // Points to a contiguous portion of memory. The first section is as large as 3 sections, and stores the image pixels in RGBRGBRGB fashion (as decoded by LibPNG); the next 3 sections store each channel's byteplane; the last section stores the current bitplane.
-	size_t img_data_sz;
-	
-	uint32_t w;
-	uint32_t h;
-    
-    void load_next_img(); // Init
-    
-    #ifdef EMBEDDOR
-    void put(uchar arr[BYTES_PER_GRID]);
-    void save_im(); // End
-    #endif
-  private:
-    int x; // the current grid is the (x-1)th grid horizontally and yth grid vertically (NOT the coordinates of the corner of the current grid of the current image)
-    int y;
-    
-    
-
-    const uint8_t min_complexity;
-    
-    uint8_t channel_n;
-	int n_bitplanes;
-    uint8_t bitplane_n;
-    
-    const int img_n_offset;
-    int img_n;
-    int n_imgs;
-    
-	uchar grid[GRID_H * GRID_W];
-    
-	uchar* bitplane;
-    
-    #ifdef EMBEDDOR
-	uchar* bitplanes[MAX_BITPLANES];
-    #endif
-    
-	uchar* channel_byteplanes[N_CHANNELS];
-    
-    #ifdef EMBEDDOR
-    png_color_16p png_bg;
-    #endif
-    
-    char** img_fps;
-    
-	void convert_to_cgc(uchar* arr);
-	void convert_from_cgc(uchar* arr);
-    void set_next_grid();
-    void load_next_bitplane();
-    void load_next_channel();
-	void split_channels();
-	void merge_channels();
-    
-	inline void byteplane_div2(uchar* arr);
-	void extract_grid(uchar* arr,  size_t indx);
-	void embed_grid(uchar* arr,  size_t indx);
-    inline void conjugate_grid();
-    
-};
 
 
 void BPCSStreamBuf::split_channels(){
@@ -254,83 +140,19 @@ void BPCSStreamBuf::load_next_img(){
   #ifdef CHITTY_CHATTY
 	fprintf(stderr,  "Loading image: %s\n",  this->img_fps[this->img_n]);
   #endif
-    FILE* png_file = fopen(this->img_fps[this->img_n], "rb");
-    
-    uchar png_sig[8];
-    
-    fread(png_sig, 1, 8, png_file);
-    if (!png_check_sig(png_sig, 8)){
-		handler(INVALID_PNG_MAGIC_NUMBER);
-    }
-    
-    auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    
-    if (!png_ptr)
-        // Could not allocate memory
-		handler(OOM);
-  
-    auto png_info_ptr = png_create_info_struct(png_ptr);
-    
-    if (!png_info_ptr){
-        png_destroy_read_struct(&png_ptr, NULL, NULL);
-		handler(CANNOT_CREATE_PNG_READ_STRUCT);
-    }
-    
-    png_init_io(png_ptr, png_file);
-    png_set_sig_bytes(png_ptr, 8);
-    png_read_info(png_ptr, png_info_ptr);
-    
-  #ifdef TESTS
-    int32_t colour_type;
-  #endif
-    
-    png_get_IHDR(
-        png_ptr, png_info_ptr, &this->w, &this->h, &this->n_bitplanes
-      #ifdef TESTS
-        , &colour_type
-      #else
-        , nullptr
-      #endif
-        , NULL, NULL, NULL
-    );
-    
-    #ifdef TESTS
-		if (unlikely(this->n_bitplanes > MAX_BITPLANES))
-			handler(TOO_MANY_BITPLANES);
-		if (unlikely(colour_type != PNG_COLOR_TYPE_RGB))
-			handler(IMAGE_IS_NOT_RGB);
-    #endif
-    
-    #ifdef EMBEDDOR
-	this->png_bg = nullptr;
-    png_get_bKGD(png_ptr, png_info_ptr, &this->png_bg);
-    #endif
-    
-    uint32_t rowbytes;
-    
-    png_read_update_info(png_ptr, png_info_ptr);
-    
-    rowbytes = png_get_rowbytes(png_ptr, png_info_ptr);
-    
-    #ifdef TESTS
-		if (unlikely(png_get_channels(png_ptr, png_info_ptr) != N_CHANNELS))
-			handler(WRONG_NUMBER_OF_CHANNELS);
-    #endif
-    
-	const auto img_width_by_height = this->w * this->h;
-	if (this->img_data_sz == 0){
-		this->img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
-		if (this->n_imgs != 1)
-			this->img_data_sz *= 2;
-		this->img_data = (uchar*)malloc(this->img_data_sz);
-	} else if (this->img_data_sz < rowbytes * this->h){
-		this->img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
-		this->img_data = (uchar*)realloc(this->img_data,  2 * this->img_data_sz);
-	  #ifdef TESTS
-		if (unlikely(this->img_data == nullptr))
-			handler(OOM);
+	png::read(
+		  this->img_fps[this->img_n]
+		, this->n_imgs
+		, this->img_data
+		, this->img_data_sz
+		, this->w
+		, this->h
+		, this->n_bitplanes
+	  #ifdef EMBEDDOR
+		, this->png_bg
 	  #endif
-	}
+	);
+	const auto img_width_by_height = this->w * this->h;
 	{
 		uchar* itr = this->img_data + (N_CHANNELS * img_width_by_height);
 		for (auto i = 0;  i < N_CHANNELS;  ++i){
@@ -339,15 +161,6 @@ void BPCSStreamBuf::load_next_img(){
 		}
 		this->bitplane = itr;
 	}
-	
-	uchar* row_ptrs[this->h];
-    for (uint32_t i=0; i<this->h; ++i)
-        row_ptrs[i] = this->img_data + i*rowbytes;
-    
-    png_read_image(png_ptr, row_ptrs);
-    
-    fclose(png_file);
-    png_destroy_read_struct(&png_ptr, &png_info_ptr, NULL);
     
 	this->convert_to_cgc(this->img_data);
 	this->split_channels();
@@ -518,137 +331,7 @@ void BPCSStreamBuf::save_im(){
 	format_out_fp(this->out_fmt, this->img_fps[this->img_n], formated_out_fp);
 	this->merge_channels();
 	convert_from_cgc(this->img_data);
-    
-    
-	FILE* png_file = fopen(formated_out_fp, "wb");
-    auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    
-    #ifdef TESTS
-    if (!png_file){
-		handler(COULD_NOT_OPEN_PNG_FILE);
-    }
-    if (!png_ptr){
-		handler(OOM);
-    }
-    #endif
-    
-    auto png_info_ptr = png_create_info_struct(png_ptr);
-    
-    if (!png_info_ptr){
-		handler(CANNOT_CREATE_PNG_INFO_STRUCT);
-    }
-    
-    if (setjmp(png_jmpbuf(png_ptr))){
-		handler(PNG_ERROR_1);
-    }
-    
-    png_init_io(png_ptr, png_file);
-    
-    if (setjmp(png_jmpbuf(png_ptr))){
-		handler(PNG_ERROR_2);
-    }
-    
-	if (this->png_bg != nullptr)
-		png_set_bKGD(png_ptr, png_info_ptr, this->png_bg);
-    
-	png_set_IHDR(png_ptr, png_info_ptr, this->w, this->h, this->n_bitplanes, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
-    
-    png_write_info(png_ptr, png_info_ptr);
-    
-    if (setjmp(png_jmpbuf(png_ptr))){
-		handler(PNG_ERROR_3);
-    }
-    
-    uchar* row_ptrs[this->h];
-    for (uint32_t i=0; i<this->h; ++i)
-        row_ptrs[i] = this->img_data + i*N_CHANNELS*this->w;
-    
-    png_write_image(png_ptr, row_ptrs);
-    
-    if (setjmp(png_jmpbuf(png_ptr))){
-		handler(PNG_ERROR_4);
-    }
-    
-    png_write_end(png_ptr, NULL);
+	
+	png::write(formated_out_fp, this->png_bg, this->img_data, this->w, this->h, this->n_bitplanes);
 }
 #endif
-
-
-uint8_t a2i_1or2digits(const char* const str){
-	uint8_t n = str[0] - '0';
-	if (str[1] == 0)
-		return n;
-	return (n * 10) + str[1] - '0';
-}
-
-
-int main(const int argc, char* argv[]){
-    int i = 0;
-  #ifdef TESTS
-	if (unlikely(argc == 1))
-		handler(WRONG_ARGUMENTS_TO_PROGRAM);
-  #endif
-	
-#ifdef EMBEDDOR
-    const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);
-    
-    char* out_fmt;
-    
-    if (embedding){
-        ++i;
-        out_fmt = argv[++i];
-    } else
-        out_fmt = NULL;
-#endif
-	
-#ifdef ONLY_COUNT
-	uint64_t count = 0;
-#endif
-    
-    
-	const uint8_t min_complexity = a2i_1or2digits(argv[++i]);
-    
-    BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
-                              #ifdef EMBEDDOR
-                              , embedding
-                              , out_fmt
-                              #endif
-                              );
-    bpcs_stream.load_next_img(); // Init
-	
-	uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
-	uchar* io_buf_itr = io_buf;
-    
-#ifdef EMBEDDOR
-  if (!embedding){
-#endif
-    DO_OR_WHILE {
-		bpcs_stream.get(io_buf_itr);
-		io_buf_itr += BYTES_PER_GRID;
-#ifdef ONLY_COUNT
-		count += BYTES_PER_GRID;
-#endif
-		if (unlikely((io_buf_itr == io_buf + sizeof(io_buf)) or (bpcs_stream.exhausted))){
-#ifndef ONLY_COUNT
-			if (unlikely(write(STDOUT_FILENO, io_buf, sizeof(io_buf)) != sizeof(io_buf)))
-				break;
-#endif
-			io_buf_itr = io_buf;
-		}
-    } WHILE_OR_DO
-#ifdef EMBEDDOR
-  } else {
-	while (likely(read(STDIN_FILENO, io_buf, BYTES_PER_GRID) == BYTES_PER_GRID)){
-		// TODO: Optimise
-        // read() returns the number of bytes written
-		bpcs_stream.put(io_buf);
-	}
-	bpcs_stream.put(io_buf);
-    bpcs_stream.save_im();
-  }
-#endif
-#ifdef ONLY_COUNT
-	printf("%lu\n", count);
-#endif
-	return 0;
-}
