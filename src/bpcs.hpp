@@ -7,15 +7,6 @@
 #define BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
 
 
-inline
-uint8_t a2i_1or2digits(const char* const str){
-	uint8_t n = str[0] - '0';
-	if (str[1] == 0)
-		return n;
-	return (n * 10) + str[1] - '0';
-}
-
-
 class BPCSStreamBuf {
   public:
     /* Constructors */

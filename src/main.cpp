@@ -2,6 +2,8 @@
 #include "os.hpp"
 #include "errors.hpp"
 #include <compsky/macros/likely.hpp>
+#define LIBCOMPSKY_NO_TESTS
+#include <compsky/deasciify/a2n.hpp>
 
 
 int main(const int argc, char* argv[]){
@@ -21,7 +23,7 @@ int main(const int argc, char* argv[]){
         out_fmt = NULL;
 #endif
     
-	const uint8_t min_complexity = a2i_1or2digits(argv[++i]);
+	const uint8_t min_complexity = a2n<uint8_t>(argv[++i]);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
                               #ifdef EMBEDDOR
