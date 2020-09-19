@@ -90,11 +90,8 @@ void write_exact_number_of_bytes_to_stdout(char* const buf,  size_t n){
 
 void sendfile_from_stdout_to_file(const char* const fp,  const size_t n_bytes){
 	const int msg_file = open(fp, O_RDONLY);
-  #ifdef TESTS
-	if (unlikely(msg_file == 0)){
+	if (unlikely(msg_file == 0))
 		handler(CANNOT_OPEN_FILE);
-	}
-  #endif
 	const auto rc5 = sendfile(STDOUT_FILENO, msg_file, nullptr, n_bytes);
 	if (unlikely(rc5 == -1))
 		handler(SENDFILE_ERROR);
@@ -107,7 +104,6 @@ void splice_from_stdin_to_fd(const fout_typ fout,  const size_t n_bytes){
 	size_t n_bytes_yet_to_write = n_bytes;
 	do {
 		auto n_writ = splice(STDIN_FILENO, NULL, fout, &n_bytes_written, n_bytes_yet_to_write, SPLICE_F_MOVE);
-		#ifdef TESTS
 		if (unlikely(n_writ == -1)){
 			auto msg_id = MISC_ERROR;
 			switch(errno){
@@ -126,7 +122,6 @@ void splice_from_stdin_to_fd(const fout_typ fout,  const size_t n_bytes){
 			}
 			handler(msg_id);
 		}
-		#endif
 		n_bytes_yet_to_write -= n_writ;
 	} while(n_bytes_yet_to_write != 0);
 }
@@ -136,11 +131,8 @@ void splice_from_stdin_to_fd(const fout_typ fout,  const size_t n_bytes){
 size_t get_file_sz(const char* const fp){
 	static struct stat stat_buf;
 	const auto rc3 = stat(fp, &stat_buf);
-  #ifdef TESTS
-	if (unlikely(rc3 == -1)){
+	if (unlikely(rc3 == -1))
 		handler(COULD_NOT_STAT_FILE, fp);
-	}
-  #endif
 	return stat_buf.st_size;
 }
 #endif

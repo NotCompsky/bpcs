@@ -6,13 +6,6 @@
 #include <cerrno>
 #include <compsky/macros/likely.hpp>
 
-
-#ifdef EMBEDDOR
-    #include <sys/stat.h> // for stat
-#endif
-#ifdef TESTS
-    #include <assert.h>
-#endif
 #ifdef CHITTY_CHATTY
 # include <cstdio>
 #endif
@@ -68,11 +61,8 @@ int main(const int argc,  char** argv){
 			os::write_exact_number_of_bytes_to_stdout((char*)(&n_msg_bytes), 8);
 			os::write_exact_number_of_bytes_to_stdout(fp, n_msg_bytes);
             n_msg_bytes = os::get_file_sz(fp);
-#ifdef TESTS
-			if (unlikely(n_msg_bytes == 0)){
+			if (unlikely(n_msg_bytes == 0))
 				handler(TRYING_TO_ENCODE_MSG_OF_0_BYTES);
-			}
-#endif
 			os::write_exact_number_of_bytes_to_stdout((char*)(&n_msg_bytes), 8);
 			os::sendfile_from_stdout_to_file(fp, n_msg_bytes);
         }
@@ -96,28 +86,19 @@ int main(const int argc,  char** argv){
             
             if (i & 1){
                 // First block of data is original file path, second is file contents
-              #ifdef TESTS
-				if (unlikely(n_msg_bytes > 1099511627780)){
+				if (unlikely(n_msg_bytes > 1099511627780))
                     // ~2**40
 					handler(UNLIKELY_NUMBER_OF_MSG_BYTES);
-                }
-              #endif
                 if (out_fmt != NULL){
-                    #ifdef TESTS
-						if (unlikely(fp_str[0] == 0)){
+						if (unlikely(fp_str[0] == 0))
 							handler(FP_STR_IS_EMPTY, fp_str__formatted);
-						}
-                    #endif
 					fout = os::create_file_with_parent_dirs(fp_str__formatted, strlen(fp_str__formatted));
                 }
 				os::splice_from_stdin_to_fd(fout, n_msg_bytes);
             } else {
-              #ifdef TESTS
-                if (unlikely(n_msg_bytes > sizeof(fp_str))){
+                if (unlikely(n_msg_bytes > sizeof(fp_str)))
 					// An improbably long file name - indicating that the n_msg_bytes was most likely garbage, in turn indicating that the last message was truncated.
 					handler(UNLIKELY_LONG_FILE_NAME);
-                }
-              #endif
 				os::read_exact_number_of_bytes_from_stdin(fp_str, n_msg_bytes);
 				fp_str[n_msg_bytes] = 0; // Terminating null byte
                 if (out_fmt != NULL){

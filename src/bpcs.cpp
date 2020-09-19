@@ -132,10 +132,8 @@ void BPCSStreamBuf::load_next_channel(){
 }
 
 void BPCSStreamBuf::load_next_img(){
-  #ifdef TESTS
 	if(unlikely(this->img_n == this->n_imgs))
 		handler(TOO_MUCH_DATA_TO_ENCODE);
-  #endif
     /* Load PNG file into array */
   #ifdef CHITTY_CHATTY
 	fprintf(stderr,  "Loading image: %s\n",  this->img_fps[this->img_n]);

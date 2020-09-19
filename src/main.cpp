@@ -7,10 +7,8 @@
 
 int main(const int argc, char* argv[]){
     int i = 0;
-  #ifdef TESTS
 	if (unlikely(argc == 1))
 		handler(WRONG_ARGUMENTS_TO_PROGRAM);
-  #endif
 	
 #ifdef EMBEDDOR
     const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);

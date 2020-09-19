@@ -49,7 +49,10 @@ enum {
 };
 inline
 void handler(const int msg){
+	// Do nothing if TESTS not defined - this means that the test leading to the handler call should be optimised out
+  #ifdef TESTS
 	exit(msg);
+  #endif
 }
 #ifndef NO_EXCEPTIONS
 # include <stdexcept>
