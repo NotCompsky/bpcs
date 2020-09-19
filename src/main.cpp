@@ -2,7 +2,6 @@
 #include "os.hpp"
 #include "errors.hpp"
 #include <compsky/macros/likely.hpp>
-#include <unistd.h> // for STD(IN|OUT)_FILENO
 
 
 int main(const int argc, char* argv[]){

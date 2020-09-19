@@ -4,13 +4,11 @@
 #include <compsky/macros/likely.hpp>
 
 
-constexpr int STDOUT_FILENO = 1;
-
-
 #ifdef _WIN32
 typedef HANDLE fout_typ;
 # define STDOUT_DESCR GetStdHandle(STD_OUTPUT_HANDLE);
 #else
+# include <unistd.h> // for STDOUT_FILENO
 typedef int fout_typ;
 # define STDOUT_DESCR STDOUT_FILENO;
 #endif
