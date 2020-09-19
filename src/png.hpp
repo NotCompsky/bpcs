@@ -3,12 +3,63 @@
 #include "errors.hpp"
 #include <compsky/macros/likely.hpp>
 #include "typedefs.hpp"
-#include <png.h>
+#ifdef USE_LIBSPNG
+# include <spng.h>
+#else
+# include <png.h>
+#endif
+
+
+inline
+void set_img_data_sz(uchar*& img_data, size_t& img_data_sz, const uint32_t img_width_by_height, const int n_imgs){
+	if (img_data_sz == 0){
+		img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
+		if (n_imgs != 1)
+			img_data_sz *= 2;
+		img_data = (uchar*)malloc(img_data_sz);
+	} else if (img_data_sz < img_width_by_height * N_CHANNELS){
+		img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
+		img_data = (uchar*)realloc(img_data,  2 * img_data_sz);
+	  #ifdef TESTS
+		if (unlikely(img_data == nullptr))
+			handler(OOM);
+	  #endif
+	}
+}
 
 
 namespace png {
 
+/*
+#ifdef USE_LIBSPNG
+# ifdef EMBEDDOR
+#  error "libspng cannot yet write PNG images"
+# endif
+inline
+void read(
+	  const char* const fp
+	, const int n_imgs
+	, uchar*& img_data
+	, size_t& img_data_sz
+	, unsigned& w
+	, unsigned& h
+	, int& n_bitplanes
+){
+	spng_ctx* const ctx = spng_ctx_new(0);
+	spng_set_png_buffer(ctx, buf, buf_size);
+	spng_decoded_image_size(ctx, SPNG_FMT_RGBA8, &out_size);
+	spng_decode_image(ctx, out, out_size, SPNG_FMT_RGBA8, 0);
+	spng_ctx_free(ctx);
+	
+	struct spng_ihdr ihdr;
+	r = spng_get_ihdr(ctx, &ihdr);
+	set_img_data_sz(img_data,  img_data_sz,  w * h,  n_imgs);
+	// https://github.com/randy408/libspng/blob/master/examples/example.c
+}
+#endif
 
+
+#else*/
 inline
 void read(
 	  const char* const fp
@@ -82,20 +133,7 @@ void read(
 			handler(WRONG_NUMBER_OF_CHANNELS);
     #endif
 	
-	const auto img_width_by_height = w * h;
-	if (img_data_sz == 0){
-		img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
-		if (n_imgs != 1)
-			img_data_sz *= 2;
-		img_data = (uchar*)malloc(img_data_sz);
-	} else if (img_data_sz < rowbytes * h){
-		img_data_sz = (N_CHANNELS + N_CHANNELS + 1) * img_width_by_height;
-		img_data = (uchar*)realloc(img_data,  2 * img_data_sz);
-	  #ifdef TESTS
-		if (unlikely(img_data == nullptr))
-			handler(OOM);
-	  #endif
-	}
+	set_img_data_sz(img_data,  img_data_sz,  w * h,  n_imgs);
 	
 	uchar* row_ptrs[h];
     for (uint32_t i=0; i<h; ++i)

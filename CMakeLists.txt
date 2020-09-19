@@ -45,12 +45,12 @@ if(NOT MALLOC_OVERRIDE STREQUAL "")
 	set(MALLOC_OBJECTS "${MALLOC_OVERRIDE}")
 endif()
 
-add_executable(bpcs-fmt ${MALLOC_OBJECTS} "${SRC_DIR}/fmt.cpp")
+add_executable(bpcs-fmt ${MALLOC_OBJECTS} "${SRC_DIR}/fmt.cpp" "${SRC_DIR}/fmt_os.cpp")
 
 include_directories("/usr/local/include")
 
 foreach(tgt bpcs bpcs-x bpcs-count)
-	add_executable("${tgt}" ${MALLOC_OBJECTS} "${SRC_DIR}/bpcs.cpp" "${SRC_DIR}/main.cpp")
+	add_executable("${tgt}" ${MALLOC_OBJECTS} "${SRC_DIR}/bpcs.cpp" "${SRC_DIR}/os.cpp" "${SRC_DIR}/main.cpp")
 	target_compile_definitions("${tgt}" PRIVATE GRID_W=${GRID_W} GRID_H=${GRID_H} N_CHANNELS=${N_CHANNELS} MAX_BITPLANES=${MAX_BIT_DEPTH} MAX_FILE_PATH_LEN=${MAX_FILE_PATH_LEN})
 	target_include_directories("${tgt}" PRIVATE "${OpenCV_INCLUDE_DIRS}")
 	target_link_libraries("${tgt}" PRIVATE "${LIBS}")

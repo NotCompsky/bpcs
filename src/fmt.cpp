@@ -1,8 +1,8 @@
-#include <fcntl.h> // for open, O_WRONLY
-#include <unistd.h> // for STD(IN|OUT)_FILENO
-#include <inttypes.h>
 #include "utils.hpp" // for format_out_fp
-#include <sys/sendfile.h>
+#include "fmt_os.hpp"
+#include "errors.hpp"
+
+#include <inttypes.h>
 #include <cerrno>
 #include <compsky/macros/likely.hpp>
 
@@ -16,156 +16,6 @@
 #ifdef CHITTY_CHATTY
 # include <cstdio>
 #endif
-
-
-enum {
-	NO_ERROR,
-	MISC_ERROR,
-	FP_STR_IS_EMPTY,
-	COULD_NOT_STAT_FILE,
-	TRYING_TO_ENCODE_MSG_OF_0_BYTES,
-	CANNOT_OPEN_FILE,
-	SENDFILE_ERROR,
-	SENDFILE_ERROR__EAGAIN,
-	SENDFILE_ERROR__EBADF,
-	SENDFILE_ERROR__EFAULT,
-	SENDFILE_ERROR__EINVAL,
-	SENDFILE_ERROR__EIO,
-	SENDFILE_ERROR__ENOMEM,
-	SENDFILE_ERROR__EOVERFLOW,
-	SENDFILE_ERROR__ESPIPE,
-	SPLICE_ERROR__EBADF,
-	SPLICE_ERROR__EINVAL,
-	SPLICE_ERROR__ENOMEM,
-	SPLICE_ERROR__ESPIPE,
-	UNLIKELY_NUMBER_OF_MSG_BYTES,
-	UNLIKELY_LONG_FILE_NAME,
-	CANNOT_CREATE_FILE,
-	N_ERRORS
-};
-#ifdef NO_EXCEPTIONS
-# define handler(msg, ...) _exit(msg)
-#else
-# include <stdexcept>
-# include <cstdio>
-constexpr static
-const char* const handler_msgs[] = {
-	"No error",
-	"Misc error",
-	"fp_str is empty",
-	"Could not stat file",
-	"Trying to encode a message of 0 bytes",
-	"Cannot open file",
-	"Sendfile error",
-	"Sendfile error: Nonblocking IO has been selected using O_NONBLOCK and the write would block",
-	"Sendfile error: The input file was not opened for reading, or the output file was not opened for writing",
-	"Sendfile error: Bad address",
-	"Sendfile error: Descriptor is not valid or locked, or an mmap-like operation is not available for in_fd, or count is negative. OR (???) out_fd has the O_APPEND flag set, not currently supported by sendfile.",
-	"Sendfile error: Unspecified error while reading from in_fd",
-	"Sendfile error: Insufficient memory to read from in_fd",
-	"Sendfile error: Count is too large",
-	"Sendfile error: Offset is not NULL but the input file is not seek-able",
-	"Splice error: Bad file descriptor",
-	"Splice error: Invalid",
-	"Splice error: Out of memory",
-	"Splice error: Either off_in or off_out was not NULL, but the corresponding file descriptor refers to a pipe",
-	"Improbably large file",
-	"Improbably long file name",
-	"Cannot create file"
-};
-# define LOG(...) fprintf(stderr, __VA_ARGS__); fflush(stderr);
-void handler(const int msg){
-	throw std::runtime_error(handler_msgs[msg]);
-}
-void log(const char* const str){
-	LOG("log %s\n", str)
-}
-void log(const size_t n){
-	LOG("log %lu\n", n)
-}
-template<typename... Args,  typename T>
-void handler(const int msg,  const T arg,  Args... args){
-	log(arg);
-	handler(msg, args...);
-}
-#endif
-
-
-void read_exact_number_of_bytes(const int fd,  char* const buf,  const size_t n){
-	size_t offset = 0;
-	do {
-		offset += read(fd,  buf + offset,  n - offset);
-	} while (offset != n);
-}
-void write_exact_number_of_bytes(const int fd,  char* const buf,  size_t n){
-	do {
-		n -= write(fd, buf, n);
-	} while (n != 0);
-}
-
-
-char* get_parent_dir(char* path){
-	do {
-		--path;
-	} while ((*path != '/'));
-	// No need to check whether path has overflown the full file path beginning, because we can assume the root path begins with a slash - and we would not encounter root anyway.
-	return path;
-}
-
-
-char* get_child_dir(char* path,  char* const end_of_full_file_path){
-	do {
-		++path;
-	} while ((*path != '/') and (path != end_of_full_file_path));
-	return (*path == '/') ? path : nullptr;
-}
-
-
-bool mkdir_path_between_pointers(char* const start,  char* const end){
-	*end = 0;
-	const int rc = mkdir(start,  S_IRUSR | S_IWUSR | S_IXUSR);
-	if (rc == -1){
-		if (unlikely(errno != ENOENT))
-			handler(CANNOT_CREATE_FILE, start);
-	}
-	*end = '/';
-	return (rc == 0); // i.e. return true on a success
-}
-
-
-int create_file_with_parent_dirs(char* const file_path,  const size_t file_path_len){
-#ifdef CHITTY_CHATTY
-	fprintf(stderr,  "Creating file: %s\n",  file_path);
-#endif
-	
-	int fd = open(file_path,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
-	if (likely(fd != -1))
-		// File successfully created
-		return fd;
-	if (unlikely(errno != ENOENT)){
-		handler(CANNOT_CREATE_FILE, file_path);
-	}
-	
-	// ENOENT: Either a directory component in pathname does not exist or is a dangling symbolic link
-	
-	// Traverse up the path until a directory is successfully created
-	char* path = file_path + file_path_len;
-	while(true){
-		path = get_parent_dir(path);
-		if (mkdir_path_between_pointers(file_path, path))
-			break;
-	}
-	
-	// Traverse back down the path
-	while(true){
-		path = get_child_dir(path,  file_path + file_path_len);
-		if (path == nullptr)
-			break;
-		mkdir_path_between_pointers(file_path, path);
-	}
-	
-	return open(file_path,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
-}
 
 
 typedef unsigned char uchar;
@@ -206,7 +56,6 @@ int main(const int argc,  char** argv){
     uint64_t n_msg_bytes;
     
     #ifdef EMBEDDOR
-    struct stat stat_buf;
     
     if (embedding){
 		for (;  *msg_fps != nullptr;  ++msg_fps){
@@ -216,48 +65,29 @@ int main(const int argc,  char** argv){
             
             n_msg_bytes = get_charp_len(fp);
             
-			write_exact_number_of_bytes(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
-			write_exact_number_of_bytes(STDOUT_FILENO, fp, n_msg_bytes);
-			const auto rc3 = stat(fp, &stat_buf);
-		  #ifdef TESTS
-			if (unlikely(rc3 == -1)){
-				handler(COULD_NOT_STAT_FILE, fp);
-			}
-		  #endif
-            n_msg_bytes = stat_buf.st_size;
+			os::write_exact_number_of_bytes_to_stdout((char*)(&n_msg_bytes), 8);
+			os::write_exact_number_of_bytes_to_stdout(fp, n_msg_bytes);
+            n_msg_bytes = os::get_file_sz(fp);
 #ifdef TESTS
 			if (unlikely(n_msg_bytes == 0)){
 				handler(TRYING_TO_ENCODE_MSG_OF_0_BYTES);
 			}
 #endif
-            
-			write_exact_number_of_bytes(STDOUT_FILENO, (char*)(&n_msg_bytes), 8);
-			const int msg_file = open(fp, O_RDONLY);
-		  #ifdef TESTS
-			if (unlikely(msg_file == 0)){
-				handler(CANNOT_OPEN_FILE);
-			}
-		  #endif
-			const auto rc5 = sendfile(STDOUT_FILENO, msg_file, nullptr, n_msg_bytes);
-		  #ifdef TESTS
-			if (unlikely(rc5 == -1)){
-				handler(SENDFILE_ERROR);
-			}
-		  #endif
-			close(msg_file);
+			os::write_exact_number_of_bytes_to_stdout((char*)(&n_msg_bytes), 8);
+			os::sendfile_from_stdout_to_file(fp, n_msg_bytes);
         }
         // After all messages, signal end with signalled size of 0
-		const char zero[32] = {0};
-		write_exact_number_of_bytes(STDOUT_FILENO, const_cast<char*>(zero), sizeof(zero));
+		constexpr char zero[32] = {0};
+		os::write_exact_number_of_bytes_to_stdout(const_cast<char*>(zero), sizeof(zero));
         // Some encryption methods require blocks of length 16 or 32 bytes, so this ensures that there is at least 8 zero bytes even if a final half-block is cut off.
     } else {
     #endif
 		char fp_str[1024];
 		char fp_str__formatted[1024];
-		int fout = STDOUT_FILENO;
+		fout_typ fout = STDOUT_DESCR;
         
         for (auto i = 0;  true;  ++i) {
-			read_exact_number_of_bytes(STDIN_FILENO, (char*)(&n_msg_bytes), 8);
+			os::read_exact_number_of_bytes_from_stdin((char*)(&n_msg_bytes), 8);
             
             if (n_msg_bytes == 0){
                 // Reached end of embedded datas
@@ -278,34 +108,9 @@ int main(const int argc,  char** argv){
 							handler(FP_STR_IS_EMPTY, fp_str__formatted);
 						}
                     #endif
-					fout = create_file_with_parent_dirs(fp_str__formatted, strlen(fp_str__formatted));
+					fout = os::create_file_with_parent_dirs(fp_str__formatted, strlen(fp_str__formatted));
                 }
-				loff_t n_bytes_written = 0;
-				size_t n_bytes_yet_to_write = n_msg_bytes;
-				do {
-					auto n_writ = splice(STDIN_FILENO, NULL, fout, &n_bytes_written, n_bytes_yet_to_write, SPLICE_F_MOVE);
-				  #ifdef TESTS
-					if (unlikely(n_writ == -1)){
-						auto msg_id = MISC_ERROR;
-						switch(errno){
-							case EBADF:
-								msg_id = SPLICE_ERROR__EBADF;
-								break;
-							case EINVAL:
-								msg_id = SPLICE_ERROR__EINVAL;
-								break;
-							case ENOMEM:
-								msg_id = SPLICE_ERROR__ENOMEM;
-								break;
-							case ESPIPE:
-								msg_id = SPLICE_ERROR__ESPIPE;
-								break;
-						}
-						handler(msg_id, fp_str__formatted);
-					}
-				  #endif
-					n_bytes_yet_to_write -= n_writ;
-				} while(n_bytes_yet_to_write != 0);
+				os::splice_from_stdin_to_fd(fout, n_msg_bytes);
             } else {
               #ifdef TESTS
                 if (unlikely(n_msg_bytes > sizeof(fp_str))){
@@ -313,7 +118,7 @@ int main(const int argc,  char** argv){
 					handler(UNLIKELY_LONG_FILE_NAME);
                 }
               #endif
-				read_exact_number_of_bytes(STDIN_FILENO, fp_str, n_msg_bytes);
+				os::read_exact_number_of_bytes_from_stdin(fp_str, n_msg_bytes);
 				fp_str[n_msg_bytes] = 0; // Terminating null byte
                 if (out_fmt != NULL){
 					format_out_fp(out_fmt, fp_str, fp_str__formatted);

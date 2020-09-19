@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unistd.h>
+#include "bpcs.hpp"
 
 
 #define WHILE_CONDITION while(not bpcs_stream.exhausted)
@@ -12,43 +12,37 @@
 # define WHILE_OR_DO WHILE_CONDITION;
 #endif
 
+#ifdef _WIN32
+inline
+bool write_to_stdout(){
+	long n_bytes_read;
+	if (unlikely(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), io_buf, sizeof(io_buf), &n_bytes_read, nullptr) != 0))
+		return true;
+	return (n_bytes_read == sizeof(io_buf));
+}
+# define WRITE_STMT write_to_stdout()
+inline
+bool read_from_stdin(){
+	long n_bytes_read;
+	if (unlikely(ReadFile(GetStdHandle(STD_INPUT_HANDLE), io_buf, BYTES_PER_GRID, &n_bytes_read, nullptr) != 0))
+		return true;
+	return (n_bytes_read == BYTES_PER_GRID);
+}
+# define READ_STMT  read_from_stdin()
+#else
+# include <unistd.h>
+# define WRITE_STMT write(STDOUT_FILENO, io_buf, sizeof(io_buf)) != sizeof(io_buf)
+# define READ_STMT  read (STDIN_FILENO, io_buf, BYTES_PER_GRID) == BYTES_PER_GRID
+#endif
+
 
 namespace os {
 
 
-size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream){
-	static uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
-	uchar* io_buf_itr = io_buf;
-	size_t count = 0;
-	DO_OR_WHILE {
-		bpcs_stream.get(io_buf_itr);
-		io_buf_itr += BYTES_PER_GRID;
-#ifdef ONLY_COUNT
-		count += BYTES_PER_GRID;
-#endif
-		if (unlikely((io_buf_itr == io_buf + sizeof(io_buf)) or (bpcs_stream.exhausted))){
-#ifndef ONLY_COUNT
-			if (unlikely(write(STDOUT_FILENO, io_buf, sizeof(io_buf)) != sizeof(io_buf)))
-				break;
-#endif
-			io_buf_itr = io_buf;
-		}
-	} WHILE_OR_DO
-	return count;
-}
-
+size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream);
 
 #ifdef EMBEDDOR
-void embed_from_stdin(BPCSStreamBuf& bpcs_stream){
-	static uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
-	uchar* io_buf_itr = io_buf;
-	while (likely(read(STDIN_FILENO, io_buf, BYTES_PER_GRID) == BYTES_PER_GRID)){
-		// TODO: Optimise
-		bpcs_stream.put(io_buf);
-	}
-	bpcs_stream.put(io_buf);
-    bpcs_stream.save_im();
-}
+void embed_from_stdin(BPCSStreamBuf& bpcs_stream);
 #endif
 
 
