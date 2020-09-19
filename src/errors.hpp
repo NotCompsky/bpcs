@@ -47,14 +47,13 @@ enum {
 	
 	N_ERRORS
 };
-inline
-void handler(const int msg){
-	// Do nothing if TESTS not defined - this means that the test leading to the handler call should be optimised out
-  #ifdef TESTS
-	exit(msg);
-  #endif
-}
-#ifndef NO_EXCEPTIONS
+#ifdef NO_EXCEPTIONS
+# ifdef TESTS
+#  define handler(msg, ...) exit(msg)
+# else
+#  define handler(...) // Do nothing on a bad test result in order for the test itself to be optimised out
+# endif
+#else
 # include <stdexcept>
 # include <cstdio>
 # define LOG(...) fprintf(stderr, __VA_ARGS__); fflush(stderr);
