@@ -26,6 +26,11 @@ if(NATIVE_MARCH)
 endif()
 
 
+if(WIN32)
+	set(ENABLE_STATIC ON)
+endif()
+
+
 set(LIBS)
 if(ENABLE_STATIC)
 	set(PNG_NAMES png.a libpng.a)

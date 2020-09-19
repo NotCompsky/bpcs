@@ -64,7 +64,7 @@ int main(const int argc,  char** argv){
 			if (unlikely(n_msg_bytes == 0))
 				handler(TRYING_TO_ENCODE_MSG_OF_0_BYTES);
 			os::write_exact_number_of_bytes_to_stdout((char*)(&n_msg_bytes), 8);
-			os::sendfile_from_stdout_to_file(fp, n_msg_bytes);
+			os::sendfile_from_file_to_stdout(fp, n_msg_bytes);
         }
         // After all messages, signal end with signalled size of 0
 		constexpr char zero[32] = {0};

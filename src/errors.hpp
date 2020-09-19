@@ -5,7 +5,7 @@
 
 
 enum {
-	NO_ERROR,
+	NAH_NO_ERROR,
 	MISC_ERROR,
 	
 	TOO_MUCH_DATA_TO_ENCODE,
@@ -44,6 +44,12 @@ enum {
 	UNLIKELY_NUMBER_OF_MSG_BYTES,
 	UNLIKELY_LONG_FILE_NAME,
 	CANNOT_CREATE_FILE,
+	
+	CANNOT_READ_FROM_STDIN,
+	CANNOT_WRITE_TO_STDOUT,
+	MISMATCH_BETWEEN_BYTES_READ_AND_WRITTEN,
+	
+	COULD_NOT_GET_FILE_SIZE,
 	
 	N_ERRORS
 };
@@ -94,6 +100,12 @@ const char* const handler_msgs[] = {
 	"Improbably large file",
 	"Improbably long file name",
 	"Cannot create file",
+	
+	"Cannot read from stdin",
+	"Cannot write to stdout",
+	"Mismatch between bytes read and written",
+	
+	"Could not get file size",
 	
 	""
 };
