@@ -1,11 +1,7 @@
 #pragma once
 
-
+#include "typedefs.hpp"
 #include <cstring> // for memcpy
-#ifdef TESTS
-    #include <assert.h>
-    #include <iostream>
-#endif
 
 
 inline
