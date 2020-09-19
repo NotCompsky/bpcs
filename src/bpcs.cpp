@@ -30,8 +30,8 @@ uint8_t to_cgc(const uint8_t n){
 
 
 constexpr
-uint8_t get_grid_complexity(const uchar* grid){
-	uint8_t sum = 0;
+unsigned get_grid_complexity(const uchar* grid){
+	unsigned sum = 0;
 	
 	// Complexity of horizontal neighbours
 	size_t _indx = 0;
@@ -210,12 +210,11 @@ void BPCSStreamBuf::load_next_img(){
 }
 
 void BPCSStreamBuf::set_next_grid(){
-    uint8_t complexity;
     int i = this->x;
     for (int j=this->y;  j <= this->h - GRID_H;  j+=GRID_H, i=0){
         while (i <= this->w - GRID_W){
 			this->extract_grid(this->bitplane, i + j * this->w); // For cache locality, copy the grid - which is fragmented - to a compact small array
-			complexity = get_grid_complexity(this->grid);
+			const unsigned complexity = get_grid_complexity(this->grid);
             
             i += GRID_W;
             

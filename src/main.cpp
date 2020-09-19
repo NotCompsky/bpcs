@@ -23,7 +23,7 @@ int main(const int argc, char* argv[]){
         out_fmt = NULL;
 #endif
     
-	const uint8_t min_complexity = a2n<uint8_t>(argv[++i]);
+	const unsigned min_complexity = a2n<unsigned>(argv[++i]);
     
     BPCSStreamBuf bpcs_stream(min_complexity, ++i, argc, argv
                               #ifdef EMBEDDOR

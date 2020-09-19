@@ -10,7 +10,7 @@
 class BPCSStreamBuf {
   public:
     /* Constructors */
-    BPCSStreamBuf(const uint8_t min_complexity, int img_n, int n_imgs, char** im_fps
+    BPCSStreamBuf(const unsigned min_complexity,  int img_n,  int n_imgs,  char** im_fps
                 // WARNING: img_fps is just argv which needs an index to skip the options
                 // Use double pointer rather than array of pointers due to constraints on constructor initialisation
                 #ifdef EMBEDDOR
@@ -63,7 +63,7 @@ class BPCSStreamBuf {
     
     
 
-    const uint8_t min_complexity;
+    const unsigned min_complexity;
     
     uint8_t channel_n;
 	int n_bitplanes;
