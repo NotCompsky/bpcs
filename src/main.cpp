@@ -23,11 +23,6 @@ int main(const int argc, char* argv[]){
     } else
         out_fmt = NULL;
 #endif
-	
-#ifdef ONLY_COUNT
-	uint64_t count = 0;
-#endif
-    
     
 	const uint8_t min_complexity = a2i_1or2digits(argv[++i]);
     
@@ -42,7 +37,7 @@ int main(const int argc, char* argv[]){
 #ifdef EMBEDDOR
   if (!embedding){
 #endif
-	os::extract_to_stdout(bpcs_stream);
+	const size_t count = os::extract_to_stdout(bpcs_stream);
 #ifdef EMBEDDOR
   } else {
 	os::embed_from_stdin(bpcs_stream);

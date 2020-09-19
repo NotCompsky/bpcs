@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unistd.h>
+
 
 #define WHILE_CONDITION while(not bpcs_stream.exhausted)
 #ifdef ONLY_COUNT
@@ -14,9 +16,10 @@
 namespace os {
 
 
-void extract_to_stdout(BPCSStreamBuf& bpcs_stream){
+size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream){
 	static uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
 	uchar* io_buf_itr = io_buf;
+	size_t count = 0;
 	DO_OR_WHILE {
 		bpcs_stream.get(io_buf_itr);
 		io_buf_itr += BYTES_PER_GRID;
@@ -31,6 +34,7 @@ void extract_to_stdout(BPCSStreamBuf& bpcs_stream){
 			io_buf_itr = io_buf;
 		}
 	} WHILE_OR_DO
+	return count;
 }
 
 
