@@ -7,6 +7,7 @@
 # include <unistd.h>
 # include <fcntl.h> // for open, O_WRONLY
 # include <sys/stat.h>
+# include <sys/sendfile.h>
 #endif
 
 

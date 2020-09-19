@@ -1,6 +1,5 @@
 #pragma once
 
-#include <sys/sendfile.h>
 #include <compsky/macros/likely.hpp>
 
 
