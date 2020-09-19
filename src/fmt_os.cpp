@@ -1,9 +1,13 @@
 #include "fmt_os.hpp"
 #include "errors.hpp"
-#include <unistd.h>
-#include <fcntl.h> // for open, O_WRONLY
-#include <sys/stat.h>
 #include <cerrno>
+
+#ifdef _WIN32
+#else
+# include <unistd.h>
+# include <fcntl.h> // for open, O_WRONLY
+# include <sys/stat.h>
+#endif
 
 
 char* get_parent_dir(char* path){
