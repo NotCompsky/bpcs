@@ -76,10 +76,9 @@ void read(
 	FILE* png_file = fopen(fp, "rb");
 	static uchar png_sig[8];
 	
-    fread(png_sig, 1, 8, png_file);
-    if (!png_check_sig(png_sig, 8)){
+	const size_t magic_number_length = fread(png_sig, 1, 8, png_file);
+	if (unlikely(magic_number_length != 8) or (png_check_sig(png_sig, 8) == 0))
 		handler(INVALID_PNG_MAGIC_NUMBER);
-    }
     
     auto png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr)
