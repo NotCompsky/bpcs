@@ -4,7 +4,7 @@
 #endif
 
 
-bool write_to_stdout(uchar io_buf[IO_BUF_SZ],  const size_t n_bytes){
+bool write_to_stdout(const uchar io_buf[IO_BUF_SZ],  const size_t n_bytes){
   #ifdef _WIN32
 	LPDWORD n_bytes_read_ptr;
 	if (unlikely(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), io_buf, n_bytes, n_bytes_read_ptr, nullptr) == 0))
