@@ -15,16 +15,16 @@
 template<size_t sz>
 bool write_to_stdout(uchar(&io_buf)[sz]){
 	LPDWORD n_bytes_read_ptr;
-	if (unlikely(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), io_buf, sz, n_bytes_read_ptr, nullptr) != 0))
-		return true;
-	return (*n_bytes_read_ptr == sz);
+	if (unlikely(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), io_buf, n_bytes, n_bytes_read_ptr, nullptr) == 0))
+		handler(CANNOT_WRITE_TO_STDOUT);
+	return (*n_bytes_read_ptr != n_bytes);
 }
 # define WRITE_STMT write_to_stdout(io_buf)
 template<size_t sz>
 bool read_from_stdin(uchar(&io_buf)[sz]){
 	LPDWORD n_bytes_read_ptr;
-	if (unlikely(ReadFile(GetStdHandle(STD_INPUT_HANDLE), io_buf, BYTES_PER_GRID, n_bytes_read_ptr, nullptr) != 0))
-		return true;
+	if (unlikely(ReadFile(GetStdHandle(STD_INPUT_HANDLE), io_buf, BYTES_PER_GRID, n_bytes_read_ptr, nullptr) == 0))
+		handler(CANNOT_READ_FROM_STDIN);
 	return (*n_bytes_read_ptr == BYTES_PER_GRID);
 }
 # define READ_STMT  read_from_stdin(io_buf)
