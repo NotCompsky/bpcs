@@ -38,18 +38,19 @@ size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream,  uchar io_buf[IO_BUF_SZ]){
 		bpcs_stream.get(io_buf_itr);
 		io_buf_itr += BYTES_PER_GRID;
 #ifdef ONLY_COUNT
+		if (unlikely(bpcs_stream.exhausted))
+			break;
 		count += BYTES_PER_GRID;
-#endif
+#else
 		if (unlikely((io_buf_itr == io_buf + IO_BUF_SZ) or (bpcs_stream.exhausted))){
 			const size_t n_bytes = (uintptr_t)io_buf_itr - (uintptr_t)io_buf;
-#ifndef ONLY_COUNT
 			if (unlikely(write_to_stdout(io_buf, n_bytes)))
 				handler(COULD_NOT_WRITE_ENOUGH_BYTES_TO_STDOUT);
-#endif
 			if (unlikely(bpcs_stream.exhausted))
 				break;
 			io_buf_itr = io_buf;
 		}
+#endif
 	}
 	return count;
 }
