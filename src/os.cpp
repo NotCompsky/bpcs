@@ -1,13 +1,6 @@
 #include "os.hpp"
-
-
-#define WHILE_CONDITION while(not bpcs_stream.exhausted)
-#ifdef ONLY_COUNT
-# define DO_OR_WHILE WHILE_CONDITION
-# define WHILE_OR_DO
-#else
-# define DO_OR_WHILE do
-# define WHILE_OR_DO WHILE_CONDITION;
+#ifndef _WIN32
+# include <unistd.h>
 #endif
 
 
@@ -42,20 +35,23 @@ size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream){
 	static uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
 	uchar* io_buf_itr = io_buf;
 	size_t count = 0;
-	DO_OR_WHILE {
+	while(true){
 		bpcs_stream.get(io_buf_itr);
 		io_buf_itr += BYTES_PER_GRID;
 #ifdef ONLY_COUNT
 		count += BYTES_PER_GRID;
 #endif
 		if (unlikely((io_buf_itr == io_buf + sizeof(io_buf)) or (bpcs_stream.exhausted))){
+			const size_t n_bytes = (uintptr_t)io_buf_itr - (uintptr_t)io_buf;
 #ifndef ONLY_COUNT
-			if (unlikely(WRITE_STMT))
-				break;
+			if (unlikely(write_to_stdout(io_buf, n_bytes)))
+				handler(COULD_NOT_WRITE_ENOUGH_BYTES_TO_STDOUT);
 #endif
+			if (unlikely(bpcs_stream.exhausted))
+				break;
 			io_buf_itr = io_buf;
 		}
-	} WHILE_OR_DO
+	}
 	return count;
 }
 
