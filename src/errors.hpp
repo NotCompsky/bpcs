@@ -53,6 +53,8 @@ enum {
 	
 	COULD_NOT_GET_FILE_SIZE,
 	
+	COULDNT_INIT_STD_HANDLES,
+	
 	N_ERRORS
 };
 
@@ -110,6 +112,8 @@ const char* const handler_msgs[] = {
 	"Mismatch between bytes read and written",
 	
 	"Could not get file size",
+	
+	"Could not initialise stdin and/or stdout file handles",
 	
 	""
 };

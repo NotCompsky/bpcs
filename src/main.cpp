@@ -1,6 +1,7 @@
 #include "bpcs.hpp"
 #include "os.hpp"
 #include "errors.hpp"
+#include "std_file_handles.hpp"
 #include <compsky/macros/likely.hpp>
 #define LIBCOMPSKY_NO_TESTS
 #include <compsky/deasciify/a2n.hpp>
@@ -12,6 +13,11 @@ int main(const int argc, char* argv[]){
     int i = 0;
 	if (unlikely(argc == 1))
 		handler(WRONG_ARGUMENTS_TO_PROGRAM);
+	
+  #ifdef _WIN32
+	if (unlikely((stdout_handle == nullptr) or (stdin_handle == nullptr)))
+		handler(COULDNT_INIT_STD_HANDLES);
+  #endif
 	
 #ifdef EMBEDDOR
     const bool embedding = (argv[1][0] == '-' && argv[1][1] == 'o' && argv[1][2] == 0);

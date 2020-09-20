@@ -1,6 +1,7 @@
 #include "utils.hpp" // for format_out_fp
 #include "fmt_os.hpp"
 #include "errors.hpp"
+#include "std_file_handles.hpp"
 
 #include <inttypes.h>
 #include <cerrno>
@@ -28,6 +29,11 @@ int main(const int argc,  char** argv){
     #endif
     
     char* out_fmt = NULL;
+	
+  #ifdef _WIN32
+	if (unlikely((stdout_handle == nullptr) or (stdin_handle == nullptr)))
+		handler(COULDNT_INIT_STD_HANDLES);
+  #endif
     
 	++argv;
     if (argc != 1){
