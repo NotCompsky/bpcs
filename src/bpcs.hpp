@@ -3,8 +3,9 @@
 #include "typedefs.hpp"
 #include "png.hpp"
 
-#define CONJUGATION_BIT_INDX (GRID_W * GRID_H - 1)
-#define BYTES_PER_GRID ((GRID_W * GRID_H - 1) / 8)
+#define GRID_SZ (GRID_W * GRID_H)
+#define CONJUGATION_BIT_INDX (GRID_SZ - 1)
+#define BYTES_PER_GRID ((GRID_SZ - 1) / 8)
 
 
 class BPCSStreamBuf {
@@ -73,7 +74,7 @@ class BPCSStreamBuf {
     int img_n;
     int n_imgs;
     
-	uchar grid[GRID_H * GRID_W];
+	uchar grid[GRID_SZ];
     
 	uchar* bitplane;
     

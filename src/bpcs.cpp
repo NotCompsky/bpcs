@@ -30,7 +30,7 @@ uint8_t to_cgc(const uint8_t n){
 
 
 constexpr
-unsigned get_grid_complexity(const uchar* grid){
+unsigned get_grid_complexity(const uchar grid[GRID_SZ]){
 	unsigned sum = 0;
 	
 	// Complexity of horizontal neighbours
