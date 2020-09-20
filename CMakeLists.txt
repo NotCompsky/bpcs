@@ -19,7 +19,7 @@ set(N_CHANNELS 3 CACHE STRING "Number of colour channels in each image")
 set(MAX_BIT_DEPTH 32 CACHE STRING "Maximum bit-depth of images used. There is not much performance loss from higher values.")
 set(MAX_FILE_PATH_LEN 1024 CACHE STRING "Maximum file path length")
 
-set(COMPILER_FLAGS "-Os -s -frename-registers -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations")
+set(COMPILER_FLAGS "-Os -s -frename-registers -fgcse-las -fno-stack-protector -funsafe-loop-optimizations -Wunsafe-loop-optimizations -Wno-trigraphs")
 set(LINKER_FLAGS "-s")
 if(NATIVE_MARCH)
 	set(COMPILER_FLAGS "${COMPILER_FLAGS} -march=native")
