@@ -35,13 +35,14 @@ size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream,  uchar io_buf[IO_BUF_SZ]){
 	uchar* io_buf_itr = io_buf;
 	size_t count = 0;
 	while(true){
-		bpcs_stream.get(io_buf_itr);
-		io_buf_itr += BYTES_PER_GRID;
 #ifdef ONLY_COUNT
 		if (unlikely(bpcs_stream.exhausted))
 			break;
 		count += BYTES_PER_GRID;
-#else
+#endif
+		bpcs_stream.get(io_buf_itr);
+		io_buf_itr += BYTES_PER_GRID;
+#ifndef ONLY_COUNT
 		if (unlikely((io_buf_itr == io_buf + IO_BUF_SZ) or (bpcs_stream.exhausted))){
 			const size_t n_bytes = (uintptr_t)io_buf_itr - (uintptr_t)io_buf;
 			if (unlikely(write_to_stdout(io_buf, n_bytes)))
