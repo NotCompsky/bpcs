@@ -40,7 +40,7 @@ size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream,  uchar io_buf[IO_BUF_SZ]){
 #ifdef ONLY_COUNT
 		count += BYTES_PER_GRID;
 #endif
-		if (unlikely((io_buf_itr == io_buf + sizeof(io_buf)) or (bpcs_stream.exhausted))){
+		if (unlikely((io_buf_itr == io_buf + IO_BUF_SZ) or (bpcs_stream.exhausted))){
 			const size_t n_bytes = (uintptr_t)io_buf_itr - (uintptr_t)io_buf;
 #ifndef ONLY_COUNT
 			if (unlikely(write_to_stdout(io_buf, n_bytes)))
