@@ -5,16 +5,16 @@
 
 
 #ifdef _WIN32
-template<size_t sz>
-bool write_to_stdout(uchar(&io_buf)[sz]){
+bool write_to_stdout(uchar io_buf[IO_BUF_SZ],  const size_t n_bytes){
 	LPDWORD n_bytes_read_ptr;
 	if (unlikely(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), io_buf, n_bytes, n_bytes_read_ptr, nullptr) == 0))
 		handler(CANNOT_WRITE_TO_STDOUT);
 	return (*n_bytes_read_ptr != n_bytes);
 }
 # define WRITE_STMT write_to_stdout(io_buf)
-template<size_t sz>
-bool read_from_stdin(uchar(&io_buf)[sz]){
+
+
+bool read_from_stdin(uchar io_buf[IO_BUF_SZ]){
 	LPDWORD n_bytes_read_ptr;
 	if (unlikely(ReadFile(GetStdHandle(STD_INPUT_HANDLE), io_buf, BYTES_PER_GRID, n_bytes_read_ptr, nullptr) == 0))
 		handler(CANNOT_READ_FROM_STDIN);
@@ -31,8 +31,7 @@ bool read_from_stdin(uchar(&io_buf)[sz]){
 namespace os {
 
 
-size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream){
-	static uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
+size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream,  uchar io_buf[IO_BUF_SZ]){
 	uchar* io_buf_itr = io_buf;
 	size_t count = 0;
 	while(true){
@@ -57,8 +56,7 @@ size_t extract_to_stdout(BPCSStreamBuf& bpcs_stream){
 
 
 #ifdef EMBEDDOR
-void embed_from_stdin(BPCSStreamBuf& bpcs_stream){
-	static uchar io_buf[((1024 * 64) / BYTES_PER_GRID) * BYTES_PER_GRID]; // Ensure it is divisible by BYTES_PER_GRID
+void embed_from_stdin(BPCSStreamBuf& bpcs_stream,  uchar io_buf[IO_BUF_SZ]){
 	uchar* io_buf_itr = io_buf;
 	while (likely(READ_STMT)){
 		// TODO: Optimise

@@ -7,6 +7,8 @@
 
 
 int main(const int argc, char* argv[]){
+	static uchar io_buf[IO_BUF_SZ];
+	
     int i = 0;
 	if (unlikely(argc == 1))
 		handler(WRONG_ARGUMENTS_TO_PROGRAM);
@@ -36,10 +38,10 @@ int main(const int argc, char* argv[]){
 #ifdef EMBEDDOR
   if (!embedding){
 #endif
-	const size_t count = os::extract_to_stdout(bpcs_stream);
+	const size_t count = os::extract_to_stdout(bpcs_stream, io_buf);
 #ifdef EMBEDDOR
   } else {
-	os::embed_from_stdin(bpcs_stream);
+	os::embed_from_stdin(bpcs_stream, io_buf);
   }
 #endif
 #ifdef ONLY_COUNT
