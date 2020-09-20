@@ -23,6 +23,7 @@ enum {
 	IMAGE_IS_NOT_RGB,
 	WRONG_NUMBER_OF_CHANNELS,
 	WRONG_ARGUMENTS_TO_PROGRAM,
+	COULD_NOT_WRITE_ENOUGH_BYTES_TO_STDOUT,
 	
 	FP_STR_IS_EMPTY,
 	COULD_NOT_STAT_FILE,
@@ -79,6 +80,7 @@ const char* const handler_msgs[] = {
 	"Image is not RGB",
 	"Wrong number of colour channels in image",
 	"Wrong arguments given to this program - reference the manual",
+	"Could not write enough bytes to stdout",
 	
 	"fp_str is empty",
 	"Could not stat file",
