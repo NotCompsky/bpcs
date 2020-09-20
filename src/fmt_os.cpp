@@ -1,6 +1,5 @@
 #include "fmt_os.hpp"
 #include "errors.hpp"
-#include "std_file_handles.hpp"
 #include <cerrno>
 
 #ifdef _WIN32
@@ -14,10 +13,11 @@
 
 #ifdef _WIN32
 static const char path_sep = '\\';
-constexpr HANDLE INVALID_HANDLE_VALUE2 = INVALID_HANDLE_VALUE;
+constexpr FILE* INVALID_HANDLE_VALUE1 = nullptr;
+constexpr FILE* INVALID_HANDLE_VALUE2 = nullptr;
 #else
 static const char path_sep = '/';
-constexpr int INVALID_HANDLE_VALUE  = -1;
+constexpr int INVALID_HANDLE_VALUE1 = -1;
 constexpr int INVALID_HANDLE_VALUE2 = 0;
 #endif
 
@@ -58,7 +58,7 @@ bool mkdir_path_between_pointers(char* const start,  char* const end){
 
 fout_typ create_file(const char* const file_path){
   #ifdef _WIN32
-	return CreateFileA(file_path,  GENERIC_WRITE,  0,  nullptr,  CREATE_ALWAYS,  FILE_ATTRIBUTE_NORMAL,  nullptr);
+	return fopen(file_path, "wb");
   #else
 	return open(file_path,  O_WRONLY | O_CREAT,  S_IRUSR | S_IWUSR | S_IXUSR);
   #endif
@@ -67,7 +67,7 @@ fout_typ create_file(const char* const file_path){
 
 fout_typ open_file_for_reading(const char* const file_path){
   #ifdef _WIN32
-	return CreateFileA(file_path,  GENERIC_READ,  0,  nullptr,  OPEN_EXISTING,  FILE_ATTRIBUTE_NORMAL,  nullptr);
+	return fopen(file_path, "rb");
   #else
 	return open(file_path, O_RDONLY);
   #endif
@@ -76,7 +76,7 @@ fout_typ open_file_for_reading(const char* const file_path){
 
 void close_file_handle(const fout_typ fd){
   #ifdef _WIN32
-	CloseHandle(fd);
+	fclose(fd);
   #else
 	close(fd);
   #endif
@@ -93,7 +93,7 @@ fout_typ create_file_with_parent_dirs(char* const file_path,  const size_t file_
 	
 	fout_typ fd = create_file(file_path);
 	
-	if (likely(fd != INVALID_HANDLE_VALUE))
+	if (likely(fd != INVALID_HANDLE_VALUE1))
 		// File successfully created
 		return fd;
   #ifdef _WIN32
@@ -130,10 +130,9 @@ void read_exact_number_of_bytes_from_stdin(char* const buf,  const size_t n){
 	size_t offset = 0;
 	do {
 	  #ifdef _WIN32
-		DWORD n_bytes_read;
-		if (unlikely(ReadFile(stdin_handle,  buf + offset,  n - offset,  &n_bytes_read,  nullptr) == 0))
+		if (unlikely(fread(buf + offset,  n - offset,  1,  stdin) != 1))
 			handler(CANNOT_READ_FROM_STDIN);
-		offset += n_bytes_read;
+		offset = n;
 	  #else
 		offset += read(STDIN_FILENO,  buf + offset,  n - offset);
 	  #endif
@@ -144,10 +143,9 @@ void read_exact_number_of_bytes_from_stdin(char* const buf,  const size_t n){
 void write_exact_number_of_bytes_to_stdout(char* const buf,  size_t n){
 	do {
 	  #ifdef _WIN32
-		DWORD n_bytes_read;
-		if (unlikely(WriteFile(stdout_handle,  buf,  n,  &n_bytes_read,  nullptr) == 0))
+		if (unlikely(fwrite(buf,  n,  1,  stdout) != 1))
 			handler(CANNOT_WRITE_TO_STDOUT);
-		n -= n_bytes_read;
+		n = 0;
 	  #else
 		n -= write(STDOUT_FILENO, buf, n);
 	  #endif
@@ -156,7 +154,7 @@ void write_exact_number_of_bytes_to_stdout(char* const buf,  size_t n){
 
 
 #ifdef _WIN32
-void win__transfer_data_between_files(HANDLE in,  HANDLE out,  size_t n_bytes){
+void win__transfer_data_between_files(fout_typ in,  fout_typ out,  size_t n_bytes){
 	do {
 		static char buf[1024 * 64];
 		
@@ -164,15 +162,10 @@ void win__transfer_data_between_files(HANDLE in,  HANDLE out,  size_t n_bytes){
 		if (n_bytes_to_transfer > n_bytes)
 			n_bytes_to_transfer = n_bytes;
 		
-		DWORD n_bytes_read;
-		if (unlikely(ReadFile(in,  buf,  n_bytes_to_transfer,  &n_bytes_read,  nullptr) == 0))
+		if (unlikely(fread(buf, n_bytes_to_transfer, 1, in) != 1))
 			handler(CANNOT_READ_FROM_STDIN);
-		DWORD n_bytes_written;
-		if (unlikely(WriteFile(out,  buf,  n_bytes_to_transfer,  &n_bytes_written,  nullptr) == 0))
+		if (unlikely(fwrite(buf, n_bytes_to_transfer, 1, out) != 0))
 			handler(CANNOT_WRITE_TO_STDOUT);
-		
-		if (unlikely((n_bytes_read != n_bytes_to_transfer) or (n_bytes_written != n_bytes_to_transfer)))
-			handler(MISMATCH_BETWEEN_BYTES_READ_AND_WRITTEN);
 		
 		n_bytes -= n_bytes_to_transfer;
 	} while (n_bytes != 0);
@@ -185,7 +178,7 @@ void sendfile_from_file_to_stdout(const char* const fp,  const size_t n_bytes){
 	if (unlikely(msg_file == INVALID_HANDLE_VALUE2))
 		handler(CANNOT_OPEN_FILE);
   #ifdef _WIN32
-	win__transfer_data_between_files(msg_file, stdout_handle, n_bytes);
+	win__transfer_data_between_files(msg_file, stdout, n_bytes);
   #else
 	const auto rc5 = sendfile(STDOUT_FILENO, msg_file, nullptr, n_bytes);
 	if (unlikely(rc5 == -1))
@@ -197,7 +190,7 @@ void sendfile_from_file_to_stdout(const char* const fp,  const size_t n_bytes){
 
 void splice_from_stdin_to_fd(const fout_typ fout,  const size_t n_bytes){
   #ifdef _WIN32
-	win__transfer_data_between_files(stdin_handle, fout, n_bytes);
+	win__transfer_data_between_files(stdin, fout, n_bytes);
   #else
 	loff_t n_bytes_written = 0;
 	size_t n_bytes_yet_to_write = n_bytes;
@@ -230,11 +223,13 @@ void splice_from_stdin_to_fd(const fout_typ fout,  const size_t n_bytes){
 #ifdef EMBEDDOR
 size_t get_file_sz(const char* const fp){
   #ifdef _WIN32
-	HANDLE const f = open_file_for_reading(fp);
+	HANDLE const f = CreateFileA(fp,  GENERIC_READ,  0,  nullptr,  OPEN_EXISTING,  FILE_ATTRIBUTE_NORMAL,  nullptr);
+	if (unlikely(f == INVALID_HANDLE_VALUE))
+		handler(CANNOT_CREATE_FILE);
 	_LARGE_INTEGER f_sz; // For x86_32 compatibility
 	if (unlikely(GetFileSizeEx(f, &f_sz) == 0))
 		handler(COULD_NOT_GET_FILE_SIZE);
-	close_file_handle(f);
+	CloseHandle(f);
 	return f_sz.QuadPart;
   #else
 	static struct stat stat_buf;

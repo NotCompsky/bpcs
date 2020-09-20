@@ -1,10 +1,12 @@
 #include "bpcs.hpp"
 #include "os.hpp"
 #include "errors.hpp"
-#include "std_file_handles.hpp"
 #include <compsky/macros/likely.hpp>
 #define LIBCOMPSKY_NO_TESTS
 #include <compsky/deasciify/a2n.hpp>
+#ifdef _WIN32
+# include <fcntl.h> // for O_BINARY
+#endif
 
 
 int main(const int argc, char* argv[]){
@@ -15,8 +17,7 @@ int main(const int argc, char* argv[]){
 		handler(WRONG_ARGUMENTS_TO_PROGRAM);
 	
   #ifdef _WIN32
-	if (unlikely((stdout_handle == nullptr) or (stdin_handle == nullptr)))
-		handler(COULDNT_INIT_STD_HANDLES);
+	setmode(fileno(stdout), O_BINARY);
   #endif
 	
 #ifdef EMBEDDOR

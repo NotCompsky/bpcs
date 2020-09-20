@@ -1,5 +1,4 @@
 #include "os.hpp"
-#include "std_file_handles.hpp"
 #ifndef _WIN32
 # include <unistd.h>
 #endif
@@ -7,14 +6,7 @@
 
 bool write_to_stdout(const uchar io_buf[IO_BUF_SZ],  const size_t n_bytes){
   #ifdef _WIN32
-	LPDWORD n_bytes_read_ptr;
-	if (unlikely(WriteFile(stdout_handle, io_buf, n_bytes, n_bytes_read_ptr, nullptr) == 0))
-		handler(CANNOT_WRITE_TO_STDOUT);
-	if (unlikely(FlushFileBuffers(stdout_handle) == 0)){
-		log(GetLastError());
-		handler(CANNOT_FLUSH_STDOUT);
-	}
-	return (*n_bytes_read_ptr != n_bytes);
+	return (unlikely(fwrite(io_buf, n_bytes, 1, stdout) != 1));
   #else
 	return (write(STDOUT_FILENO, io_buf, n_bytes) != n_bytes);
   #endif
@@ -23,10 +15,7 @@ bool write_to_stdout(const uchar io_buf[IO_BUF_SZ],  const size_t n_bytes){
 
 bool read_from_stdin(uchar io_buf[IO_BUF_SZ]){
   #ifdef _WIN32
-	LPDWORD n_bytes_read_ptr;
-	if (unlikely(ReadFile(stdin_handle, io_buf, BYTES_PER_GRID, n_bytes_read_ptr, nullptr) == 0))
-		handler(CANNOT_READ_FROM_STDIN);
-	return (*n_bytes_read_ptr != BYTES_PER_GRID);
+	return (unlikely(fread(io_buf, BYTES_PER_GRID, 1, stdin) != 1));
   #else
 	return (read(STDIN_FILENO, io_buf, BYTES_PER_GRID) != BYTES_PER_GRID);
   #endif

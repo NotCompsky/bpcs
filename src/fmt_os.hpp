@@ -5,12 +5,13 @@
 
 #ifdef _WIN32
 # include <windows.h>
-typedef HANDLE fout_typ;
-# define STDOUT_DESCR GetStdHandle(STD_OUTPUT_HANDLE);
+# include <cstdio>
+typedef FILE* fout_typ;
+# define STDOUT_DESCR stdout
 #else
 # include <unistd.h> // for STDOUT_FILENO
 typedef int fout_typ;
-# define STDOUT_DESCR STDOUT_FILENO;
+constexpr fout_typ STDOUT_DESCR = STDOUT_FILENO;
 #endif
 
 
