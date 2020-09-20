@@ -48,6 +48,7 @@ enum {
 	
 	CANNOT_READ_FROM_STDIN,
 	CANNOT_WRITE_TO_STDOUT,
+	CANNOT_FLUSH_STDOUT,
 	MISMATCH_BETWEEN_BYTES_READ_AND_WRITTEN,
 	
 	COULD_NOT_GET_FILE_SIZE,
@@ -105,6 +106,7 @@ const char* const handler_msgs[] = {
 	
 	"Cannot read from stdin",
 	"Cannot write to stdout",
+	"Cannot flush stdout",
 	"Mismatch between bytes read and written",
 	
 	"Could not get file size",

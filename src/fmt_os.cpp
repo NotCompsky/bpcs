@@ -1,5 +1,6 @@
 #include "fmt_os.hpp"
 #include "errors.hpp"
+#include "std_file_handles.hpp"
 #include <cerrno>
 
 #ifdef _WIN32
@@ -130,7 +131,7 @@ void read_exact_number_of_bytes_from_stdin(char* const buf,  const size_t n){
 	do {
 	  #ifdef _WIN32
 		DWORD n_bytes_read;
-		if (unlikely(ReadFile(GetStdHandle(STD_INPUT_HANDLE),  buf + offset,  n - offset,  &n_bytes_read,  nullptr) == 0))
+		if (unlikely(ReadFile(stdin_handle,  buf + offset,  n - offset,  &n_bytes_read,  nullptr) == 0))
 			handler(CANNOT_READ_FROM_STDIN);
 		offset += n_bytes_read;
 	  #else
@@ -144,7 +145,7 @@ void write_exact_number_of_bytes_to_stdout(char* const buf,  size_t n){
 	do {
 	  #ifdef _WIN32
 		DWORD n_bytes_read;
-		if (unlikely(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),  buf,  n,  &n_bytes_read,  nullptr) == 0))
+		if (unlikely(WriteFile(stdout_handle,  buf,  n,  &n_bytes_read,  nullptr) == 0))
 			handler(CANNOT_WRITE_TO_STDOUT);
 		n -= n_bytes_read;
 	  #else
@@ -184,7 +185,7 @@ void sendfile_from_file_to_stdout(const char* const fp,  const size_t n_bytes){
 	if (unlikely(msg_file == INVALID_HANDLE_VALUE2))
 		handler(CANNOT_OPEN_FILE);
   #ifdef _WIN32
-	win__transfer_data_between_files(msg_file, GetStdHandle(STD_OUTPUT_HANDLE), n_bytes);
+	win__transfer_data_between_files(msg_file, stdout_handle, n_bytes);
   #else
 	const auto rc5 = sendfile(STDOUT_FILENO, msg_file, nullptr, n_bytes);
 	if (unlikely(rc5 == -1))
@@ -196,7 +197,7 @@ void sendfile_from_file_to_stdout(const char* const fp,  const size_t n_bytes){
 
 void splice_from_stdin_to_fd(const fout_typ fout,  const size_t n_bytes){
   #ifdef _WIN32
-	win__transfer_data_between_files(GetStdHandle(STD_INPUT_HANDLE), fout, n_bytes);
+	win__transfer_data_between_files(stdin_handle, fout, n_bytes);
   #else
 	loff_t n_bytes_written = 0;
 	size_t n_bytes_yet_to_write = n_bytes;
