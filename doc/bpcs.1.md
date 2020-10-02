@@ -25,7 +25,7 @@ Efficient steganographic tool using the BPCS method, using generic PNG images.
 # ARGUMENTS
 
 *threshold*
-:   A non-negative integer representing the complexity threshold for each grid. For a grid that is 9x9, the maximum threshold is 2*8*9==144, and a sensible threshold value is usually in the 50s.
+:   A non-negative integer representing the complexity threshold for each grid. For a grid that is 9x9, the maximum threshold is `2 x 8 x 9 == 144`, and a sensible threshold value is usually around half the maximum grid complexity (for a 9x9 grid, that would be 72).
 
 *vessel_image_path(s)*
 :   File path(s) of images that transport the message data.
@@ -51,46 +51,46 @@ Efficient steganographic tool using the BPCS method, using generic PNG images.
 
 In descending order of usefulness.
 
-`bpcs-fmt -m msg1.txt | bpcs -o '{basename}1.png' 1 foo.png`
-:   Embed 'msg.txt' into 'foo.png', with a complexity threshold of 51, and write the resulting transporting image to foo1.png
+`bpcs-fmt -m msg1.txt | bpcs -o '{basename}1.png' 71 foo.png`
+:   Embed 'msg.txt' into 'foo.png', with a complexity threshold of 71, and write the resulting transporting image to foo1.png
 
-`bpcs-fmt -m msg1.txt | openssl enc -e -aes-256-cbc -salt | bpcs -o '{basename}1.png' 1 foo.png`
-:   Embed 'msg.txt' (with both its contents and metadata encrypted) into 'foo.png', with a complexity threshold of 51, and write the resulting transporting image to foo1.png
+`bpcs-fmt -m msg1.txt | openssl enc -e -aes-256-cbc -salt | bpcs -o '{basename}1.png' 71 foo.png`
+:   Embed 'msg.txt' (with both its contents and metadata encrypted) into 'foo.png', with a complexity threshold of 71, and write the resulting transporting image to foo1.png
 
-`bpcs 1 foo1.png | bpcs-fmt -o '{fname}'`
+`bpcs 71 foo1.png | bpcs-fmt -o '{fname}'`
 :   For each file content found embedded in foo1.png, extract it to the original file name (the name of the embedded file). If using foo.png from above, it would result in writing msg1.txt's contents to msg1.txt.
 
-`bpcs 1 foo1.png | openssl enc -e -aes-256-cbc -salt -d 2>/dev/null | bpcs-fmt -o '{fname}'`
+`bpcs 71 foo1.png | openssl enc -e -aes-256-cbc -salt -d 2>/dev/null | bpcs-fmt -o '{fname}'`
 :   Decrypts the data extracted from foo1.png and then, for each file content found, extract it to the original file name (the name of the embedded file). If using foo.png from above, it would result in writing msg1.txt's contents to msg1.txt.
     We ignore openssl's stderr output, as it will most likely complain about junk data.
 
-`bpcs 1 foo1.png | bpcs-fmt > msg1.txt`
+`bpcs 71 foo1.png | bpcs-fmt > msg1.txt`
 :   Extract all the embedded file content of foo1.png, and pipe it to msg1.txt. Note that this does not include the embedded files' names. If using foo.png from above, it would have the same result as the previous command.
 
-`bpcs-fmt -m msg1.txt msg2.txt | bpcs -o '{basename}12.png' 1 foo.png`
-:   Embed two text files into 'foo.png', with a complexity threshold of 51, and write the resulting transporting image to foo12.png
+`bpcs-fmt -m msg1.txt msg2.txt | bpcs -o '{basename}12.png' 71 foo.png`
+:   Embed two text files into 'foo.png', with a complexity threshold of 71, and write the resulting transporting image to foo12.png
 
-`bpcs 1 foo12.png | bpcs-fmt -o 'extracted/{fname}'`
+`bpcs 71 foo12.png | bpcs-fmt -o 'extracted/{fname}'`
 :   Extract from foo12.png, and stream each individual file found within it to files in the current directory that preserve the names the files were embedded with. So with the previous example, it would extract the files 'msg1.txt' and 'msg2.txt', and send them to 'extracted/msg1.txt' and 'extracted/msg2.txt' respectively.
 
-`bpcs-fmt -m firefox.exe | bpcs -o 'ff.{basename}.png' 1 foo.png bar.png ipsum.png`
-:   Embed 'firefox.exe' into three PNGs in series, with a complexity threshold of 51, and write the resulting transporting images to ff.foo.png, ff.bar.png, and ff.ipsum.png (the latter two only created if necessary).
+`bpcs-fmt -m firefox.exe | bpcs -o 'ff.{basename}.png' 71 foo.png bar.png ipsum.png`
+:   Embed 'firefox.exe' into three PNGs in series, with a complexity threshold of 71, and write the resulting transporting images to ff.foo.png, ff.bar.png, and ff.ipsum.png (the latter two only created if necessary).
 
-`bpcs 1 ff.foo.png ff.bar.png ff.ipsum.png | bpcs-fmt > firefox.exe`
+`bpcs 71 ff.foo.png ff.bar.png ff.ipsum.png | bpcs-fmt > firefox.exe`
 :   Extract from these vessel images, and stream the extracted data to ./firefox.exe
 
 # UNUSUAL USES
 
-`tar -czf0 /tmp/messages/*.pdf | bpcs -o '/tmp/vessels/{fname}' 1 /tmp/img/*.png`
+`tar -czf0 /tmp/messages/*.pdf | bpcs -o '/tmp/vessels/{fname}' 71 /tmp/img/*.png`
 :   Create tarball and embed into vessel images.
 
-`bpcs 1 /tmp/vessels/*.png | tar -zxf -`
+`bpcs 71 /tmp/vessels/*.png | tar -zxf -`
 :   Extract and untar from the vessel images created in the previous example. If your version of tar complains about the extra 'padding' bytes bpcs produces, pipe through bpcs-fmt as normal in this and the above examples.
 
-`bpcs 1 foo.png | bpcs-fmt | vlc -`
+`bpcs 71 foo.png | bpcs-fmt | vlc -`
 :   Extract from foo.png and pipe to VLC
 
-`(mkfifo dummy.pipe && bpcs 1 foo.png | bpcs-fmt > dummy.pipe && bpcs-fmt -m dummy.pipe | bpcs -o '{fname}' 1 foo.png)& typed-piper dummy.pipe`
+`(mkfifo dummy.pipe && bpcs 71 foo.png | bpcs-fmt > dummy.pipe && bpcs-fmt -m dummy.pipe | bpcs -o '{fname}' 71 foo.png)& typed-piper dummy.pipe`
 :   This will extract the embedded contents of foo.png, pipe it to dummy.pipe, whereupon it will be opened by the 'typed-piper' text editor and available for editing. Upon saving, the edited contents will be piped back to dummy.pipe, and embedded back into foo.png, overwriting it.
 
 # COMMON MISTAKES
