@@ -3,8 +3,10 @@ WORKDIR /bpcs
 COPY CMakeLists.txt /bpcs/CMakeLists.txt
 COPY src /bpcs/src
 ARG target=linux-x64
-RUN mkdir -p /usr/local/include/compsky/macros \
+RUN git clone --depth 1 https://github.com/NotCompsky/libcompsky \
+	&& mv libcompsky/include/compsky /usr/local/include/compsky \
 	&& curl -sL https://raw.githubusercontent.com/NotCompsky/libcompsky/master/include/compsky/macros/likely.hpp > /usr/local/include/compsky/macros/likely.hpp \
+	&& curl -sL 
 	\
 	&& mkdir /bpcs/build \
 	&& mkdir /bpcs-bin \
