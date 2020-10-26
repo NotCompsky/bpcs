@@ -69,7 +69,7 @@ This was my first taste of C++. I had only fleeting experience with C from writi
 
 # LICENSE
 
-[GPLv3](LICENSE)
+[AGPLv3](LICENSE)
 
 # BENCHMARKS
 
