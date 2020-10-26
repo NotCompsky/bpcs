@@ -24,7 +24,7 @@ The main draw of this method is the efficiency of data embedding. With sensible 
 
 # COMPATIBILITY
 
-The code assumes a UNIX-like operating system. It will work on any Linux platform except Linux kernel 2.6.x series before Linux 2.6.33, due to the use of `sendfile`. BSD and MacOS I have not tested, however they appear to implement `sendfile` and `splice` too, so they should be fine.
+The code should work on Windows and all modern UNIX platforms. Windows has slightly more overhead due to lacking several kernel features (`sendfile` and `splice`). BSD and MacOS have not been tested, however they should be fine, and if not a workaround will be easy to implement.
 
 # IMPLEMENTATION
 
